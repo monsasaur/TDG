@@ -566,7 +566,7 @@ curl https://your-api.onrender.com/api/v1/events \
 | [ชื่อ] | [@username](https://github.com) | Mobile App (React Native) |
 
 **สถาบัน:** Bangkok university
-**ภาควิชา:** [ชื่อภาควิชา]
+**ภาควิชา:** computer science
 **ปีการศึกษา:** 2567
 
 ---
