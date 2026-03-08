@@ -560,13 +560,13 @@ curl https://your-api.onrender.com/api/v1/events \
 
 | ชื่อ | GitHub | หน้าที่ |
 |------|--------|---------|
-| peerawoot nutkerd| [@pls2s](https://github.com/pls2s)| ESP32 Firmware & CSI Data Collection |
+| [ชื่อ] | [@username](https://github.com) | ESP32 Firmware & CSI Data Collection |
 | [ชื่อ] | [@username](https://github.com) | Backend API (Node.js) |
-| peerawoot nutkerd| [@pls2s](https://github.com/pls2s)|ML Model (LSTM) & Python Service |
+| [ชื่อ] | [@username](https://github.com) | ML Model (LSTM) & Python Service |
 | [ชื่อ] | [@username](https://github.com) | Mobile App (React Native) |
 
-**สถาบัน:** Bangkok university
-**ภาควิชา:** computer science
+**สถาบัน:** [ชื่อมหาวิทยาลัย]
+**ภาควิชา:** [ชื่อภาควิชา]
 **ปีการศึกษา:** 2567
 
 ---
