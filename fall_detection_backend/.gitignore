@@ -1,0 +1,46 @@
+# ===== SECRETS =====
+**/.env
+**/config.h
+
+# ===== MODEL BINARIES =====
+**/models/*.h5
+**/models/*.keras
+**/models/*.tflite
+**/models/*.pkl
+# Keep training output (images, reports)
+!**/models/*.png
+!**/models/*.json
+
+# ===== DATA =====
+**/data/raw/
+**/data/processed/
+**/data/processed_v2/
+**/data/processed_transfer/
+**/data/UT_HAR/
+**/data/wall_test/
+
+# ===== NODE =====
+**/node_modules/
+**/npm-debug.log*
+
+# ===== PYTHON =====
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.venv/
+**/venv/
+**/*.egg-info/
+**/dist/
+**/.pytest_cache/
+
+# ===== JUPYTER =====
+**/.ipynb_checkpoints/
+
+# ===== ESP32 =====
+**/.pio/
+**/build/
+**/.vscode/
+
+# ===== OS =====
+**/.DS_Store
+**/Thumbs.db

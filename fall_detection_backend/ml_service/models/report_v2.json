@@ -1,0 +1,55 @@
+{
+  "created_at": "2026-03-13T01:01:08.047885",
+  "n_classes": 4,
+  "class_names": [
+    "fall_A",
+    "fall_B",
+    "fall_C",
+    "non_fall"
+  ],
+  "sequence_len": 10,
+  "n_features": 416,
+  "train_samples": 5630,
+  "val_samples": 1207,
+  "test_samples": 1207,
+  "test_accuracy": 0.9287489643744822,
+  "class_report": {
+    "fall_A": {
+      "precision": 0.9741935483870968,
+      "recall": 1.0,
+      "f1-score": 0.9869281045751634,
+      "support": 302.0
+    },
+    "fall_B": {
+      "precision": 0.926984126984127,
+      "recall": 0.9700996677740864,
+      "f1-score": 0.948051948051948,
+      "support": 301.0
+    },
+    "fall_C": {
+      "precision": 0.9061371841155235,
+      "recall": 0.8311258278145696,
+      "f1-score": 0.8670120898100173,
+      "support": 302.0
+    },
+    "non_fall": {
+      "precision": 0.9049180327868852,
+      "recall": 0.9139072847682119,
+      "f1-score": 0.9093904448105437,
+      "support": 302.0
+    },
+    "accuracy": 0.9287489643744822,
+    "macro avg": {
+      "precision": 0.9280582230684081,
+      "recall": 0.9287831950892169,
+      "f1-score": 0.9278456468119182,
+      "support": 1207.0
+    },
+    "weighted avg": {
+      "precision": 0.9280591129574589,
+      "recall": 0.9287489643744822,
+      "f1-score": 0.9278289058829704,
+      "support": 1207.0
+    }
+  }
+}

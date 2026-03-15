@@ -1,0 +1,35 @@
+# Secrets
+.env
+
+# Data (raw CSI + processed numpy — too large for git)
+data/raw/
+data/processed/
+data/processed_v2/
+data/processed_transfer/
+data/UT_HAR/
+data/wall_test/
+
+# Model binary files (must be obtained separately)
+models/*.h5
+models/*.keras
+models/*.tflite
+models/*.pkl
+
+# Keep training output (images, reports) — tracked via negation
+!models/*.png
+!models/*.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
