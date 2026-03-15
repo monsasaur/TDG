@@ -1,0 +1,45 @@
+{
+  "created_at": "2026-03-13T15:09:44.850111",
+  "version": "v3",
+  "n_classes": 2,
+  "class_names": [
+    "fall",
+    "non_fall"
+  ],
+  "sequence_len": 10,
+  "n_features": 416,
+  "trim_packets": 300,
+  "trim_seconds": 3,
+  "train_samples": 868,
+  "val_samples": 187,
+  "test_samples": 187,
+  "test_accuracy": 0.9786096256684492,
+  "fall_recall": 0.9850746268656716,
+  "class_report": {
+    "fall": {
+      "precision": 0.9850746268656716,
+      "recall": 0.9850746268656716,
+      "f1-score": 0.9850746268656716,
+      "support": 134.0
+    },
+    "non_fall": {
+      "precision": 0.9622641509433962,
+      "recall": 0.9622641509433962,
+      "f1-score": 0.9622641509433962,
+      "support": 53.0
+    },
+    "accuracy": 0.9786096256684492,
+    "macro avg": {
+      "precision": 0.9736693889045339,
+      "recall": 0.9736693889045339,
+      "f1-score": 0.9736693889045339,
+      "support": 187.0
+    },
+    "weighted avg": {
+      "precision": 0.9786096256684492,
+      "recall": 0.9786096256684492,
+      "f1-score": 0.9786096256684492,
+      "support": 187.0
+    }
+  }
+}
