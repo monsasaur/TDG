@@ -9,9 +9,23 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Middle ต้องการเข้าถึงตำแหน่งของคุณเพื่อระบุตำแหน่งเมื่อเกิดเหตุฉุกเฉิน",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Middle ต้องการเข้าถึงตำแหน่งของคุณเพื่อระบุตำแหน่งเมื่อเกิดเหตุฉุกเฉิน",
+        "NSBluetoothAlwaysUsageDescription": "Middle ต้องการเชื่อมต่อกับอุปกรณ์ใกล้เคียงเพื่อตรวจจับการล้ม",
+        "NSBluetoothPeripheralUsageDescription": "Middle ต้องการเชื่อมต่อกับอุปกรณ์ใกล้เคียงเพื่อตรวจจับการล้ม"
+      }
     },
     "android": {
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "BLUETOOTH_CONNECT",
+        "BLUETOOTH_SCAN",
+        "BLUETOOTH_ADVERTISE",
+        "POST_NOTIFICATIONS"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

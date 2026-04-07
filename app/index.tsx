@@ -1,65 +1,60 @@
-import { useEffect, useState } from "react";
-import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
+import { useEffect } from "react";
+import { View, StyleSheet } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withDelay,
+  Easing,
+} from "react-native-reanimated";
+import { useRouter } from "expo-router";
+import SpinningLogo from "../components/SpinningLogo";
 
-export default function HomeScreen() {
-  const [devices, setDevices] = useState<any[]>([]);
+const RING_SIZE = 280;
 
-  const fetchData = () => {
-    fetch("http://localhost:3000/api/devices")
-      .then((res) => res.json())
-      .then((data) => setDevices(data))
-      .catch((err) => console.log(err));
-  };
+export default function SplashScreen() {
+  const router = useRouter();
+
+  const bgOpacity = useSharedValue(0);
+  const ringScale = useSharedValue(0);
+  const ringOpacity = useSharedValue(0);
 
   useEffect(() => {
-    fetchData(); // โหลดครั้งแรก
+    bgOpacity.value = withDelay(
+      600,
+      withTiming(1, { duration: 500, easing: Easing.inOut(Easing.ease) })
+    );
+
+    ringOpacity.value = withDelay(1100, withTiming(1, { duration: 400 }));
+    ringScale.value = withDelay(
+      1100,
+      withTiming(1, { duration: 700, easing: Easing.out(Easing.back(1.2)) })
+    );
+
+    const timeout = setTimeout(() => {
+      router.replace("/welcome" as any);
+    }, 5000);
+
+    return () => clearTimeout(timeout);
   }, []);
 
+  const bgStyle = useAnimatedStyle(() => ({
+    backgroundColor: `rgba(249, 236, 237, ${bgOpacity.value})`,
+  }));
+
+  const containerStyle = useAnimatedStyle(() => ({
+    opacity: ringOpacity.value,
+    transform: [{ scale: ringScale.value }],
+  }));
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>TRUE IoT Devices</Text>
-
-      {/* 🔄 ปุ่ม Reload */}
-      <TouchableOpacity style={styles.button} onPress={fetchData}>
-        <Text style={styles.buttonText}>Reload Data</Text>
-      </TouchableOpacity>
-
-      {devices.map((device) => (
-        <View key={device.id} style={styles.card}>
-          <Text>{device.name}</Text>
-          <Text>Status: {device.status}</Text>
-          <Text>Value: {device.value}</Text>
-        </View>
-      ))}
+    <View className="flex-1 bg-white">
+      <Animated.View style={[StyleSheet.absoluteFillObject, bgStyle]} />
+      <View className="flex-1 justify-center items-center">
+        <Animated.View style={containerStyle}>
+          <SpinningLogo size={RING_SIZE} delay={1400} />
+        </Animated.View>
+      </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    padding: 20,
-    marginTop: 60,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 20,
-  },
-  button: {
-    backgroundColor: "#007bff",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 20,
-    alignItems: "center",
-  },
-  buttonText: {
-    color: "white",
-    fontWeight: "bold",
-  },
-  card: {
-    padding: 15,
-    backgroundColor: "#f2f2f2",
-    borderRadius: 10,
-    marginBottom: 10,
-  },
-});
