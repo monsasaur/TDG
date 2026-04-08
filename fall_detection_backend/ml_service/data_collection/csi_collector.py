@@ -11,6 +11,7 @@ import socket
 import csv
 import time
 import os
+import threading
 from datetime import datetime
 
 # =================== Config ===================
@@ -18,12 +19,8 @@ UDP_HOST           = "0.0.0.0"
 UDP_PORT           = 5500
 BUFFER_SIZE        = 4096
 
-PACKET_RATE              = 100   # packets ต่อวินาที
-FALL_SECONDS             = 4     # fall: จับแค่ช่วงล้ม 300 pkts (3 วิ) + buffer
-NON_FALL_SECONDS         = 4     # non_fall: เท่ากับ fall → windows/ไฟล์เท่ากัน
-FALL_PACKETS_PER_SAMPLE  = PACKET_RATE * FALL_SECONDS     # 400 packets
-NFALL_PACKETS_PER_SAMPLE = PACKET_RATE * NON_FALL_SECONDS # 400 packets
-COUNTDOWN                = 2     # นับถอยหลังก่อนเริ่มเก็บ
+PACKETS_PER_SAMPLE = 400   # pkts ต่อ sample (ทุกท่าเท่ากัน)
+COUNTDOWN          = 2     # นับถอยหลังก่อนเริ่มเก็บ
 
 # =================== เมนู ===================
 ACTIVITIES = [
@@ -83,16 +80,34 @@ def connect_esp32():
 
 # =================== Collect One Sample ===================
 def collect_sample(sock, label, activity_name, sample_num, total):
-    target   = FALL_PACKETS_PER_SAMPLE if label == "fall" else NFALL_PACKETS_PER_SAMPLE
-    duration = FALL_SECONDS if label == "fall" else NON_FALL_SECONDS
+    target = PACKETS_PER_SAMPLE
 
-    print(f"\n  📍 [{activity_name}]  Sample {sample_num}/{total}  ({duration} วิ)")
+    print(f"\n  📍 [{activity_name}]  Sample {sample_num}/{total}  (ตัดเหลือ {target} pkts)")
+    input("  กด Enter เพื่อเริ่มบันทึก...")
     countdown(COUNTDOWN)
+    print("  กด Enter เพื่อหยุด")
 
     packets    = []
     start_time = time.time()
+    stop_flag  = threading.Event()
 
-    while len(packets) < target:
+    def wait_for_enter():
+        input()
+        stop_flag.set()
+
+    def timer_display():
+        while not stop_flag.is_set():
+            elapsed = int(time.time() - start_time)
+            pct  = min(len(packets) / target, 1.0)
+            done = int(pct * 30)
+            bar  = "█" * done + "░" * (30 - done)
+            print(f"\r  🔴 {elapsed} วิ   [{bar}] {len(packets):3d} pkts", end="", flush=True)
+            time.sleep(0.1)
+
+    threading.Thread(target=wait_for_enter, daemon=True).start()
+    threading.Thread(target=timer_display, daemon=True).start()
+
+    while not stop_flag.is_set():
         try:
             data, _ = sock.recvfrom(BUFFER_SIZE)
             line    = data.decode("utf-8", errors="ignore").strip()
@@ -103,14 +118,16 @@ def collect_sample(sock, label, activity_name, sample_num, total):
                 "label":     label,
                 "raw":       line,
             })
-            progress_bar(len(packets), target)
-
         except socket.timeout:
-            if time.time() - start_time > duration + 5:
-                print(f"\n  ⚠️  Timeout")
-                return False
+            pass
 
-    print()
+    stop_flag.set()
+    print(f"\n  รับมา {len(packets)} pkts")
+
+    confirm = input("  บันทึก sample นี้ไหม? (y/n): ").strip().lower()
+    if confirm != "y":
+        print("  ⏭️  ข้ามไป — ไม่บันทึก")
+        return False
 
     # บันทึก CSV
     ts        = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -127,6 +144,12 @@ def collect_sample(sock, label, activity_name, sample_num, total):
     return True
 
 
+# =================== Count Existing Samples ===================
+def count_samples(activity_name):
+    safe_name = activity_name.replace(" ", "_")
+    return len([f for f in os.listdir(RAW_DIR) if safe_name in f and f.endswith(".csv")])
+
+
 # =================== Show Menu ===================
 def show_menu():
     print("\n" + "=" * 60)
@@ -137,12 +160,16 @@ def show_menu():
     print("  ── 🔴 Fall (เป้า 500 samples) ──")
     for i, (label, name, default) in enumerate(ACTIVITIES, 1):
         if label == "fall":
-            print(f"  {i:2d}. {name:<22} (default: {default} samples)")
+            have = count_samples(name)
+            bar  = "█" * min(have * 20 // default, 20)
+            print(f"  {i:2d}. {name:<22} {have:3d}/{default}  [{bar:<20}]")
 
     print("  ── 🟢 Non-fall (เป้า 500 samples) ──")
     for i, (label, name, default) in enumerate(ACTIVITIES, 1):
         if label == "non_fall":
-            print(f"  {i:2d}. {name:<22} (default: {default} samples)")
+            have = count_samples(name)
+            bar  = "█" * min(have * 20 // default, 20)
+            print(f"  {i:2d}. {name:<22} {have:3d}/{default}  [{bar:<20}]")
 
     print("=" * 60)
 
@@ -151,8 +178,7 @@ def show_menu():
 def main():
     print("=" * 60)
     print("  📡  CSI Data Collector")
-    print(f"  fall     : {FALL_SECONDS} วิ/sample  ({FALL_PACKETS_PER_SAMPLE} packets)")
-    print(f"  non_fall : {NON_FALL_SECONDS} วิ/sample  ({NFALL_PACKETS_PER_SAMPLE} packets)")
+    print(f"  ทุกท่า   : {PACKETS_PER_SAMPLE} pkts/sample")
     print(f"  Output   : {RAW_DIR}")
     print("=" * 60)
 
@@ -198,9 +224,7 @@ def main():
             tag = "🔴" if label == "fall" else "🟢"
             total_samples += n
             print(f"    {tag} {name:<22} {n} samples")
-        fall_total    = sum(custom_counts[i] for i in selected if ACTIVITIES[i][0] == "fall")
-        nfall_total   = sum(custom_counts[i] for i in selected if ACTIVITIES[i][0] == "non_fall")
-        est_min = (fall_total * (FALL_SECONDS + COUNTDOWN) + nfall_total * (NON_FALL_SECONDS + COUNTDOWN)) / 60
+        est_min = total_samples * COUNTDOWN / 60
         print(f"\n  รวม {total_samples} samples  (~{est_min:.0f} นาที)")
         print("=" * 60)
 
@@ -209,27 +233,37 @@ def main():
             continue
 
         # เริ่มเก็บ
+        back_to_menu = False
         for i in selected:
+            if back_to_menu:
+                break
             label, name, _ = ACTIVITIES[i]
             n_samples = custom_counts[i]
             saved = 0
+            s = 1
 
-            print(f"\n  ━━━ {name} ({n_samples} samples) ━━━")
+            print(f"\n  ━━━ {name} ━━━")
 
             try:
-                for s in range(1, n_samples + 1):
-                    ok = collect_sample(sock, label, name, s, n_samples)
+                while True:
+                    ok = collect_sample(sock, label, name, s, total="?")
                     if ok:
                         saved += 1
+                        s += 1
+
+                    print(f"\n  ได้ {saved} samples แล้ว")
+                    print("  [c] เก็บต่อ  |  [m] กลับเมนู")
+                    nxt = input("  เลือก: ").strip().lower()
+                    if nxt == "m":
+                        back_to_menu = True
+                        break
             except KeyboardInterrupt:
-                print(f"\n  ⛔ หยุดท่า '{name}' — ได้ {saved}/{n_samples}")
-                skip = input("  ข้ามไปท่าถัดไปไหม? (y/n): ").strip().lower()
-                if skip != "y":
-                    break
+                print(f"\n  ⛔ หยุด — ได้ {saved} samples")
+                back_to_menu = True
 
-            print(f"  ✅ '{name}' เสร็จ {saved}/{n_samples} samples")
+            print(f"  ✅ '{name}' ได้ {saved} samples")
 
-        print("\n  🎉 เสร็จแล้ว! อยากเก็บเพิ่มไหม?")
+        print("\n  🎉 เสร็จแล้ว!")
 
     sock.close()
     print("\n  👋 ปิดโปรแกรมแล้ว\n")
