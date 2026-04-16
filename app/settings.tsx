@@ -7,7 +7,7 @@ export default function SettingsScreen() {
   const router = useRouter();
 
   const handleClearAll = () => {
-    // TODO: clear all alerts
+    router.push("/clear-alerts" as any);
   };
 
   return (
@@ -47,7 +47,7 @@ export default function SettingsScreen() {
         <SettingItem
           icon="call-outline"
           label="เบอร์โทรฉุกเฉิน"
-          onPress={() => {}}
+          onPress={() => router.push("/emergency-contacts" as any)}
         />
         <SettingItem
           icon="notifications-outline"

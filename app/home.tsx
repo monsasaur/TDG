@@ -12,8 +12,7 @@ import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Alert as AlertType, SystemAlert } from "../types/alert";
-import { mockAlerts } from "../data/mockAlerts";
-import { mockSystemAlerts } from "../data/mockSystemAlerts";
+import { useAlerts } from "../contexts/AlertsContext";
 import AlertCardActive from "../components/AlertCardActive";
 import AlertCardSmall from "../components/AlertCardSmall";
 import AlertCardExpanded from "../components/AlertCardExpanded";
@@ -25,9 +24,8 @@ const PAGE_SIZE = 5;
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { alerts, systemAlerts, setAlerts } = useAlerts();
   const [activeTab, setActiveTab] = useState<"fall" | "system">("fall");
-  const [alerts, setAlerts] = useState<AlertType[]>(mockAlerts);
-  const [systemAlerts] = useState<SystemAlert[]>(mockSystemAlerts);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedHouse, setSelectedHouse] = useState(
     HOUSES.length > 1 ? "ทั้งหมด" : HOUSES[0]
