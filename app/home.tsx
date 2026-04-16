@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -9,32 +9,44 @@ import {
 } from "react-native";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Alert as AlertType } from "../types/alert";
+import { Alert as AlertType, SystemAlert } from "../types/alert";
 import { mockAlerts } from "../data/mockAlerts";
+import { mockSystemAlerts } from "../data/mockSystemAlerts";
 import AlertCardActive from "../components/AlertCardActive";
 import AlertCardSmall from "../components/AlertCardSmall";
 import AlertCardExpanded from "../components/AlertCardExpanded";
+import SystemAlertCard from "../components/SystemAlertCard";
 import HouseDropdown from "../components/HouseDropdown";
 
-const HOUSES = ["บ้านของฉัน"];
+const HOUSES = ["บ้านแม่", "บ้านพ่อ"];
+const PAGE_SIZE = 5;
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"fall" | "system">("fall");
   const [alerts, setAlerts] = useState<AlertType[]>(mockAlerts);
+  const [systemAlerts] = useState<SystemAlert[]>(mockSystemAlerts);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [selectedHouse, setSelectedHouse] = useState(HOUSES[0]);
+  const [selectedHouse, setSelectedHouse] = useState(
+    HOUSES.length > 1 ? "ทั้งหมด" : HOUSES[0]
+  );
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     requestPermissions();
   }, []);
 
+  // Reset pagination when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [selectedHouse, activeTab]);
+
   const requestPermissions = async () => {
-    // 1. Location (ทั้ง iOS และ Android)
     await Location.requestForegroundPermissionsAsync();
 
-    // 2. Nearby Devices / Bluetooth
     if (Platform.OS === "android") {
       const { PermissionsAndroid } = require("react-native");
       try {
@@ -58,10 +70,7 @@ export default function HomeScreen() {
         );
       } catch {}
     }
-    // iOS: Bluetooth permission ขอผ่าน infoPlist (NSBluetoothAlwaysUsageDescription)
-    // จะ popup อัตโนมัติเมื่อใช้ CoreBluetooth
 
-    // 3. Notifications (ทั้ง iOS และ Android)
     try {
       await Notifications.requestPermissionsAsync();
     } catch {}
@@ -69,10 +78,26 @@ export default function HomeScreen() {
 
   const handleConfirm = (id: string) => {
     setAlerts((prev) =>
-      prev.map((a) =>
-        a.id === id ? { ...a, status: "completed" as const, answeredBy: "ฉัน" } : a
-      )
+      prev.map((a) => {
+        if (a.id !== id) return a;
+        const newTimeline = [
+          a.timeline[0],
+          {
+            label: "ยืนยันการตรวจสอบ",
+            detail: "โดย : ฉัน",
+            status: "success" as const,
+          },
+          ...a.timeline.slice(1),
+        ];
+        return {
+          ...a,
+          status: "completed" as const,
+          answeredBy: "ฉัน",
+          timeline: newTimeline,
+        };
+      })
     );
+    setExpandedId(id);
   };
 
   const handleSmallCardPress = (id: string) => {
@@ -80,22 +105,43 @@ export default function HomeScreen() {
   };
 
   // Filter by house
-  const filteredAlerts =
-    selectedHouse === "ทั้งหมด"
-      ? alerts
-      : alerts.filter((a) => a.houseName === selectedHouse);
+  const filteredFallAlerts = useMemo(
+    () =>
+      selectedHouse === "ทั้งหมด"
+        ? alerts
+        : alerts.filter((a) => a.houseName === selectedHouse),
+    [alerts, selectedHouse]
+  );
 
-  const activeAlerts = filteredAlerts.filter((a) => a.status === "active");
-  const finishedAlerts = filteredAlerts.filter((a) => a.status !== "active");
+  const filteredSystemAlerts = useMemo(
+    () =>
+      selectedHouse === "ทั้งหมด"
+        ? systemAlerts
+        : systemAlerts.filter((a) => a.houseName === selectedHouse),
+    [systemAlerts, selectedHouse]
+  );
 
-  // Simulate load more
+  const fullFallList = useMemo(() => {
+    const active = filteredFallAlerts.filter((a) => a.status === "active");
+    const finished = filteredFallAlerts.filter((a) => a.status !== "active");
+    return [...active, ...finished];
+  }, [filteredFallAlerts]);
+
+  // Apply pagination to whichever tab is active
+  const fullList = activeTab === "fall" ? fullFallList : filteredSystemAlerts;
+  const visibleData = fullList.slice(0, page * PAGE_SIZE);
+  const hasMore = visibleData.length < fullList.length;
+
   const handleLoadMore = useCallback(() => {
-    if (loading) return;
+    if (loading || !hasMore) return;
     setLoading(true);
-    setTimeout(() => setLoading(false), 1500);
-  }, [loading]);
+    setTimeout(() => {
+      setPage((p) => p + 1);
+      setLoading(false);
+    }, 1500);
+  }, [loading, hasMore]);
 
-  const renderItem = useCallback(
+  const renderFallItem = useCallback(
     ({ item }: { item: AlertType }) => {
       if (item.status === "active") {
         return <AlertCardActive alert={item} onConfirm={handleConfirm} />;
@@ -112,7 +158,13 @@ export default function HomeScreen() {
     [expandedId]
   );
 
-  const listData = [...activeAlerts, ...finishedAlerts];
+  const renderSystemItem = useCallback(
+    ({ item }: { item: SystemAlert }) => <SystemAlertCard alert={item} />,
+    []
+  );
+
+  const emptyText =
+    activeTab === "fall" ? "ไม่มีการแจ้งเตือน" : "ไม่มีการแจ้งเตือนระบบ";
 
   return (
     <View className="flex-1 bg-[#F5F5F5]">
@@ -124,7 +176,7 @@ export default function HomeScreen() {
             selected={selectedHouse}
             onSelect={setSelectedHouse}
           />
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push("/settings" as any)}>
             <Ionicons name="settings-outline" size={22} color="#1A1A1A" />
           </TouchableOpacity>
         </View>
@@ -141,7 +193,7 @@ export default function HomeScreen() {
               activeTab === "fall" ? "text-[#FF3055]" : "text-[#AAAAAA]"
             }`}
           >
-            แจ้งเตือนการล้ม
+            ข้อความแจ้งเตือน
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -159,30 +211,46 @@ export default function HomeScreen() {
       </View>
 
       {/* Content */}
-      {activeTab === "fall" ? (
-        listData.length === 0 ? (
-          <View className="flex-1 justify-center items-center">
-            <Text className="text-sm text-[#AAAAAA]">ไม่มีการแจ้งเตือน</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={listData}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            contentContainerStyle={{ paddingBottom: 32 }}
-            onEndReached={handleLoadMore}
-            onEndReachedThreshold={0.3}
-            ListFooterComponent={
-              loading ? (
-                <ActivityIndicator size="small" color="#FF3055" style={{ marginTop: 16 }} />
-              ) : null
-            }
-          />
-        )
-      ) : (
+      {visibleData.length === 0 ? (
         <View className="flex-1 justify-center items-center">
-          <Text className="text-sm text-[#AAAAAA]">ไม่มีการแจ้งเตือนระบบ</Text>
+          <Text className="text-sm text-[#AAAAAA]">{emptyText}</Text>
         </View>
+      ) : activeTab === "fall" ? (
+        <FlatList
+          data={visibleData as AlertType[]}
+          keyExtractor={(item) => item.id}
+          renderItem={renderFallItem}
+          contentContainerStyle={{ paddingBottom: 32 }}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.3}
+          ListFooterComponent={
+            loading ? (
+              <ActivityIndicator
+                size="small"
+                color="#FF3055"
+                style={{ marginTop: 16 }}
+              />
+            ) : null
+          }
+        />
+      ) : (
+        <FlatList
+          data={visibleData as SystemAlert[]}
+          keyExtractor={(item) => item.id}
+          renderItem={renderSystemItem}
+          contentContainerStyle={{ paddingBottom: 32 }}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.3}
+          ListFooterComponent={
+            loading ? (
+              <ActivityIndicator
+                size="small"
+                color="#FF3055"
+                style={{ marginTop: 16 }}
+              />
+            ) : null
+          }
+        />
       )}
     </View>
   );

@@ -21,3 +21,10 @@ export type Alert = {
   answeredBy?: string;
   timeline: TimelineStep[];
 };
+
+export type SystemAlert = {
+  id: string;
+  title: string;
+  deviceName: string;
+  houseName: string;
+};
