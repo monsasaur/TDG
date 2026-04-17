@@ -50,7 +50,7 @@ export default function AlertCardActive({ alert, onConfirm }: AlertCardActivePro
           {/* Confirm button */}
           <TouchableOpacity
             className={`rounded-full py-2.5 px-6 self-start ${
-              confirmed ? "bg-[#D4444F]" : "bg-[#FF3055]"
+              confirmed ? "bg-[#F58A95]" : "bg-[#FF3055]"
             }`}
             onPress={handleConfirm}
             disabled={confirmed}
