@@ -45,7 +45,10 @@ export default function EmergencyContactsScreen() {
   );
 
   const tagsFor = (contact: EmergencyContact) =>
-    isAll ? contact.houses : contact.houses.filter((h) => h === selectedHouse);
+    contact.houses.map((h) => ({
+      label: h,
+      active: isAll || h === selectedHouse,
+    }));
 
   const externalCountForHouse = !isAll
     ? mockContacts.filter(
@@ -93,7 +96,19 @@ export default function EmergencyContactsScreen() {
         {/* Section 1: My number */}
         <SectionTitle title="เบอร์โทรของฉัน" />
         {selfContacts.map((c) => (
-          <ContactRow key={c.id} contact={c} tags={tagsFor(c)} />
+          <ContactRow
+            key={c.id}
+            contact={c}
+            tags={tagsFor(c)}
+            onPress={
+              c.type === "self"
+                ? undefined
+                : () =>
+                    router.push(
+                      `/edit-contact?id=${c.id}` as never
+                    )
+            }
+          />
         ))}
 
         {/* Section 2: Members (only if any) */}
@@ -101,7 +116,19 @@ export default function EmergencyContactsScreen() {
           <>
             <SectionTitle title="ผู้ติดต่อฉุกเฉิน - สมาชิกภายในบ้าน" />
             {memberContacts.map((c) => (
-              <ContactRow key={c.id} contact={c} tags={tagsFor(c)} />
+              <ContactRow
+            key={c.id}
+            contact={c}
+            tags={tagsFor(c)}
+            onPress={
+              c.type === "self"
+                ? undefined
+                : () =>
+                    router.push(
+                      `/edit-contact?id=${c.id}` as never
+                    )
+            }
+          />
             ))}
           </>
         )}
@@ -111,10 +138,22 @@ export default function EmergencyContactsScreen() {
           <SectionTitle title="ผู้ติดต่อฉุกเฉิน - เบอร์ภายนอก" />
         )}
         {externalContacts.map((c) => (
-          <ContactRow key={c.id} contact={c} tags={tagsFor(c)} />
+          <ContactRow
+            key={c.id}
+            contact={c}
+            tags={tagsFor(c)}
+            onPress={
+              c.type === "self"
+                ? undefined
+                : () =>
+                    router.push(
+                      `/edit-contact?id=${c.id}` as never
+                    )
+            }
+          />
         ))}
         <AddContactButton
-          onPress={() => {}}
+          onPress={() => router.push("/add-external-contact" as never)}
           disabled={externalLimitReached}
         />
       </ScrollView>
@@ -166,14 +205,18 @@ function SectionTitle({ title }: { title: string }) {
 function ContactRow({
   contact,
   tags,
+  onPress,
 }: {
   contact: EmergencyContact;
-  tags: string[];
+  tags: { label: string; active: boolean }[];
+  onPress?: () => void;
 }) {
   const initial = contact.name.trim().charAt(0);
   return (
     <TouchableOpacity
-      activeOpacity={0.7}
+      activeOpacity={onPress ? 0.7 : 1}
+      onPress={onPress}
+      disabled={!onPress}
       className="bg-white mx-5 mb-2 rounded-2xl px-4 py-3 flex-row items-center"
     >
       <View className="w-10 h-10 rounded-full bg-[#FFE0E3] items-center justify-center mr-3">
@@ -187,10 +230,18 @@ function ContactRow({
         <View className="flex-row">
           {tags.map((t) => (
             <View
-              key={t}
-              className="bg-[#FFE5E8] rounded-md px-2 py-0.5 mr-1"
+              key={t.label}
+              className={`rounded-md px-2 py-0.5 mr-1 ${
+                t.active ? "bg-[#FFE5E8]" : "bg-[#EEEEEE]"
+              }`}
             >
-              <Text className="text-[10px] text-[#C45A66]">{t}</Text>
+              <Text
+                className={`text-[10px] ${
+                  t.active ? "text-[#C45A66]" : "text-[#888]"
+                }`}
+              >
+                {t.label}
+              </Text>
             </View>
           ))}
         </View>

@@ -52,12 +52,12 @@ export default function SettingsScreen() {
         <SettingItem
           icon="notifications-outline"
           label="การแจ้งเตือน"
-          onPress={() => {}}
+          onPress={() => router.push("/notifications" as any)}
         />
         <SettingItem
           icon="add-circle-outline"
           label="จัดการบ้าน"
-          onPress={() => {}}
+          onPress={() => router.push("/manage-home" as any)}
         />
       </View>
     </View>
