@@ -4,50 +4,45 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  Modal,
-  TouchableWithoutFeedback,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { MAX_HOUSES } from "../data/mockDevices";
+import PageHeader from "../components/PageHeader";
+import AddActionPill from "../components/AddActionPill";
+import ConfirmModal from "../components/ConfirmModal";
 
-const HOUSES = ["บ้านแม่", "บ้านพ่อ"];
+const INITIAL_HOUSES = ["บ้านแม่", "บ้านพ่อ"];
 
 export default function SelectHouseScreen() {
   const router = useRouter();
 
-  const [selected, setSelected] = useState(HOUSES[0]);
+  const [houses, setHouses] = useState<string[]>(INITIAL_HOUSES);
+  const [selected, setSelected] = useState(INITIAL_HOUSES[0]);
   const [limitModal, setLimitModal] = useState(false);
 
   const handleAddHouse = () => {
-    if (HOUSES.length >= MAX_HOUSES) {
+    if (houses.length >= MAX_HOUSES) {
       setLimitModal(true);
       return;
     }
+    const newHouse = `บ้านใหม่ ${houses.length - INITIAL_HOUSES.length + 1}`;
+    setHouses((prev) => [...prev, newHouse]);
+    setSelected(newHouse);
   };
 
   return (
     <View className="flex-1 bg-[#F5F5F5]">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      {/* Header */}
-      <View className="bg-white px-5 pt-16 pb-4">
-        <View className="flex-row items-center h-7">
-          <TouchableOpacity onPress={() => router.back()} hitSlop={20}>
-            <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
-          </TouchableOpacity>
-          <Text className="text-lg font-semibold text-[#1A1A1A] ml-2">
-            เลือกบ้าน
-          </Text>
-        </View>
-      </View>
+      <PageHeader title="เลือกบ้าน" onBack={() => router.back()} />
 
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 32 }}
       >
         <View className="px-5 mt-5">
-          {HOUSES.map((h) => {
+          {houses.map((h) => {
             const isSelected = selected === h;
             return (
               <TouchableOpacity
@@ -75,58 +70,31 @@ export default function SelectHouseScreen() {
             );
           })}
 
-          <TouchableOpacity
-            activeOpacity={0.7}
+          <AddActionPill
+            label="เพิ่มบ้าน"
             onPress={handleAddHouse}
-            className="bg-[#FFE5E8] border border-[#FFB3BC] rounded-full mt-1 py-3 flex-row items-center justify-center"
-          >
-            <Ionicons name="add" size={18} color="#34A853" />
-            <Text className="text-sm text-[#1A1A1A] ml-1">เพิ่มบ้าน</Text>
-          </TouchableOpacity>
+            rounded="rounded-full"
+            className="mt-1"
+          />
         </View>
       </ScrollView>
 
-      {/* Submit */}
       <View className="px-5 pb-8">
         <TouchableOpacity
           activeOpacity={0.8}
-          onPress={() => router.push("/connect-device" as never)}
+          onPress={() => router.push("/scan-devices" as never)}
           className="rounded-full py-4 items-center bg-[#FF3055]"
         >
           <Text className="text-base font-semibold text-white">ถัดไป</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Limit modal */}
-      <Modal
-        transparent
-        animationType="fade"
+      <ConfirmModal
         visible={limitModal}
-        onRequestClose={() => setLimitModal(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setLimitModal(false)}>
-          <View className="flex-1 bg-black/40 items-center justify-center px-10">
-            <TouchableWithoutFeedback>
-              <View className="bg-white rounded-2xl px-5 py-5 w-full">
-                <Text className="text-base font-semibold text-[#1A1A1A] text-center mb-2">
-                  มีบ้านเยอะเกินไป
-                </Text>
-                <Text className="text-sm text-[#555] text-center leading-5">
-                  คุณเป็นสมาชิกของบ้านต่างๆ ครบจำนวนสูงสุดที่อนุญาตแล้ว
-                  หากคุณต้องการเพิ่มบ้านใหม่ ให้นำบ้านอื่นออกก่อน
-                </Text>
-                <View className="items-end mt-4">
-                  <TouchableOpacity onPress={() => setLimitModal(false)}>
-                    <Text className="text-sm font-semibold text-[#FF3055]">
-                      ปิด
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+        onClose={() => setLimitModal(false)}
+        title="มีบ้านเยอะเกินไป"
+        message="คุณเป็นสมาชิกของบ้านต่างๆ ครบจำนวนสูงสุดที่อนุญาตแล้ว หากคุณต้องการเพิ่มบ้านใหม่ ให้นำบ้านอื่นออกก่อน"
+      />
     </View>
   );
 }

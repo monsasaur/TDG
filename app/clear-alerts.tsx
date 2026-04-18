@@ -1,15 +1,12 @@
 import { useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Pressable,
-  Modal,
-  TouchableWithoutFeedback,
-} from "react-native";
+import { View, Text, TouchableOpacity, Pressable } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAlerts } from "../contexts/AlertsContext";
+import PageHeader from "../components/PageHeader";
+import FilterPillButton from "../components/FilterPillButton";
+import HouseFilterDropdown from "../components/HouseFilterDropdown";
+import ConfirmModal from "../components/ConfirmModal";
 
 const HOUSES = ["บ้านแม่", "บ้านพ่อ"];
 
@@ -65,33 +62,15 @@ export default function ClearAlertsScreen() {
     <View className="flex-1 bg-[#F5F5F5]">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      {/* Header */}
-      <View className="bg-white px-5 pt-16 pb-4">
-        <View className="flex-row items-center h-7">
-          <TouchableOpacity onPress={() => router.back()} hitSlop={20}>
-            <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
-          </TouchableOpacity>
-          <Text className="text-lg font-semibold text-[#1A1A1A] ml-2">
-            ลบการแจ้งเตือน
-          </Text>
-        </View>
-      </View>
+      <PageHeader title="ลบการแจ้งเตือน" onBack={() => router.back()} />
 
       {/* House selector row */}
       <View className="bg-white px-5 py-4 flex-row items-center justify-between">
         <Text className="text-sm text-[#1A1A1A]">บ้าน</Text>
-        <TouchableOpacity
-          className="flex-row items-center"
+        <FilterPillButton
+          label={selectedHouse}
           onPress={() => setDropdownOpen(true)}
-        >
-          <Text className="text-sm text-[#1A1A1A]">{selectedHouse}</Text>
-          <Ionicons
-            name="chevron-down"
-            size={14}
-            color="#1A1A1A"
-            style={{ marginLeft: 4 }}
-          />
-        </TouchableOpacity>
+        />
       </View>
 
       {/* Checkbox rows */}
@@ -126,72 +105,22 @@ export default function ClearAlertsScreen() {
         </Pressable>
       </View>
 
-      {/* House dropdown modal */}
-      {dropdownOpen && (
-        <Modal transparent animationType="none" visible={dropdownOpen}>
-          <TouchableWithoutFeedback onPress={() => setDropdownOpen(false)}>
-            <View className="flex-1">
-              <View className="absolute right-5 top-[148px] bg-white rounded-xl border border-[#E8E8E8] py-1 w-40 shadow-lg">
-                {dropdownOptions.map((house) => (
-                  <TouchableOpacity
-                    key={house}
-                    className="flex-row items-center justify-between px-4 py-3"
-                    onPress={() => {
-                      setSelectedHouse(house);
-                      setDropdownOpen(false);
-                    }}
-                  >
-                    <Text
-                      className={`text-sm ${
-                        selectedHouse === house
-                          ? "text-[#FF3055] font-medium"
-                          : "text-[#1A1A1A]"
-                      }`}
-                    >
-                      {house}
-                    </Text>
-                    {selectedHouse === house && (
-                      <Ionicons name="checkmark" size={18} color="#FF3055" />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>
-      )}
+      <HouseFilterDropdown
+        visible={dropdownOpen}
+        onClose={() => setDropdownOpen(false)}
+        options={dropdownOptions}
+        selected={selectedHouse}
+        onSelect={setSelectedHouse}
+        topOffset={148}
+      />
 
-      {/* Confirm modal */}
-      <Modal visible={confirmOpen} transparent animationType="fade">
-        <View className="flex-1 bg-black/40 justify-center items-center px-10">
-          <View className="bg-white rounded-2xl w-full pt-5 pb-0">
-            <Text className="text-base font-semibold text-[#1A1A1A] text-center mb-2 px-5">
-              ยืนยันลบการแจ้งเตือนใช่ไหม
-            </Text>
-            <Text className="text-sm text-[#888] text-center mb-4 px-5">
-              {confirmBody}
-            </Text>
-            <View className="flex-row border-t border-[#E8E8E8]">
-              <TouchableOpacity
-                onPress={() => setConfirmOpen(false)}
-                className="flex-1 py-3 items-center border-r border-[#E8E8E8]"
-              >
-                <Text className="text-[#FF3055] font-medium text-sm">
-                  ยกเลิก
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleConfirmDelete}
-                className="flex-1 py-3 items-center"
-              >
-                <Text className="text-[#FF3055] font-medium text-sm">
-                  ตกลง
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <ConfirmModal
+        visible={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="ยืนยันลบการแจ้งเตือนใช่ไหม"
+        message={confirmBody}
+      />
     </View>
   );
 }

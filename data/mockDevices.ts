@@ -1,4 +1,4 @@
-export const MAX_HOUSES = 2;
+export const MAX_HOUSES = 5;
 
 export type DeviceStatus = "connected" | "disconnected";
 

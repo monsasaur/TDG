@@ -2,15 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { mockContacts } from "../data/mockContacts";
+import PageHeader from "../components/PageHeader";
+import LabeledTextField from "../components/LabeledTextField";
+import HousePillGroup from "../components/HousePillGroup";
 
 const HOUSES = ["บ้านแม่", "บ้านพ่อ"];
 const NAME_MAX = 20;
@@ -73,17 +74,7 @@ export default function EditContactScreen() {
     <View className="flex-1 bg-[#F5F5F5]">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      {/* Header */}
-      <View className="bg-white px-5 pt-16 pb-4">
-        <View className="flex-row items-center h-7">
-          <TouchableOpacity onPress={goBack} hitSlop={20}>
-            <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
-          </TouchableOpacity>
-          <Text className="text-lg font-semibold text-[#1A1A1A] ml-2">
-            แก้ไขผู้ติดต่อ
-          </Text>
-        </View>
-      </View>
+      <PageHeader title="แก้ไขผู้ติดต่อ" onBack={goBack} />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -93,69 +84,36 @@ export default function EditContactScreen() {
           contentContainerStyle={{ paddingBottom: 32 }}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Name */}
-          <View className="px-5 mt-5">
-            <Text className="text-sm text-[#1A1A1A] mb-2">ชื่อผู้ติดต่อ</Text>
-            <TextInput
-              value={name}
-              onChangeText={(t) => setName(sanitizeName(t))}
-              maxLength={NAME_MAX}
-              className="bg-white rounded-xl px-4 py-3 text-sm text-[#1A1A1A] border border-[#E8E8E8]"
-            />
-          </View>
+          <LabeledTextField
+            label="ชื่อผู้ติดต่อ"
+            value={name}
+            onChangeText={(t) => setName(sanitizeName(t))}
+            maxLength={NAME_MAX}
+            containerClassName="px-5 mt-5"
+          />
 
-          {/* Phone */}
-          <View className="px-5 mt-4">
-            <Text className="text-sm text-[#1A1A1A] mb-2">เบอร์โทรศัพท์</Text>
-            <TextInput
-              value={phone}
-              onChangeText={(t) => setPhone(sanitizePhone(t))}
-              keyboardType="number-pad"
-              maxLength={PHONE_MAX}
-              className="bg-white rounded-xl px-4 py-3 text-sm text-[#1A1A1A] border border-[#E8E8E8]"
-            />
-          </View>
+          <LabeledTextField
+            label="เบอร์โทรศัพท์"
+            value={phone}
+            onChangeText={(t) => setPhone(sanitizePhone(t))}
+            keyboardType="number-pad"
+            maxLength={PHONE_MAX}
+          />
 
-          {/* House group (multi-select) */}
           <View className="px-5 mt-4">
             <Text className="text-sm text-[#1A1A1A] mb-2">กลุ่มบ้านที่ดูแล</Text>
-            <View className="flex-row flex-wrap">
-              {HOUSES.map((h) => {
-                const selected = houses.includes(h);
-                return (
-                  <TouchableOpacity
-                    key={h}
-                    activeOpacity={0.7}
-                    onPress={() => toggleHouse(h)}
-                    className={`flex-row items-center border rounded-full px-3 py-2 mr-2 mb-2 ${
-                      selected
-                        ? "border-[#FF3055] bg-[#FFE5E8]"
-                        : "border-[#E8E8E8] bg-white"
-                    }`}
-                  >
-                    <View
-                      className={`w-4 h-4 rounded-sm mr-2 items-center justify-center ${
-                        selected
-                          ? "bg-[#FF3055]"
-                          : "border border-[#BBBBBB] bg-white"
-                      }`}
-                    >
-                      {selected && (
-                        <Ionicons name="checkmark" size={12} color="#FFFFFF" />
-                      )}
-                    </View>
-                    <Text className="text-sm text-[#1A1A1A]">{h}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <HousePillGroup
+              houses={HOUSES}
+              selected={houses}
+              onSelect={toggleHouse}
+              multi
+            />
             <Text className="text-xs text-[#888] mt-1">
               เลือกกลุ่มบ้านที่ใช้อยากให้คนนี้ได้รับการแจ้งเตือนเมื่อตรวจพบการล้ม
             </Text>
           </View>
         </ScrollView>
 
-        {/* Bottom buttons */}
         <View className="px-5 pb-8">
           <TouchableOpacity
             activeOpacity={0.8}

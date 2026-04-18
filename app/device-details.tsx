@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   KeyboardAvoidingView,
@@ -13,6 +12,9 @@ import {
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { mockDevices } from "../data/mockDevices";
+import PageHeader from "../components/PageHeader";
+import LabeledTextField from "../components/LabeledTextField";
+import ConfirmModal from "../components/ConfirmModal";
 
 const HOUSES = ["บ้านแม่", "บ้านพ่อ"];
 const NAME_MAX = 30;
@@ -58,17 +60,7 @@ export default function DeviceDetailsScreen() {
     <View className="flex-1 bg-[#F5F5F5]">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      {/* Header */}
-      <View className="bg-white px-5 pt-16 pb-4">
-        <View className="flex-row items-center h-7">
-          <TouchableOpacity onPress={goBack} hitSlop={20}>
-            <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
-          </TouchableOpacity>
-          <Text className="text-lg font-semibold text-[#1A1A1A] ml-2">
-            รายละเอียดอุปกรณ์
-          </Text>
-        </View>
-      </View>
+      <PageHeader title="รายละเอียดอุปกรณ์" onBack={goBack} />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -113,16 +105,12 @@ export default function DeviceDetailsScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* ชื่ออุปกรณ์ */}
-          <View className="px-5 mt-4">
-            <Text className="text-sm text-[#1A1A1A] mb-2">ชื่ออุปกรณ์</Text>
-            <TextInput
-              value={name}
-              onChangeText={(t) => setName(t.slice(0, NAME_MAX))}
-              maxLength={NAME_MAX}
-              className="bg-white rounded-xl px-4 py-3 text-sm text-[#1A1A1A] border border-[#E8E8E8]"
-            />
-          </View>
+          <LabeledTextField
+            label="ชื่ออุปกรณ์"
+            value={name}
+            onChangeText={(t) => setName(t.slice(0, NAME_MAX))}
+            maxLength={NAME_MAX}
+          />
 
           {/* กลุ่มบ้าน */}
           <View className="px-5 mt-4">
@@ -173,7 +161,7 @@ export default function DeviceDetailsScreen() {
         </View>
       </KeyboardAvoidingView>
 
-      {/* House dropdown */}
+      {/* House dropdown (centered modal — different from filter dropdown) */}
       <Modal transparent animationType="none" visible={houseDropdown}>
         <TouchableWithoutFeedback onPress={() => setHouseDropdown(false)}>
           <View className="flex-1 bg-black/20 items-center justify-center px-10">
@@ -208,46 +196,16 @@ export default function DeviceDetailsScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Confirm delete modal */}
-      <Modal
-        transparent
-        animationType="fade"
+      <ConfirmModal
         visible={confirmDelete}
-        onRequestClose={() => setConfirmDelete(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setConfirmDelete(false)}>
-          <View className="flex-1 bg-black/40 items-center justify-center px-10">
-            <TouchableWithoutFeedback>
-              <View className="bg-white rounded-2xl px-5 py-5 w-full">
-                <Text className="text-base font-semibold text-[#1A1A1A] text-center mb-2">
-                  ลบอุปกรณ์นี้หรือไม่
-                </Text>
-                <Text className="text-sm text-[#555] text-center leading-5">
-                  อุปกรณ์นี้จะถูกลบออกจากบ้านของคุณ
-                  คุณแน่ใจหรือไม่ว่าคุณต้องการลบอุปกรณ์นี้
-                </Text>
-                <View className="flex-row justify-between mt-5">
-                  <TouchableOpacity onPress={() => setConfirmDelete(false)}>
-                    <Text className="text-sm font-semibold text-[#FF3055]">
-                      ยกเลิก
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setConfirmDelete(false);
-                      goBack();
-                    }}
-                  >
-                    <Text className="text-sm font-semibold text-[#FF3055]">
-                      ตกลง
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={() => {
+          setConfirmDelete(false);
+          goBack();
+        }}
+        title="ลบอุปกรณ์นี้หรือไม่"
+        message="อุปกรณ์นี้จะถูกลบออกจากบ้านของคุณ คุณแน่ใจหรือไม่ว่าคุณต้องการลบอุปกรณ์นี้"
+      />
     </View>
   );
 }

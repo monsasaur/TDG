@@ -1,12 +1,9 @@
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-} from "react-native";
+import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { mockAvailableNetworks } from "../data/mockDevices";
+import PageHeader from "../components/PageHeader";
+import AddActionPill from "../components/AddActionPill";
 
 const CURRENT_WIFI = "MeeNeeNetZa_5G";
 
@@ -20,17 +17,7 @@ export default function ConnectDeviceScreen() {
     <View className="flex-1 bg-[#F5F5F5]">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      {/* Header */}
-      <View className="bg-white px-5 pt-16 pb-4">
-        <View className="flex-row items-center h-7">
-          <TouchableOpacity onPress={() => router.back()} hitSlop={20}>
-            <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
-          </TouchableOpacity>
-          <Text className="text-lg font-semibold text-[#1A1A1A] ml-2">
-            เชื่อมต่ออุปกรณ์
-          </Text>
-        </View>
-      </View>
+      <PageHeader title="เชื่อมต่ออุปกรณ์" onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         {/* Current network (display only) */}
@@ -66,15 +53,11 @@ export default function ConnectDeviceScreen() {
             ))}
           </View>
 
-          {/* Add network */}
-          <TouchableOpacity
-            activeOpacity={0.7}
+          <AddActionPill
+            label="เพิ่มเครือข่าย"
             onPress={() => selectNetwork("")}
-            className="bg-[#FFE5E8] border border-[#FFB3BC] rounded-2xl mt-3 py-3 flex-row items-center justify-center"
-          >
-            <Ionicons name="add" size={18} color="#34A853" />
-            <Text className="text-sm text-[#1A1A1A] ml-1">เพิ่มเครือข่าย</Text>
-          </TouchableOpacity>
+            className="mt-3"
+          />
         </View>
       </ScrollView>
     </View>

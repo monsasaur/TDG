@@ -5,12 +5,13 @@ import {
   TouchableOpacity,
   Switch,
   Modal,
-  TouchableWithoutFeedback,
   Linking,
   Platform,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import PageHeader from "../components/PageHeader";
+import ConfirmModal from "../components/ConfirmModal";
 
 type Permission = "undetermined" | "granted" | "denied";
 
@@ -54,17 +55,7 @@ export default function NotificationsScreen() {
     <View className="flex-1 bg-[#F5F5F5]">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      {/* Header */}
-      <View className="bg-white px-5 pt-16 pb-4">
-        <View className="flex-row items-center h-7">
-          <TouchableOpacity onPress={() => router.back()} hitSlop={20}>
-            <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
-          </TouchableOpacity>
-          <Text className="text-lg font-semibold text-[#1A1A1A] ml-2">
-            การแจ้งเตือน
-          </Text>
-        </View>
-      </View>
+      <PageHeader title="การแจ้งเตือน" onBack={() => router.back()} />
 
       {/* Toggle row */}
       <View className="bg-white mx-5 mt-5 rounded-2xl px-4 py-3 flex-row items-center justify-between">
@@ -77,7 +68,7 @@ export default function NotificationsScreen() {
         />
       </View>
 
-      {/* OS-style permission prompt */}
+      {/* OS-style permission prompt — styled differently (dark sheet) */}
       <Modal transparent animationType="fade" visible={osPrompt}>
         <View className="flex-1 bg-black/40 items-center justify-center px-8">
           <View className="bg-[#2C2C2E] rounded-2xl w-full max-w-[280px] overflow-hidden">
@@ -105,47 +96,28 @@ export default function NotificationsScreen() {
         </View>
       </Modal>
 
-      {/* App modal — go to settings */}
-      <Modal
-        transparent
-        animationType="fade"
+      <ConfirmModal
         visible={settingsPrompt}
-        onRequestClose={() => setSettingsPrompt(false)}
+        onClose={() => setSettingsPrompt(false)}
+        onConfirm={handleOpenSettings}
+        confirmLabel="ไปที่การตั้งค่า"
+        titleAlign="left"
+        messageAlign="left"
       >
-        <TouchableWithoutFeedback onPress={() => setSettingsPrompt(false)}>
-          <View className="flex-1 bg-black/40 items-center justify-center px-10">
-            <TouchableWithoutFeedback>
-              <View className="bg-white rounded-2xl px-5 py-5 w-full">
-                <Text className="text-sm text-[#1A1A1A] leading-5">
-                  หากต้องการใช้คุณสมบัตินี้ คุณต้องให้การอนุญาติต่อไปในการตั้งค่า
-                </Text>
-                <View className="mt-3">
-                  <Text className="text-sm text-[#1A1A1A]">• การแจ้งเตือน</Text>
-                  <Text className="text-xs text-[#888] ml-3 mt-0.5">
-                    ใช้เพื่อรับการแจ้งเตือนของแอปพลิเคชัน
-                  </Text>
-                </View>
-                <Text className="text-sm text-[#1A1A1A] mt-4 leading-5">
-                  หากต้องการใช้คุณสมบัติต่อ ให้เปิดการตั้งค่า
-                  จากนั้นเลือกให้สิทธิ์ในการใช้งาน
-                </Text>
-                <View className="flex-row justify-between mt-5">
-                  <TouchableOpacity onPress={() => setSettingsPrompt(false)}>
-                    <Text className="text-sm font-semibold text-[#FF3055]">
-                      ยกเลิก
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={handleOpenSettings}>
-                    <Text className="text-sm font-semibold text-[#FF3055]">
-                      ไปที่การตั้งค่า
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+        <Text className="text-sm text-[#1A1A1A] leading-5">
+          หากต้องการใช้คุณสมบัตินี้ คุณต้องให้การอนุญาติต่อไปในการตั้งค่า
+        </Text>
+        <View className="mt-3">
+          <Text className="text-sm text-[#1A1A1A]">• การแจ้งเตือน</Text>
+          <Text className="text-xs text-[#888] ml-3 mt-0.5">
+            ใช้เพื่อรับการแจ้งเตือนของแอปพลิเคชัน
+          </Text>
+        </View>
+        <Text className="text-sm text-[#1A1A1A] mt-4 leading-5">
+          หากต้องการใช้คุณสมบัติต่อ ให้เปิดการตั้งค่า
+          จากนั้นเลือกให้สิทธิ์ในการใช้งาน
+        </Text>
+      </ConfirmModal>
     </View>
   );
 }

@@ -1,15 +1,12 @@
 import { useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Modal,
-  TouchableWithoutFeedback,
-} from "react-native";
+import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Device, mockDevices } from "../data/mockDevices";
+import PageHeader from "../components/PageHeader";
+import FilterPillButton from "../components/FilterPillButton";
+import HouseFilterDropdown from "../components/HouseFilterDropdown";
+import AddActionPill from "../components/AddActionPill";
 
 const HOUSES = ["บ้านแม่", "บ้านพ่อ"];
 
@@ -38,32 +35,14 @@ export default function DevicesScreen() {
     <View className="flex-1 bg-[#F5F5F5]">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      {/* Header */}
-      <View className="bg-white px-5 pt-16 pb-4">
-        <View className="flex-row items-center h-7">
-          <TouchableOpacity onPress={() => router.back()} hitSlop={20}>
-            <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
-          </TouchableOpacity>
-          <Text className="text-lg font-semibold text-[#1A1A1A] ml-2">
-            อุปกรณ์
-          </Text>
-        </View>
-      </View>
+      <PageHeader title="อุปกรณ์" onBack={() => router.back()} />
 
       {/* House filter */}
       <View className="bg-white px-5 pb-4 flex-row justify-end">
-        <TouchableOpacity
-          className="flex-row items-center"
+        <FilterPillButton
+          label={selectedHouse}
           onPress={() => setDropdownOpen(true)}
-        >
-          <Text className="text-sm text-[#1A1A1A]">{selectedHouse}</Text>
-          <Ionicons
-            name="chevron-down"
-            size={14}
-            color="#1A1A1A"
-            style={{ marginLeft: 4 }}
-          />
-        </TouchableOpacity>
+        />
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
@@ -85,45 +64,19 @@ export default function DevicesScreen() {
           );
         })}
 
-        <AddDeviceButton
+        <AddActionPill
+          label="เพิ่มอุปกรณ์ใหม่"
           onPress={() => router.push("/select-house" as never)}
         />
       </ScrollView>
 
-      {/* House dropdown */}
-      {dropdownOpen && (
-        <Modal transparent animationType="none" visible={dropdownOpen}>
-          <TouchableWithoutFeedback onPress={() => setDropdownOpen(false)}>
-            <View className="flex-1">
-              <View className="absolute right-5 top-[108px] bg-white rounded-xl border border-[#E8E8E8] py-1 w-40 shadow-lg">
-                {dropdownOptions.map((house) => (
-                  <TouchableOpacity
-                    key={house}
-                    className="flex-row items-center justify-between px-4 py-3"
-                    onPress={() => {
-                      setSelectedHouse(house);
-                      setDropdownOpen(false);
-                    }}
-                  >
-                    <Text
-                      className={`text-sm ${
-                        selectedHouse === house
-                          ? "text-[#FF3055] font-medium"
-                          : "text-[#1A1A1A]"
-                      }`}
-                    >
-                      {house}
-                    </Text>
-                    {selectedHouse === house && (
-                      <Ionicons name="checkmark" size={18} color="#FF3055" />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>
-      )}
+      <HouseFilterDropdown
+        visible={dropdownOpen}
+        onClose={() => setDropdownOpen(false)}
+        options={dropdownOptions}
+        selected={selectedHouse}
+        onSelect={setSelectedHouse}
+      />
     </View>
   );
 }
@@ -153,19 +106,6 @@ function DeviceRow({ device }: { device: Device }) {
         </Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color="#AAAAAA" />
-    </TouchableOpacity>
-  );
-}
-
-function AddDeviceButton({ onPress }: { onPress: () => void }) {
-  return (
-    <TouchableOpacity
-      activeOpacity={0.7}
-      onPress={onPress}
-      className="bg-[#FFE5E8] border border-[#FFB3BC] rounded-2xl mx-5 mt-2 py-3 flex-row items-center justify-center"
-    >
-      <Ionicons name="add" size={18} color="#34A853" />
-      <Text className="text-sm text-[#1A1A1A] ml-1">เพิ่มอุปกรณ์ใหม่</Text>
     </TouchableOpacity>
   );
 }
