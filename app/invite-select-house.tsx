@@ -2,6 +2,7 @@ import { useState } from "react";
 import { View, ScrollView } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { MAX_HOUSES } from "../data/mockDevices";
+import { MAX_MEMBERS_PER_HOUSE, mockContacts } from "../data/mockContacts";
 import PageHeader from "../components/PageHeader";
 import ConfirmModal from "../components/ConfirmModal";
 import PrimaryButton from "../components/PrimaryButton";
@@ -9,21 +10,35 @@ import HousePicker from "../components/HousePicker";
 
 const INITIAL_HOUSES = ["บ้านแม่", "บ้านพ่อ"];
 
-export default function SelectHouseScreen() {
+export default function InviteSelectHouseScreen() {
   const router = useRouter();
 
   const [houses, setHouses] = useState<string[]>(INITIAL_HOUSES);
   const [selected, setSelected] = useState(INITIAL_HOUSES[0]);
-  const [limitModal, setLimitModal] = useState(false);
+  const [houseLimitModal, setHouseLimitModal] = useState(false);
+  const [memberLimitModal, setMemberLimitModal] = useState(false);
 
   const handleAddHouse = () => {
     if (houses.length >= MAX_HOUSES) {
-      setLimitModal(true);
+      setHouseLimitModal(true);
       return;
     }
     const newHouse = `บ้านใหม่ ${houses.length - INITIAL_HOUSES.length + 1}`;
     setHouses((prev) => [...prev, newHouse]);
     setSelected(newHouse);
+  };
+
+  const handleNext = () => {
+    const memberCount = mockContacts.filter(
+      (c) =>
+        (c.type === "self" || c.type === "member") &&
+        c.houses.includes(selected)
+    ).length;
+    if (memberCount >= MAX_MEMBERS_PER_HOUSE) {
+      setMemberLimitModal(true);
+      return;
+    }
+    router.push(`/invite-send?house=${encodeURIComponent(selected)}` as never);
   };
 
   return (
@@ -45,17 +60,21 @@ export default function SelectHouseScreen() {
       </ScrollView>
 
       <View className="px-5 pb-8">
-        <PrimaryButton
-          label="ถัดไป"
-          onPress={() => router.push("/scan-devices" as never)}
-        />
+        <PrimaryButton label="ถัดไป" onPress={handleNext} />
       </View>
 
       <ConfirmModal
-        visible={limitModal}
-        onClose={() => setLimitModal(false)}
+        visible={houseLimitModal}
+        onClose={() => setHouseLimitModal(false)}
         title="มีบ้านเยอะเกินไป"
         message="คุณเป็นสมาชิกของบ้านต่างๆ ครบจำนวนสูงสุดที่อนุญาตแล้ว หากคุณต้องการเพิ่มบ้านใหม่ ให้นำบ้านอื่นออกก่อน"
+      />
+
+      <ConfirmModal
+        visible={memberLimitModal}
+        onClose={() => setMemberLimitModal(false)}
+        title="มีสมาชิกเยอะเกินไป"
+        message="สมาชิกในบ้านนี้ครบจำนวนสูงสุดที่อนุญาตแล้ว หากคุณต้องการเพิ่มสมาชิกใหม่ ให้นำสมาชิกคนอื่นออกก่อน"
       />
     </View>
   );

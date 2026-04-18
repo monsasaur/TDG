@@ -9,26 +9,24 @@ import {
 } from "react-native";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import PageHeader from "../components/PageHeader";
-import LabeledTextField from "../components/LabeledTextField";
+import StackedInputCard from "../components/StackedInputCard";
 import PrimaryButton from "../components/PrimaryButton";
 
+const MIN_SSID = 1;
 const MIN_PASSWORD = 8;
 const CONNECT_MS = 2000;
-const WRONG_PASSWORD = "wrong";
+const WRONG_SSID = "wrong";
 
-export default function WifiPasswordScreen() {
+export default function AddNetworkScreen() {
   const router = useRouter();
-  const { ssid, device } = useLocalSearchParams<{
-    ssid?: string;
-    device?: string;
-  }>();
-
+  const { device } = useLocalSearchParams<{ device?: string }>();
+  const [ssid, setSsid] = useState("");
   const [password, setPassword] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
-  const canSubmit = password.length >= MIN_PASSWORD && !connecting;
-  const wifiName = ssid && ssid.length > 0 ? ssid : "";
+  const canSubmit =
+    ssid.length >= MIN_SSID && password.length >= MIN_PASSWORD && !connecting;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -36,58 +34,58 @@ export default function WifiPasswordScreen() {
     setConnecting(true);
     setTimeout(() => {
       setConnecting(false);
-      if (password === WRONG_PASSWORD) {
-        setError("รหัสผ่านไม่ถูกต้อง");
+      if (ssid === WRONG_SSID) {
+        setError("ชื่อ WiFi หรือรหัสผ่านไม่ถูกต้อง");
         return;
       }
       router.replace(
         `/device-setup?device=${encodeURIComponent(
           device ?? ""
-        )}&ssid=${encodeURIComponent(wifiName)}` as never
+        )}&ssid=${encodeURIComponent(ssid)}` as never
       );
     }, CONNECT_MS);
+  };
+
+  const clearErrorOnChange = <T,>(setter: (v: T) => void) => (v: T) => {
+    setter(v);
+    if (error) setError(undefined);
   };
 
   return (
     <View className="flex-1 bg-[#F5F5F5]">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
-
-      <PageHeader title="เชื่อมต่ออุปกรณ์" onBack={() => router.back()} />
+      <PageHeader title="เพิ่มเครือข่าย" onBack={() => router.back()} />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         className="flex-1"
       >
         <View className="flex-1">
-          <Text className="text-base font-semibold text-[#1A1A1A] px-5 mt-5">
-            กรอกรหัส WiFi
-          </Text>
-
-          <LabeledTextField
-            label="ชื่อ WiFi"
-            value={wifiName}
-            readOnly
-            containerClassName="px-5 mt-4"
-          />
-
-          <LabeledTextField
-            label="รหัสผ่าน Wi-Fi"
-            value={password}
-            onChangeText={(v) => {
-              setPassword(v);
-              if (error) setError(undefined);
-            }}
-            secureTextEntry
-            autoCapitalize="none"
+          <StackedInputCard
+            className="px-5 mt-5"
             error={error}
-            containerClassName="px-5 mt-4"
+            fields={[
+              {
+                label: "ชื่อ WiFi",
+                value: ssid,
+                onChangeText: clearErrorOnChange(setSsid),
+                autoCapitalize: "none",
+              },
+              {
+                label: "รหัสผ่าน Wi-Fi",
+                value: password,
+                onChangeText: clearErrorOnChange(setPassword),
+                secureTextEntry: true,
+                autoCapitalize: "none",
+              },
+            ]}
           />
 
           {connecting && (
             <View className="mx-5 mt-4 bg-white rounded-xl px-4 py-3 flex-row items-center border border-[#E8E8E8]">
               <ActivityIndicator size="small" color="#FF3055" />
               <Text className="text-sm text-[#1A1A1A] ml-3">
-                กำลังเชื่อมต่ออุปกรณ์...
+                กำลังเชื่อมต่อ...
               </Text>
             </View>
           )}

@@ -21,7 +21,7 @@ export default function ManageHomeScreen() {
         <SettingItem
           icon="person-add-outline"
           label="สมาชิก"
-          onPress={() => {}}
+          onPress={() => router.push("/members" as never)}
         />
         <SettingItem
           icon="home-outline"
