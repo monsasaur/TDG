@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Device, mockDevices } from "../data/mockDevices";
+import { Device } from "../data/mockDevices";
+import { useDevices } from "../contexts/DevicesContext";
 import PageHeader from "../components/PageHeader";
 import FilterPillButton from "../components/FilterPillButton";
 import HouseFilterDropdown from "../components/HouseFilterDropdown";
@@ -12,6 +13,7 @@ const HOUSES = ["บ้านแม่", "บ้านพ่อ"];
 
 export default function DevicesScreen() {
   const router = useRouter();
+  const { devices } = useDevices();
 
   const showAll = HOUSES.length > 1;
   const defaultLabel = showAll ? "ทั้งหมด" : "ทุกบ้าน";
@@ -24,10 +26,10 @@ export default function DevicesScreen() {
   const devicesByHouse = useMemo(() => {
     const map: Record<string, Device[]> = {};
     for (const h of housesToShow) {
-      map[h] = mockDevices.filter((d) => d.house === h);
+      map[h] = devices.filter((d) => d.house === h);
     }
     return map;
-  }, [housesToShow]);
+  }, [housesToShow, devices]);
 
   const dropdownOptions = showAll ? ["ทั้งหมด", ...HOUSES] : [defaultLabel];
 

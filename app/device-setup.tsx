@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -7,34 +7,46 @@ import {
   ScrollView,
 } from "react-native";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
+import { useDevices } from "../contexts/DevicesContext";
+import { useAlerts } from "../contexts/AlertsContext";
 import PageHeader from "../components/PageHeader";
 import LabeledTextField from "../components/LabeledTextField";
-import Dropdown from "../components/Dropdown";
 import PrimaryButton from "../components/PrimaryButton";
 import DeviceSuccessCard from "../components/DeviceSuccessCard";
 
-const HOUSES = ["บ้านแม่", "บ้านพ่อ"];
-
 export default function DeviceSetupScreen() {
   const router = useRouter();
-  const { device, ssid } = useLocalSearchParams<{
+  const { devices, updateDevice } = useDevices();
+  const { setSystemAlerts } = useAlerts();
+  const { device, ssid, deviceId } = useLocalSearchParams<{
     device?: string;
     ssid?: string;
+    deviceId?: string;
   }>();
+
+  const existingDevice = useMemo(
+    () => (deviceId ? devices.find((d) => d.id === deviceId) : undefined),
+    [devices, deviceId]
+  );
 
   const deviceCode = device && device.length > 0 ? device : "ESP-BT001";
   const network = ssid && ssid.length > 0 ? ssid : "MyHome_2.4G";
 
-  const [name, setName] = useState(deviceCode);
-  const [house, setHouse] = useState<string | undefined>(
-    HOUSES.length === 1 ? HOUSES[0] : undefined
-  );
+  const [name, setName] = useState(existingDevice?.name ?? deviceCode);
 
-  const canSubmit = name.trim().length > 0 && !!house;
+  const canSubmit = name.trim().length > 0;
 
   const handleSave = () => {
     if (!canSubmit) return;
-    router.replace("/devices" as never);
+    if (deviceId) {
+      updateDevice(deviceId, { name: name.trim(), status: "connected" });
+      setSystemAlerts((prev) => prev.filter((a) => a.deviceId !== deviceId));
+      // Pop scan-devices + connect-device + (wifi-password|add-network replaced by device-setup)
+      router.dismiss(3);
+      return;
+    }
+    // New device flow: pop select-house + scan-devices + connect-device + current
+    router.dismiss(4);
   };
 
   return (
@@ -66,15 +78,6 @@ export default function DeviceSetupScreen() {
             value={name}
             onChangeText={setName}
             containerClassName="px-5 mt-5"
-          />
-
-          <Dropdown
-            label="กลุ่มบ้าน"
-            placeholder="-- เลือกบ้าน --"
-            options={HOUSES}
-            value={house}
-            onChange={setHouse}
-            containerClassName="px-5 mt-4"
           />
         </ScrollView>
 

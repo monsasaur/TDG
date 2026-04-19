@@ -47,17 +47,20 @@ export default function EditContactScreen() {
     }
   }, [contact]);
 
+  const isSelf = contact?.type === "self";
+  const canDelete = contact?.type === "external";
+
   const canSave =
     name.trim().length > 0 &&
     phone.trim().length > 0 &&
-    houses.length > 0;
+    (isSelf || houses.length > 0);
 
   const toggleHouse = (h: string) =>
     setHouses((prev) =>
       prev.includes(h) ? prev.filter((x) => x !== h) : [...prev, h]
     );
 
-  const goBack = () => router.replace("/emergency-contacts" as never);
+  const goBack = () => router.back();
 
   if (!contact) {
     return (
@@ -100,18 +103,20 @@ export default function EditContactScreen() {
             maxLength={PHONE_MAX}
           />
 
-          <View className="px-5 mt-4">
-            <Text className="text-sm text-[#1A1A1A] mb-2">กลุ่มบ้านที่ดูแล</Text>
-            <HousePillGroup
-              houses={HOUSES}
-              selected={houses}
-              onSelect={toggleHouse}
-              multi
-            />
-            <Text className="text-xs text-[#888] mt-1">
-              เลือกกลุ่มบ้านที่ใช้อยากให้คนนี้ได้รับการแจ้งเตือนเมื่อตรวจพบการล้ม
-            </Text>
-          </View>
+          {!isSelf && (
+            <View className="px-5 mt-4">
+              <Text className="text-sm text-[#1A1A1A] mb-2">กลุ่มบ้านที่ดูแล</Text>
+              <HousePillGroup
+                houses={HOUSES}
+                selected={houses}
+                onSelect={toggleHouse}
+                multi
+              />
+              <Text className="text-xs text-[#888] mt-1">
+                เลือกกลุ่มบ้านที่ใช้อยากให้คนนี้ได้รับการแจ้งเตือนเมื่อตรวจพบการล้ม
+              </Text>
+            </View>
+          )}
         </ScrollView>
 
         <View className="px-5 pb-8">
@@ -126,13 +131,15 @@ export default function EditContactScreen() {
             <Text className="text-base font-semibold text-white">บันทึก</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={goBack}
-            className="rounded-full py-4 items-center mt-3 bg-white border border-[#FF3055]"
-          >
-            <Text className="text-base font-semibold text-[#FF3055]">ลบ</Text>
-          </TouchableOpacity>
+          {canDelete && (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={goBack}
+              className="rounded-full py-4 items-center mt-3 bg-white border border-[#FF3055]"
+            >
+              <Text className="text-base font-semibold text-[#FF3055]">ลบ</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </KeyboardAvoidingView>
     </View>

@@ -19,7 +19,10 @@ const WRONG_SSID = "wrong";
 
 export default function AddNetworkScreen() {
   const router = useRouter();
-  const { device } = useLocalSearchParams<{ device?: string }>();
+  const { device, deviceId } = useLocalSearchParams<{
+    device?: string;
+    deviceId?: string;
+  }>();
   const [ssid, setSsid] = useState("");
   const [password, setPassword] = useState("");
   const [connecting, setConnecting] = useState(false);
@@ -41,7 +44,9 @@ export default function AddNetworkScreen() {
       router.replace(
         `/device-setup?device=${encodeURIComponent(
           device ?? ""
-        )}&ssid=${encodeURIComponent(ssid)}` as never
+        )}&ssid=${encodeURIComponent(ssid)}${
+          deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""
+        }` as never
       );
     }, CONNECT_MS);
   };

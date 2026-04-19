@@ -5,10 +5,13 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Modal,
+  PermissionsAndroid,
+  Platform,
+  Linking,
 } from "react-native";
-import { useRouter, Stack } from "expo-router";
+import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import PageHeader from "../components/PageHeader";
 import ConfirmModal from "../components/ConfirmModal";
 
@@ -21,13 +24,13 @@ const DONE_MS = 3000;
 
 export default function ScanDevicesScreen() {
   const router = useRouter();
+  const { deviceId } = useLocalSearchParams<{ deviceId?: string }>();
 
   const [locationPermission, setLocationPermission] =
     useState<Permission>("undetermined");
   const [btPermission, setBtPermission] = useState<Permission>("undetermined");
-  const [locationPrompt, setLocationPrompt] = useState(true);
-  const [btPrompt, setBtPrompt] = useState(false);
   const [settingsPrompt, setSettingsPrompt] = useState(false);
+  const requestedRef = useRef(false);
 
   const [scanning, setScanning] = useState(false);
   const [devices, setDevices] = useState<string[]>([]);
@@ -60,44 +63,70 @@ export default function ScanDevicesScreen() {
     [clearTimers]
   );
 
+  const requestBluetooth = useCallback(async (): Promise<Permission> => {
+    if (Platform.OS !== "android") return "granted";
+    try {
+      const result = await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+      ]);
+      const values = Object.values(result);
+      if (values.every((v) => v === PermissionsAndroid.RESULTS.GRANTED))
+        return "granted";
+      if (values.some((v) => v === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN))
+        return "denied";
+      return "denied";
+    } catch {
+      return "denied";
+    }
+  }, []);
+
+  const requestAll = useCallback(async () => {
+    const loc = await Location.requestForegroundPermissionsAsync();
+    const locStatus: Permission =
+      loc.status === "granted"
+        ? "granted"
+        : loc.canAskAgain
+        ? "undetermined"
+        : "denied";
+    setLocationPermission(locStatus);
+
+    const btStatus = await requestBluetooth();
+    setBtPermission(btStatus);
+
+    if (locStatus !== "granted" || btStatus !== "granted") {
+      setSettingsPrompt(true);
+    }
+  }, [requestBluetooth]);
+
+  useEffect(() => {
+    if (requestedRef.current) return;
+    requestedRef.current = true;
+    requestAll();
+  }, [requestAll]);
+
   useEffect(() => {
     if (allowed) runScan("found");
     return clearTimers;
   }, [allowed, runScan, clearTimers]);
 
-  const handleLocationAllow = () => {
-    setLocationPrompt(false);
-    setLocationPermission("granted");
-    if (btPermission === "undetermined") setBtPrompt(true);
-    else if (btPermission === "denied") setSettingsPrompt(true);
-  };
-
-  const handleLocationDeny = () => {
-    setLocationPrompt(false);
-    setLocationPermission("denied");
-    setSettingsPrompt(true);
-  };
-
-  const handleBtAllow = () => {
-    setBtPrompt(false);
-    setBtPermission("granted");
-  };
-
-  const handleBtDeny = () => {
-    setBtPrompt(false);
-    setBtPermission("denied");
-    setSettingsPrompt(true);
-  };
-
   const handleReset = () => {
-    // Toggle to let user preview both states while mock
     const next: ScanOutcome =
       outcomeRef.current === "found" ? "empty" : "found";
     runScan(next);
   };
 
+  const handleOpenSettings = () => {
+    setSettingsPrompt(false);
+    if (Platform.OS !== "web") Linking.openSettings();
+  };
+
   const selectDevice = (code: string) =>
-    router.push(`/connect-device?device=${encodeURIComponent(code)}` as never);
+    router.push(
+      `/connect-device?device=${encodeURIComponent(code)}${
+        deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""
+      }` as never
+    );
 
   const hasDevices = devices.length > 0;
   const showEmpty = !scanning && !hasDevices && allowed;
@@ -108,7 +137,6 @@ export default function ScanDevicesScreen() {
 
       <PageHeader title="ค้นหาอุปกรณ์ใกล้เคียง" onBack={() => router.back()} />
 
-      {/* Scan status row */}
       <View className="bg-white px-5 py-4 flex-row items-center">
         {scanning ? (
           <>
@@ -130,7 +158,6 @@ export default function ScanDevicesScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
-        {/* Device illustration */}
         <View className="items-center my-8">
           <View className="w-[110px] h-[170px] border-2 border-[#FF3055] rounded-3xl items-center justify-center">
             <View className="w-8 h-[2px] bg-[#FF3055]" />
@@ -174,81 +201,10 @@ export default function ScanDevicesScreen() {
         )}
       </ScrollView>
 
-      {/* OS-style: location permission */}
-      <Modal transparent animationType="fade" visible={locationPrompt}>
-        <View className="flex-1 bg-black/40 items-center justify-center px-8">
-          <View className="bg-white rounded-2xl w-full max-w-[300px] overflow-hidden">
-            <View className="items-center pt-5 pb-3 px-4">
-              <View className="w-10 h-10 rounded-full bg-[#EFEFF5] items-center justify-center mb-2">
-                <Ionicons name="location" size={20} color="#4C8BF5" />
-              </View>
-              <Text className="text-sm text-[#1A1A1A] text-center">
-                Allow <Text className="font-semibold">Middle</Text> to access
-                this device's location?
-              </Text>
-            </View>
-            <View className="h-[1px] bg-[#E8E8E8]" />
-            <TouchableOpacity
-              onPress={handleLocationAllow}
-              className="py-3 items-center"
-            >
-              <Text className="text-sm text-[#4C8BF5]">While using the app</Text>
-            </TouchableOpacity>
-            <View className="h-[1px] bg-[#E8E8E8]" />
-            <TouchableOpacity
-              onPress={handleLocationAllow}
-              className="py-3 items-center"
-            >
-              <Text className="text-sm text-[#4C8BF5]">Only This Time</Text>
-            </TouchableOpacity>
-            <View className="h-[1px] bg-[#E8E8E8]" />
-            <TouchableOpacity
-              onPress={handleLocationDeny}
-              className="py-3 items-center"
-            >
-              <Text className="text-sm text-[#4C8BF5]">Don't Allow</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* OS-style: nearby devices permission */}
-      <Modal transparent animationType="fade" visible={btPrompt}>
-        <View className="flex-1 bg-black/40 items-center justify-center px-8">
-          <View className="bg-white rounded-2xl w-full max-w-[300px] overflow-hidden">
-            <View className="items-center pt-5 pb-3 px-4">
-              <View className="w-10 h-10 rounded-full bg-[#EFEFF5] items-center justify-center mb-2">
-                <Ionicons name="bluetooth" size={20} color="#4C8BF5" />
-              </View>
-              <Text className="text-sm text-[#1A1A1A] text-center">
-                Allow <Text className="font-semibold">Middle</Text> to find,
-                connect to and determine the relative position of nearby
-                devices?
-              </Text>
-            </View>
-            <View className="h-[1px] bg-[#E8E8E8]" />
-            <TouchableOpacity
-              onPress={handleBtAllow}
-              className="py-3 items-center"
-            >
-              <Text className="text-sm text-[#4C8BF5]">Allow</Text>
-            </TouchableOpacity>
-            <View className="h-[1px] bg-[#E8E8E8]" />
-            <TouchableOpacity
-              onPress={handleBtDeny}
-              className="py-3 items-center"
-            >
-              <Text className="text-sm text-[#4C8BF5]">Don't Allow</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* App-level: go-to-settings modal (content adapts to missing perms) */}
       <ConfirmModal
         visible={settingsPrompt}
         onClose={() => setSettingsPrompt(false)}
-        onConfirm={() => setSettingsPrompt(false)}
+        onConfirm={handleOpenSettings}
         confirmLabel="ไปที่การตั้งค่า"
         titleAlign="left"
         messageAlign="left"

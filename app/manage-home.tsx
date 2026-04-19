@@ -26,7 +26,7 @@ export default function ManageHomeScreen() {
         <SettingItem
           icon="home-outline"
           label="บ้าน"
-          onPress={() => {}}
+          onPress={() => router.push("/houses" as never)}
         />
       </View>
     </View>

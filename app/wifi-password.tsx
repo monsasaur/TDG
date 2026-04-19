@@ -18,9 +18,10 @@ const WRONG_PASSWORD = "wrong";
 
 export default function WifiPasswordScreen() {
   const router = useRouter();
-  const { ssid, device } = useLocalSearchParams<{
+  const { ssid, device, deviceId } = useLocalSearchParams<{
     ssid?: string;
     device?: string;
+    deviceId?: string;
   }>();
 
   const [password, setPassword] = useState("");
@@ -43,7 +44,9 @@ export default function WifiPasswordScreen() {
       router.replace(
         `/device-setup?device=${encodeURIComponent(
           device ?? ""
-        )}&ssid=${encodeURIComponent(wifiName)}` as never
+        )}&ssid=${encodeURIComponent(wifiName)}${
+          deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""
+        }` as never
       );
     }, CONNECT_MS);
   };

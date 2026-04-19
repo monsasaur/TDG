@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { mockDevices } from "../data/mockDevices";
+import { useDevices } from "../contexts/DevicesContext";
 import PageHeader from "../components/PageHeader";
 import LabeledTextField from "../components/LabeledTextField";
 import ConfirmModal from "../components/ConfirmModal";
@@ -22,10 +22,11 @@ const NAME_MAX = 30;
 export default function DeviceDetailsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { devices } = useDevices();
 
   const device = useMemo(
-    () => mockDevices.find((d) => d.id === id),
-    [id]
+    () => devices.find((d) => d.id === id),
+    [devices, id]
   );
 
   const [name, setName] = useState("");
@@ -40,7 +41,7 @@ export default function DeviceDetailsScreen() {
     }
   }, [device]);
 
-  const goBack = () => router.replace("/devices" as never);
+  const goBack = () => router.back();
 
   if (!device) {
     return (
@@ -133,7 +134,10 @@ export default function DeviceDetailsScreen() {
             onPress={
               isConnected
                 ? goBack
-                : () => router.push("/connect-device" as never)
+                : () =>
+                    router.push(
+                      `/scan-devices?deviceId=${device.id}` as never
+                    )
             }
             disabled={isConnected && !canSave}
             className={`rounded-full py-4 items-center ${

@@ -54,7 +54,7 @@ export default function AddExternalContactScreen() {
       setLimitModal(house);
       return;
     }
-    router.replace("/emergency-contacts" as never);
+    router.back();
   };
 
   return (

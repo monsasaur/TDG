@@ -17,7 +17,7 @@ export const mockDevices: Device[] = [
     name: "Esp32 - ห้องนอน",
     code: "ESP-0001A",
     wifi: "MeeNeeNetZa_5G",
-    status: "connected",
+    status: "disconnected",
     house: "บ้านแม่",
   },
   {

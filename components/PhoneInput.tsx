@@ -6,9 +6,10 @@ interface PhoneInputProps {
   error?: string;
   onChangeText: (text: string) => void;
   onBlur?: () => void;
+  autoFocus?: boolean;
 }
 
-export default function PhoneInput({ value, error, onChangeText, onBlur }: PhoneInputProps) {
+export default function PhoneInput({ value, error, onChangeText, onBlur, autoFocus }: PhoneInputProps) {
   const inputRef = useRef<TextInput>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -36,6 +37,7 @@ export default function PhoneInput({ value, error, onChangeText, onBlur }: Phone
           onBlur={onBlur}
           keyboardType="number-pad"
           maxLength={10}
+          autoFocus={autoFocus}
         />
       </View>
 

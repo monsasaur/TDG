@@ -16,7 +16,10 @@ const SCAN_MS = 1500;
 
 export default function ConnectDeviceScreen() {
   const router = useRouter();
-  const { device } = useLocalSearchParams<{ device?: string }>();
+  const { device, deviceId } = useLocalSearchParams<{
+    device?: string;
+    deviceId?: string;
+  }>();
 
   const [scanning, setScanning] = useState(true);
   const [networks, setNetworks] = useState<string[]>([]);
@@ -33,7 +36,7 @@ export default function ConnectDeviceScreen() {
     router.push(
       `/wifi-password?ssid=${encodeURIComponent(ssid)}&device=${encodeURIComponent(
         device ?? ""
-      )}` as never
+      )}${deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""}` as never
     );
 
   return (
@@ -79,7 +82,9 @@ export default function ConnectDeviceScreen() {
               router.push(
                 `/add-network?device=${encodeURIComponent(
                   device ?? ""
-                )}` as never
+                )}${
+                  deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""
+                }` as never
               )
             }
             className="mt-3"

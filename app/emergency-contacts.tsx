@@ -58,7 +58,7 @@ export default function EmergencyContactsScreen() {
   const dropdownOptions = showAll ? ["ทั้งหมด", ...HOUSES] : [defaultLabel];
 
   const onContactPress = (c: EmergencyContact) =>
-    c.type === "self"
+    c.type === "member"
       ? undefined
       : () => router.push(`/edit-contact?id=${c.id}` as never);
 
@@ -180,7 +180,9 @@ function ContactRow({
           ))}
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={18} color="#AAAAAA" />
+      {onPress && (
+        <Ionicons name="chevron-forward" size={18} color="#AAAAAA" />
+      )}
     </TouchableOpacity>
   );
 }

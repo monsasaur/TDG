@@ -24,6 +24,7 @@ export type Alert = {
 
 export type SystemAlert = {
   id: string;
+  deviceId: string;
   title: string;
   deviceName: string;
   houseName: string;
