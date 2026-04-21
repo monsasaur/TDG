@@ -6,4 +6,4 @@ node_modules/
 npm-debug.log*
 
 # OS
-.DS_Store
+.DS_Storefall_detection_backend/ml_service/data/realtime/raw_rt.npy
