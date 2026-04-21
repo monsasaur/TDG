@@ -18,81 +18,95 @@ function twilioReady() {
          process.env.TWILIO_ACCOUNT_SID !== 'your_sid'
 }
 
-const LEVEL_LABEL = {
-  A: 'ระดับ A — แจ้งเตือนเบา',
-  B: 'ระดับ B — แจ้ง Caregiver',
-  C: 'ระดับ C — ฉุกเฉิน'
+function recipients() {
+  return (process.env.ALERT_PHONES || '').split(',').map(s => s.trim()).filter(Boolean)
 }
 
-const LEVEL_EMOJI = { A: '🟡', B: '🟠', C: '🔴' }
-
 module.exports = {
-  // SMS — Level B และ C
-  notify: async ({ device_id, location, confidence, fall_level, duration_on_floor }) => {
+  // SMS — ใช้ตอน escalation (ไม่มีการตอบรับภายใน timeout)
+  sendSms: async ({ device_id, location, confidence, event_id }) => {
     if (!twilioReady()) {
       console.log('⚠️  Twilio not configured — skip SMS')
-      return
+      return { skipped: true }
     }
 
-    const label    = LEVEL_LABEL[fall_level] ?? 'ตรวจพบการล้ม'
-    const emoji    = LEVEL_EMOJI[fall_level] ?? '🚨'
-    const duration = duration_on_floor != null ? `${duration_on_floor} วิ` : '-'
+    const phones = recipients()
+    if (phones.length === 0) {
+      console.log('⚠️  ALERT_PHONES empty — skip SMS')
+      return { skipped: true }
+    }
 
     const message = [
-      `${emoji} Fall Alert! ${label}`,
+      '🚨 Fall Alert!',
       `📍 Location   : ${location}`,
       `📟 Device     : ${device_id}`,
-      `⏱️  บนพื้นนาน  : ${duration}`,
       `📊 Confidence : ${Math.round(confidence * 100)}%`,
-      `🕐 เวลา       : ${new Date().toLocaleString('th-TH')}`
+      `🕐 เวลา       : ${new Date().toLocaleString('th-TH')}`,
+      '',
+      '⚠️ ไม่มีผู้ตอบรับในแอป กรุณาตรวจสอบผู้สูงอายุทันที'
     ].join('\n')
 
-    const recipients = process.env.ALERT_PHONES.split(',')
-
-    await Promise.all(
-      recipients.map(to =>
+    const results = await Promise.allSettled(
+      phones.map(to =>
         getClient().messages.create({
           body: message,
           from: process.env.TWILIO_PHONE,
-          to:   to.trim()
+          to
         })
       )
     )
 
-    console.log(`✅ SMS (Level ${fall_level}) sent to ${recipients.length} recipients`)
-  },
-
-  // Voice Call — Level C เท่านั้น
-  call: async ({ device_id, location, fall_level }) => {
-    if (!twilioReady()) {
-      console.log('⚠️  Twilio not configured — skip call')
-      return
+    const failed = results.filter(r => r.status === 'rejected')
+    if (failed.length) {
+      console.error(`❌ SMS: ${failed.length}/${phones.length} failed`,
+        failed.map(f => f.reason?.message))
     }
 
-    const recipients = process.env.ALERT_PHONES.split(',')
+    const sent = phones.length - failed.length
+    console.log(`✅ SMS sent ${sent}/${phones.length} (event=${event_id})`)
+    return { sent, failed: failed.length }
+  },
 
-    await Promise.all(
-      recipients.map(to =>
+  // Voice Call — ใช้ตอน escalation
+  makeCall: async ({ location, event_id }) => {
+    if (!twilioReady()) {
+      console.log('⚠️  Twilio not configured — skip call')
+      return { skipped: true }
+    }
+
+    const phones = recipients()
+    if (phones.length === 0) return { skipped: true }
+
+    const results = await Promise.allSettled(
+      phones.map(to =>
         getClient().calls.create({
           twiml: `
             <Response>
               <Say language="th-TH">
                 แจ้งเตือนฉุกเฉิน พบผู้ล้มที่ ${location}
-                ผู้ป่วยไม่สามารถลุกขึ้นได้ กรุณาตรวจสอบทันที
+                ไม่มีผู้ตอบรับในแอพพลิเคชัน กรุณาตรวจสอบทันที
               </Say>
               <Pause length="1"/>
               <Say language="th-TH">
-                แจ้งเตือนฉุกเฉิน พบผู้ล้มที่ ${location}
+                ย้ำ แจ้งเตือนฉุกเฉิน พบผู้ล้มที่ ${location}
                 กรุณาตรวจสอบทันที
               </Say>
             </Response>
           `,
           from: process.env.TWILIO_PHONE,
-          to:   to.trim()
+          to
         })
       )
     )
 
-    console.log(`✅ Voice call (Level ${fall_level}) made to ${recipients.length} recipients`)
+    const failed = results.filter(r => r.status === 'rejected')
+    if (failed.length) {
+      console.error(`❌ Call: ${failed.length}/${phones.length} failed`,
+        failed.map(f => f.reason?.message))
+    }
+
+    const made = phones.length - failed.length
+    console.log(`✅ Calls made ${made}/${phones.length} (event=${event_id})`)
+    return { made, failed: failed.length }
   }
 }
