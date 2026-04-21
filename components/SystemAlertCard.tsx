@@ -1,4 +1,5 @@
 import { View, Text, Pressable } from "react-native";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SystemAlert } from "../types/alert";
 
@@ -7,8 +8,12 @@ interface SystemAlertCardProps {
 }
 
 export default function SystemAlertCard({ alert }: SystemAlertCardProps) {
+  const router = useRouter();
   return (
     <Pressable
+      onPress={() =>
+        router.push(`/device-details?id=${alert.deviceId}` as never)
+      }
       className="rounded-xl border border-[#E8E8E8] mx-5 mt-3 p-4"
       style={({ pressed }) => ({
         backgroundColor: pressed ? "#E8E8E8" : "#FFFFFF",

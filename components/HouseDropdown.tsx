@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { View, Text, TouchableOpacity, Modal, TouchableWithoutFeedback } from "react-native";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 interface HouseDropdownProps {
@@ -9,6 +10,7 @@ interface HouseDropdownProps {
 }
 
 export default function HouseDropdown({ houses, selected, onSelect }: HouseDropdownProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
 
   const showAll = houses.length > 1;
@@ -53,7 +55,10 @@ export default function HouseDropdown({ houses, selected, onSelect }: HouseDropd
                 {/* จัดการบ้าน */}
                 <TouchableOpacity
                   className="flex-row items-center px-4 py-3"
-                  onPress={() => setOpen(false)}
+                  onPress={() => {
+                    setOpen(false);
+                    router.push("/manage-home" as never);
+                  }}
                 >
                   <Ionicons name="settings-outline" size={14} color="#888" />
                   <Text className="text-sm text-[#888] ml-2">จัดการบ้าน</Text>
