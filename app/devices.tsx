@@ -1,24 +1,32 @@
-import { useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
-import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Device } from "../data/mockDevices";
-import { useDevices } from "../contexts/DevicesContext";
-import PageHeader from "../components/PageHeader";
+import { Stack, useRouter } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import AddActionPill from "../components/AddActionPill";
 import FilterPillButton from "../components/FilterPillButton";
 import HouseFilterDropdown from "../components/HouseFilterDropdown";
-import AddActionPill from "../components/AddActionPill";
-
-const HOUSES = ["บ้านแม่", "บ้านพ่อ"];
+import PageHeader from "../components/PageHeader";
+import { useDevices } from "../contexts/DevicesContext";
+import { Device } from "../data/useDevices";
+import { useHouses } from "../data/useHouses"; // Import เพิ่ม
 
 export default function DevicesScreen() {
   const router = useRouter();
   const { devices } = useDevices();
+  const { houses: dbHouses } = useHouses(); // ดึงบ้านจาก DB
 
+  const HOUSES = useMemo(() => dbHouses.map((h) => h.name), [dbHouses]);
   const showAll = HOUSES.length > 1;
   const defaultLabel = showAll ? "ทั้งหมด" : "ทุกบ้าน";
+
   const [selectedHouse, setSelectedHouse] = useState(defaultLabel);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    if (HOUSES.length > 0) {
+      setSelectedHouse(showAll ? "ทั้งหมด" : HOUSES[0]);
+    }
+  }, [dbHouses]);
 
   const isAll = selectedHouse === "ทั้งหมด" || !showAll;
   const housesToShow = isAll ? HOUSES : [selectedHouse];
@@ -26,7 +34,7 @@ export default function DevicesScreen() {
   const devicesByHouse = useMemo(() => {
     const map: Record<string, Device[]> = {};
     for (const h of housesToShow) {
-      map[h] = devices.filter((d) => d.house === h);
+      map[h] = devices.filter((d) => d.houseName === h); // เปลี่ยน d.house เป็น d.houseName
     }
     return map;
   }, [housesToShow, devices]);
@@ -39,7 +47,6 @@ export default function DevicesScreen() {
 
       <PageHeader title="อุปกรณ์" onBack={() => router.back()} />
 
-      {/* House filter */}
       <View className="bg-white px-5 pb-4 flex-row justify-end">
         <FilterPillButton
           label={selectedHouse}
@@ -89,9 +96,7 @@ function DeviceRow({ device }: { device: Device }) {
   return (
     <TouchableOpacity
       activeOpacity={0.7}
-      onPress={() =>
-        router.push(`/device-details?id=${device.id}` as never)
-      }
+      onPress={() => router.push(`/device-details?id=${device.id}` as never)}
       className="bg-white mx-5 mb-2 rounded-2xl px-4 py-3 flex-row items-center"
     >
       <View className="flex-1">

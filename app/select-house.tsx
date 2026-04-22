@@ -1,11 +1,11 @@
+import { Stack, useRouter } from "expo-router";
 import { useState } from "react";
-import { View, ScrollView } from "react-native";
-import { useRouter, Stack } from "expo-router";
-import { MAX_HOUSES } from "../data/mockDevices";
-import PageHeader from "../components/PageHeader";
+import { ScrollView, View } from "react-native";
 import ConfirmModal from "../components/ConfirmModal";
-import PrimaryButton from "../components/PrimaryButton";
 import HousePicker from "../components/HousePicker";
+import PageHeader from "../components/PageHeader";
+import PrimaryButton from "../components/PrimaryButton";
+import { MAX_HOUSES } from "../data/useDevices";
 
 const INITIAL_HOUSES = ["บ้านแม่", "บ้านพ่อ"];
 

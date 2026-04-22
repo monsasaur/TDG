@@ -1,41 +1,57 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  FlatList,
-  ActivityIndicator,
-  Platform,
-} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import { Alert as AlertType, SystemAlert } from "../types/alert";
-import { useAlerts } from "../contexts/AlertsContext";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Platform,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import AlertCardActive from "../components/AlertCardActive";
-import AlertCardSmall from "../components/AlertCardSmall";
 import AlertCardExpanded from "../components/AlertCardExpanded";
-import SystemAlertCard from "../components/SystemAlertCard";
+import AlertCardSmall from "../components/AlertCardSmall";
 import HouseDropdown from "../components/HouseDropdown";
+import SystemAlertCard from "../components/SystemAlertCard";
+import { useAlerts } from "../contexts/AlertsContext";
+import { Alert as AlertType, SystemAlert } from "../types/alert";
 
-const HOUSES = ["บ้านแม่", "บ้านพ่อ"];
+// Import Hook สำหรับดึงบ้านจริง
+import { useHouses } from "../data/useHouses";
+
 const PAGE_SIZE = 5;
 
 export default function HomeScreen() {
   const router = useRouter();
   const { alerts, systemAlerts, setAlerts } = useAlerts();
+  const { houses: dbHouses } = useHouses();
+
+  // แปลงบ้านจาก Database ให้กลายเป็น Array
+  const HOUSES = useMemo(() => dbHouses.map((h) => h.name), [dbHouses]);
+
   const [activeTab, setActiveTab] = useState<"fall" | "system">("fall");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [selectedHouse, setSelectedHouse] = useState(
-    HOUSES.length > 1 ? "ทั้งหมด" : HOUSES[0]
-  );
+
+  // ให้ค่าเริ่มต้นเป็น "ทั้งหมด" ไว้ก่อน
+  const [selectedHouse, setSelectedHouse] = useState("ทั้งหมด");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+
+  // อัปเดต SelectedHouse เมื่อดึงข้อมูลบ้านเสร็จ
+  useEffect(() => {
+    if (HOUSES.length > 0) {
+      setSelectedHouse(HOUSES.length > 1 ? "ทั้งหมด" : HOUSES[0]);
+    }
+  }, [dbHouses]);
 
   useEffect(() => {
     requestPermissions();
   }, []);
+
+  // ... นอกนั้นโค้ดด้านล่างปล่อยไว้เหมือนเดิมได้เลยครับ ...
 
   // Reset pagination when filters change
   useEffect(() => {
@@ -55,16 +71,17 @@ export default function HomeScreen() {
             message: "Middle ต้องการค้นหาอุปกรณ์ใกล้เคียงเพื่อตรวจจับการล้ม",
             buttonPositive: "อนุญาต",
             buttonNegative: "ไม่อนุญาต",
-          }
+          },
         );
         await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
           {
             title: "สิทธิ์การเชื่อมต่ออุปกรณ์",
-            message: "Middle ต้องการเชื่อมต่อกับอุปกรณ์ใกล้เคียงเพื่อตรวจจับการล้ม",
+            message:
+              "Middle ต้องการเชื่อมต่อกับอุปกรณ์ใกล้เคียงเพื่อตรวจจับการล้ม",
             buttonPositive: "อนุญาต",
             buttonNegative: "ไม่อนุญาต",
-          }
+          },
         );
       } catch {}
     }
@@ -93,7 +110,7 @@ export default function HomeScreen() {
           answeredBy: "ฉัน",
           timeline: newTimeline,
         };
-      })
+      }),
     );
     setExpandedId(id);
   };
@@ -108,7 +125,7 @@ export default function HomeScreen() {
       selectedHouse === "ทั้งหมด"
         ? alerts
         : alerts.filter((a) => a.houseName === selectedHouse),
-    [alerts, selectedHouse]
+    [alerts, selectedHouse],
   );
 
   const filteredSystemAlerts = useMemo(
@@ -116,7 +133,7 @@ export default function HomeScreen() {
       selectedHouse === "ทั้งหมด"
         ? systemAlerts
         : systemAlerts.filter((a) => a.houseName === selectedHouse),
-    [systemAlerts, selectedHouse]
+    [systemAlerts, selectedHouse],
   );
 
   const fullFallList = useMemo(() => {
@@ -146,19 +163,22 @@ export default function HomeScreen() {
       }
       if (expandedId === item.id) {
         return (
-          <TouchableOpacity onPress={() => setExpandedId(null)} activeOpacity={0.9}>
+          <TouchableOpacity
+            onPress={() => setExpandedId(null)}
+            activeOpacity={0.9}
+          >
             <AlertCardExpanded alert={item} />
           </TouchableOpacity>
         );
       }
       return <AlertCardSmall alert={item} onPress={handleSmallCardPress} />;
     },
-    [expandedId]
+    [expandedId],
   );
 
   const renderSystemItem = useCallback(
     ({ item }: { item: SystemAlert }) => <SystemAlertCard alert={item} />,
-    []
+    [],
   );
 
   const emptyText =
