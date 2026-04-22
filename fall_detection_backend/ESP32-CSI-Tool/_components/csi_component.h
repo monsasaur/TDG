@@ -10,7 +10,7 @@
 #include "lwip/netdb.h"
 #include "esp_netif.h"
 
-#define UDP_TARGET_IP   "172.20.10.2"  // ← IP ของ PC
+#define UDP_TARGET_IP   "172.20.10.7"  // ← IP ของ PC
 #define UDP_TARGET_PORT 5500    
 
 #define CSI_RAW 1

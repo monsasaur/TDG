@@ -18,6 +18,7 @@
 **/data/processed_transfer/
 **/data/UT_HAR/
 **/data/wall_test/
+**/data/realtime
 
 # ===== NODE =====
 **/node_modules/
