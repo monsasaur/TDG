@@ -1,34 +1,69 @@
-import { useState } from "react";
-import { View, Text, ScrollView } from "react-native";
-import { useRouter, Stack } from "expo-router";
-import { mockHouses, useMockHouses, MAX_HOUSES } from "../data/mockHouses";
-import PageHeader from "../components/PageHeader";
-import HousePill from "../components/HousePill";
+import { Stack, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
 import AddActionPill from "../components/AddActionPill";
-import JoinOptionCard from "../components/JoinOptionCard";
 import ConfirmModal from "../components/ConfirmModal";
+import HousePill from "../components/HousePill";
+import JoinOptionCard from "../components/JoinOptionCard";
+import PageHeader from "../components/PageHeader";
+
+// Import สิ่งที่จำเป็นสำหรับ Supabase
+import { supabase } from "../data/supabaseClient";
+import { House, MAX_HOUSES, useHouses } from "../data/useHouses";
 
 export default function HousesScreen() {
   const router = useRouter();
-  const houses = useMockHouses();
 
-  const [pendingRemove, setPendingRemove] = useState<string | null>(null);
+  // 1. ดึงข้อมูลจาก Hook จริง
+  const { houses, isLoading } = useHouses();
+
+  // สร้าง State ย่อยมาเก็บข้อมูลบ้านไว้แสดงผล
+  // (เพื่อให้เวลาพอกดลบปุ๊บ เราสามารถอัปเดตเอาออกจากหน้าจอได้ทันทีโดยไม่ต้องรอโหลดใหม่)
+  const [localHouses, setLocalHouses] = useState<House[]>([]);
+
+  useEffect(() => {
+    setLocalHouses(houses);
+  }, [houses]);
+
+  // 2. เปลี่ยน pendingRemove ให้เก็บ Object ของ House แทน string
+  const [pendingRemove, setPendingRemove] = useState<House | null>(null);
   const [limitModal, setLimitModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleAdd = () => {
-    if (houses.length >= MAX_HOUSES) {
+    if (localHouses.length >= MAX_HOUSES) {
       setLimitModal(true);
       return;
     }
     router.push("/add-house" as never);
   };
 
-  const confirmRemove = () => {
-    if (pendingRemove) mockHouses.remove(pendingRemove);
-    setPendingRemove(null);
+  // 3. ยิง API ลบบ้านออกจากฐานข้อมูล
+  const confirmRemove = async () => {
+    if (!pendingRemove) return;
+    setIsDeleting(true);
+
+    try {
+      // ลบจาก Supabase (ใช้ ID อ้างอิง)
+      const { error } = await supabase
+        .from("houses")
+        .delete()
+        .eq("id", pendingRemove.id);
+
+      if (error) throw error;
+
+      // ลบออกจากหน้าจอทันที
+      setLocalHouses((prev) => prev.filter((h) => h.id !== pendingRemove.id));
+    } catch (error) {
+      console.error("Error deleting house:", error);
+      Alert.alert("เกิดข้อผิดพลาด", "ไม่สามารถลบบ้านได้ กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setIsDeleting(false);
+      setPendingRemove(null);
+    }
   };
 
-  const isLast = houses.length === 1;
+  const isLast = localHouses.length === 1;
 
   return (
     <View className="flex-1 bg-[#F5F5F5]">
@@ -40,13 +75,19 @@ export default function HousesScreen() {
           จัดการบ้าน
         </Text>
         <View className="px-5">
-          {houses.map((h) => (
-            <HousePill
-              key={h}
-              label={h}
-              onRemove={() => setPendingRemove(h)}
-            />
-          ))}
+          {isLoading ? (
+            // แสดงตัวหมุนโหลดข้อมูล
+            <ActivityIndicator className="my-4" color="#000" />
+          ) : (
+            // เปลี่ยนจาก string มาใช้ object (h.id และ h.name)
+            localHouses.map((h) => (
+              <HousePill
+                key={h.id}
+                label={h.name}
+                onRemove={() => setPendingRemove(h)}
+              />
+            ))
+          )}
           <AddActionPill
             label="เพิ่มบ้าน"
             onPress={handleAdd}
@@ -75,13 +116,13 @@ export default function HousesScreen() {
 
       <ConfirmModal
         visible={pendingRemove !== null}
-        onClose={() => setPendingRemove(null)}
+        onClose={() => !isDeleting && setPendingRemove(null)}
         onConfirm={confirmRemove}
-        title={`ลบ ${pendingRemove ?? ""} ไหม`}
+        title={`ลบ ${pendingRemove?.name ?? ""} ไหม`} // ดึงชื่อมาแสดง
         titleAlign="left"
         messageAlign="left"
         cancelLabel="ยกเลิก"
-        confirmLabel="ลบบ้าน"
+        confirmLabel={isDeleting ? "กำลังลบ..." : "ลบบ้าน"}
         message={
           isLast
             ? "การดำเนินการนี้จะมีผลดังนี้\n\nการแจ้งเตือนและบริการในกลุ่มบ้านนี้จะถูกลบออก\n\nนี่คือกลุ่มสุดท้ายที่เหลืออยู่ของคุณ หากคุณลบออก กลุ่มที่เรียกว่า บ้านของฉัน จะถูกสร้างขึ้น"

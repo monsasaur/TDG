@@ -1,16 +1,16 @@
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  View,
-  Text,
-  TouchableOpacity,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import PageHeader from "../components/PageHeader";
-import StackedInputCard from "../components/StackedInputCard";
 import PrimaryButton from "../components/PrimaryButton";
+import StackedInputCard from "../components/StackedInputCard";
 
 const MIN_SSID = 1;
 const MIN_PASSWORD = 8;
@@ -43,18 +43,20 @@ export default function AddNetworkScreen() {
       }
       router.replace(
         `/device-setup?device=${encodeURIComponent(
-          device ?? ""
+          device ?? "",
         )}&ssid=${encodeURIComponent(ssid)}${
           deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""
-        }` as never
+        }` as never,
       );
     }, CONNECT_MS);
   };
 
-  const clearErrorOnChange = <T,>(setter: (v: T) => void) => (v: T) => {
-    setter(v);
-    if (error) setError(undefined);
-  };
+  const clearErrorOnChange =
+    <T,>(setter: (v: T) => void) =>
+    (v: T) => {
+      setter(v);
+      if (error) setError(undefined);
+    };
 
   return (
     <View className="flex-1 bg-[#F5F5F5]">

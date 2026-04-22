@@ -1,16 +1,11 @@
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  ActivityIndicator,
-} from "react-native";
-import { useRouter, Stack, useLocalSearchParams } from "expo-router";
-import { mockAvailableNetworks } from "../data/mockDevices";
-import PageHeader from "../components/PageHeader";
+import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import AddActionPill from "../components/AddActionPill";
 import DeviceStatusCard from "../components/DeviceStatusCard";
 import NetworkRow from "../components/NetworkRow";
+import PageHeader from "../components/PageHeader";
+import { mockAvailableNetworks } from "../data/useDevices";
 
 const SCAN_MS = 1500;
 
@@ -35,8 +30,8 @@ export default function ConnectDeviceScreen() {
   const selectNetwork = (ssid: string) =>
     router.push(
       `/wifi-password?ssid=${encodeURIComponent(ssid)}&device=${encodeURIComponent(
-        device ?? ""
-      )}${deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""}` as never
+        device ?? "",
+      )}${deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""}` as never,
     );
 
   return (
@@ -56,7 +51,11 @@ export default function ConnectDeviceScreen() {
               เครือข่ายที่พร้อมใช้งาน
             </Text>
             {scanning && (
-              <ActivityIndicator size="small" color="#FF3055" className="ml-2" />
+              <ActivityIndicator
+                size="small"
+                color="#FF3055"
+                className="ml-2"
+              />
             )}
           </View>
           <Text className="text-xs text-[#888] leading-5 mb-3">
@@ -80,11 +79,9 @@ export default function ConnectDeviceScreen() {
             label="เพิ่มเครือข่าย"
             onPress={() =>
               router.push(
-                `/add-network?device=${encodeURIComponent(
-                  device ?? ""
-                )}${
+                `/add-network?device=${encodeURIComponent(device ?? "")}${
                   deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""
-                }` as never
+                }` as never,
               )
             }
             className="mt-3"

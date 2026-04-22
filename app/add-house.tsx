@@ -1,28 +1,61 @@
+import { Stack, useRouter } from "expo-router";
 import { useState } from "react";
-import { View, Text, TouchableOpacity } from "react-native";
-import { useRouter, Stack } from "expo-router";
-import { mockHouses, MAX_HOUSES } from "../data/mockHouses";
-import PageHeader from "../components/PageHeader";
-import LabeledTextField from "../components/LabeledTextField";
-import PrimaryButton from "../components/PrimaryButton";
+import { Alert, Text, TouchableOpacity, View } from "react-native";
 import ConfirmModal from "../components/ConfirmModal";
+import LabeledTextField from "../components/LabeledTextField";
+import PageHeader from "../components/PageHeader";
+import PrimaryButton from "../components/PrimaryButton";
+
+// Import Hook และ MAX_HOUSES ที่เราเขียนไว้ใหม่
+import { MAX_HOUSES, useHouses } from "../data/useHouses";
+// อย่าลืม Import supabase client (ปรับ path ให้ตรงกับโปรเจกต์ของคุณ)
+import { supabase } from "../data/supabaseClient";
 
 export default function AddHouseScreen() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [limitModal, setLimitModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // เพิ่ม State สำหรับตอนกด Save
+
+  // ดึงข้อมูลบ้านปัจจุบันมาเพื่อนับจำนวน
+  const { houses, isLoading } = useHouses();
 
   const trimmed = name.trim();
-  const canSave = trimmed.length > 0;
+  // จะกด Save ได้ก็ต่อเมื่อ พิมพ์ชื่อแล้ว + ไม่ได้กำลังโหลดข้อมูล + ไม่ได้กำลังเซฟอยู่
+  const canSave = trimmed.length > 0 && !isLoading && !isSaving;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!canSave) return;
-    if (mockHouses.list().length >= MAX_HOUSES) {
+
+    // เช็ค Limit จากจำนวน houses ที่ดึงมาจาก Supabase
+    if (houses.length >= MAX_HOUSES) {
       setLimitModal(true);
       return;
     }
-    mockHouses.add(trimmed);
-    router.back();
+
+    setIsSaving(true);
+    try {
+      // สร้าง ID สั้นๆ ไม่ซ้ำกัน (เช่น h1713829382) เพราะฐานข้อมูลเราใช้ TEXT
+      const newId = `h${Date.now()}`;
+
+      // Insert ลง Supabase ตาราง houses
+      const { error } = await supabase
+        .from("houses")
+        .insert([{ id: newId, name: trimmed }]);
+
+      if (error) throw error;
+
+      // บันทึกสำเร็จ กลับไปหน้าเดิม
+      router.back();
+    } catch (error) {
+      console.error("Error adding house:", error);
+      Alert.alert(
+        "เกิดข้อผิดพลาด",
+        "ไม่สามารถเพิ่มบ้านได้ กรุณาลองใหม่อีกครั้ง",
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -41,13 +74,14 @@ export default function AddHouseScreen() {
 
       <View className="px-5 pb-8">
         <PrimaryButton
-          label="บันทึก"
+          label={isSaving ? "กำลังบันทึก..." : "บันทึก"} // เปลี่ยนข้อความตอนเซฟ
           onPress={handleSave}
           disabled={!canSave}
         />
         <TouchableOpacity
           onPress={() => router.back()}
           className="items-center mt-4"
+          disabled={isSaving}
         >
           <Text className="text-sm font-semibold text-[#1A1A1A]">ยกเลิก</Text>
         </TouchableOpacity>
