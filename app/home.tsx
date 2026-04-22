@@ -17,6 +17,8 @@ import AlertCardSmall from "../components/AlertCardSmall";
 import HouseDropdown from "../components/HouseDropdown";
 import SystemAlertCard from "../components/SystemAlertCard";
 import { useAlerts } from "../contexts/AlertsContext";
+import { useLiveAlerts } from "../hooks/useLiveAlerts";
+import { acknowledgeEvent } from "../lib/api";
 import { Alert as AlertType, SystemAlert } from "../types/alert";
 
 // Import Hook สำหรับดึงบ้านจริง
