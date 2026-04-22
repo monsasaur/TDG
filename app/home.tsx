@@ -13,6 +13,8 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Alert as AlertType, SystemAlert } from "../types/alert";
 import { useAlerts } from "../contexts/AlertsContext";
+import { useLiveAlerts } from "../hooks/useLiveAlerts";
+import { acknowledgeEvent } from "../lib/api";
 import AlertCardActive from "../components/AlertCardActive";
 import AlertCardSmall from "../components/AlertCardSmall";
 import AlertCardExpanded from "../components/AlertCardExpanded";
@@ -32,6 +34,8 @@ export default function HomeScreen() {
   );
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+
+  useLiveAlerts();
 
   useEffect(() => {
     requestPermissions();
@@ -96,6 +100,13 @@ export default function HomeScreen() {
       })
     );
     setExpandedId(id);
+
+    // ถ้า id มาจาก backend (ไม่ใช่ mock ที่เป็น "1","2","3"...) ยิง ack ไปด้วย
+    if (id.length > 5) {
+      acknowledgeEvent(id, "caregiver").catch(() => {
+        // backend offline — ไม่เป็นไร UI อัปเดตแล้ว
+      });
+    }
   };
 
   const handleSmallCardPress = (id: string) => {
