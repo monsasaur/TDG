@@ -3,5 +3,6 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
-  }
+  },
+  "cmake.sourceDirectory": "/Users/peerawootposh/TDG/fall_detection_backend/ESP32-CSI-Tool/active_ap"
 }

@@ -11,3 +11,4 @@ def health():
 @app.post("/predict")
 async def predict(req: PredictRequest):
     return run_model(req.features)
+

@@ -8,6 +8,7 @@ data/processed_v2/
 data/processed_transfer/
 data/UT_HAR/
 data/wall_test/
+/Users/peerawootposh/TDG/fall_detection_backend/ml_service/data/realtime
 
 # Model binary files (must be obtained separately)
 models/*.h5

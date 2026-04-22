@@ -1,0 +1,98 @@
+/**
+ * escalationService.js
+ * จัดการ timer สำหรับ Binary + Acknowledge flow
+ *
+ * Flow:
+ *   1. Fall detected → schedule(event) → รอ ack
+ *   2. caregiver กด ack ในแอป → cancel(event_id) → จบ
+ *   3. หมดเวลา → ยิง Twilio SMS + Call + mark DB
+ *
+ * Note: เก็บ timer ใน memory — server restart จะหาย
+ *       ถ้าต้อง production-grade ให้ใช้ Redis / BullMQ
+ */
+
+const alertService = require('./alertService')
+const dbService    = require('./dbService')
+
+const ACK_TIMEOUT_SECONDS = Number(process.env.ACK_TIMEOUT_SECONDS || 60)
+const COOLDOWN_SECONDS    = Number(process.env.COOLDOWN_SECONDS    || 300)
+
+// event_id → timeout handle
+const pendingTimers = new Map()
+
+// device_id → timestamp ของ alert ล่าสุด (กัน spam)
+const deviceCooldown = new Map()
+
+function inCooldown(device_id) {
+  const last = deviceCooldown.get(device_id)
+  if (!last) return false
+  const elapsed = (Date.now() - last) / 1000
+  return elapsed < COOLDOWN_SECONDS
+}
+
+function markCooldown(device_id) {
+  deviceCooldown.set(device_id, Date.now())
+}
+
+async function escalate(event) {
+  const { id: event_id, device_id, location, confidence } = event
+  console.log(`🚨 [ESCALATE] event=${event_id} device=${device_id}`)
+
+  try {
+    const [smsRes, callRes] = await Promise.allSettled([
+      alertService.sendSms({ device_id, location, confidence, event_id }),
+      alertService.makeCall({ location, event_id })
+    ])
+
+    await dbService.markEscalated(event_id, {
+      sms_sent:  smsRes.status === 'fulfilled' && !smsRes.value?.skipped,
+      call_made: callRes.status === 'fulfilled' && !callRes.value?.skipped
+    })
+  } catch (err) {
+    console.error(`❌ Escalation failed for ${event_id}:`, err.message)
+  } finally {
+    pendingTimers.delete(event_id)
+  }
+}
+
+module.exports = {
+  ACK_TIMEOUT_SECONDS,
+  COOLDOWN_SECONDS,
+
+  inCooldown,
+
+  // เริ่มจับเวลา ack สำหรับ event นี้
+  schedule: (event) => {
+    const { id: event_id, device_id } = event
+
+    if (pendingTimers.has(event_id)) {
+      console.log(`⏭  [ESCALATE] already scheduled for ${event_id}`)
+      return
+    }
+
+    markCooldown(device_id)
+
+    const handle = setTimeout(
+      () => escalate(event),
+      ACK_TIMEOUT_SECONDS * 1000
+    )
+
+    pendingTimers.set(event_id, handle)
+    console.log(`⏱  [ESCALATE] scheduled event=${event_id} timeout=${ACK_TIMEOUT_SECONDS}s`)
+  },
+
+  // ยกเลิก escalation (caregiver กดรับทราบทัน)
+  cancel: (event_id) => {
+    const handle = pendingTimers.get(event_id)
+    if (!handle) return false
+
+    clearTimeout(handle)
+    pendingTimers.delete(event_id)
+    console.log(`✅ [ESCALATE] cancelled event=${event_id}`)
+    return true
+  },
+
+  isPending: (event_id) => pendingTimers.has(event_id),
+
+  pendingCount: () => pendingTimers.size
+}

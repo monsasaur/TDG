@@ -50,15 +50,22 @@ def extract_features(window: np.ndarray) -> np.ndarray:
     for sub in range(N_SUBCARRIERS):
         col  = window[:, sub]
         mean = np.mean(col)
+        std = np.std(col)
+        if std < 1e-10:
+            skew_val = 0.0
+            kurt_val = 0.0
+        else:
+            skew_val = float(stats.skew(col))
+            kurt_val = float(stats.kurtosis(col))
         features.extend([
             mean,
             np.min(col),
             np.max(col),
-            np.std(col),
+            std,
             np.mean(np.abs(col - mean)),
             float(np.percentile(col, 75) - np.percentile(col, 25)),
-            float(stats.skew(col)),
-            float(stats.kurtosis(col)),
+            skew_val,
+            kurt_val,
         ])
     feat = np.array(features, dtype=np.float32)
     return np.nan_to_num(feat, nan=0.0, posinf=0.0, neginf=0.0)
@@ -98,23 +105,22 @@ class CSIBuffer:
         self._buf.append(amp)
 
     def ready(self) -> bool:
-        return len(self._buf) >= self._total_needed()
+        return len(self._buf) >= self.window_size
 
     def get_features(self) -> list:
-        """Return (sequence_len, 416) as list of list"""
-        total = self._total_needed()
-        arr   = np.array(list(self._buf)[-total:])
+        """Return (sequence_len, 416) as list of list
+
+        ใช้ window ล่าสุดอันเดียว ซ้ำ sequence_len ครั้ง
+        เพราะ training sequences มาจากข้ามไฟล์ (แต่ละ window เป็นอิสระ)
+        ไม่ใช่จาก sliding window ที่ซ้อนกัน
+        """
+        arr = np.array(list(self._buf)[-self.window_size:])
 
         if len(arr) >= 11:
             arr = savgol_filter(arr, window_length=11, polyorder=3, axis=0)
 
-        sequence = []
-        for i in range(self.sequence_len):
-            start  = i * self.stride
-            window = arr[start:start + self.window_size]
-            sequence.append(extract_features(window).tolist())
-
-        return sequence  # (sequence_len, 416)
+        feat = extract_features(arr).tolist()
+        return [feat] * self.sequence_len  # (sequence_len, 416)
 
     def size(self) -> int:
         return len(self._buf)
