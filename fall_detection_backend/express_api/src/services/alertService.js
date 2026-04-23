@@ -63,7 +63,7 @@ module.exports = {
       "⚠️ ไม่มีผู้ตอบรับในแอป กรุณาตรวจสอบผู้สูงอายุทันที",
     ].join("\n");
 
-    // === Fake mode — log สวยๆ แทนการยิงจริง ===
+    // === Fake mode — log แทนการยิงจริง ===
     if (isFakeMode()) {
       for (const to of phones) {
         fakeBox("💬 TWILIO SMS (simulated)", [
@@ -115,7 +115,7 @@ module.exports = {
 
     const voiceMessage = `แจ้งเตือนฉุกเฉิน พบผู้ล้มที่ ${location} ไม่มีผู้ตอบรับในแอพพลิเคชัน กรุณาตรวจสอบทันที`;
 
-    // === Fake mode — log สวยๆ แทนการยิงจริง ===
+    // === Fake mode — log แทนการยิงจริง ===
     if (isFakeMode()) {
       for (const to of phones) {
         fakeBox("📞 TWILIO VOICE CALL (simulated)", [
@@ -144,9 +144,9 @@ module.exports = {
         getClient().calls.create({
           twiml: `
               <Response>
-                <Say language="th-TH" voice="Google.th-TH-Wavenet-B">${voiceMessage}</Say>
+                <Say language="th-TH" voice="Google.th-TH-Chirp3-HD-Kore">${voiceMessage}</Say>
                 <Pause length="1"/>
-                <Say language="th-TH" voice="Google.th-TH-Wavenet-B">ย้ำ ${voiceMessage}</Say>
+                <Say language="th-TH" voice="Google.th-TH-Chirp3-HD-Kore">ย้ำ ${voiceMessage}</Say>
               </Response>
             `,
           from: process.env.TWILIO_PHONE,
