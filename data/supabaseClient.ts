@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import "../data/supabaseClient"
 
 const supabaseUrl = 'https://uszsloljezycwqebultu.supabase.co';
 
