@@ -113,7 +113,7 @@ module.exports = {
     const phones = recipients();
     if (phones.length === 0) return { skipped: true };
 
-    const voiceMessage = `แจ้งเตือนฉุกเฉิน พบผู้ล้มที่ ${location} ไม่มีผู้ตอบรับในแอพพลิเคชัน กรุณาตรวจสอบทันที`;
+    const voiceMessage = `ตรวจพบเหตุการณ์ล้มในบริเวณ ห้องนั่งเล่น ที่กลุ่มบ้าน บ้านไซม่อนคุง โปรดตรวจสอบความปลอดภัยและเข้าช่วยเหลือทันที `;
 
     // === Fake mode — log แทนการยิงจริง ===
     if (isFakeMode()) {
