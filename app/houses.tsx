@@ -1,7 +1,14 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
-import AddActionPill from "../components/AddActionPill";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import ConfirmModal from "../components/ConfirmModal";
 import HousePill from "../components/HousePill";
 import JoinOptionCard from "../components/JoinOptionCard";
@@ -66,20 +73,23 @@ export default function HousesScreen() {
   const isLast = localHouses.length === 1;
 
   return (
-    <View className="flex-1 bg-[#F5F5F5]">
+    <View className="flex-1 bg-[#F2F2F2]">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <PageHeader title="บ้าน" onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
-        <Text className="text-sm font-semibold text-[#1A1A1A] px-5 mt-5 mb-3">
-          จัดการบ้าน
-        </Text>
+        <View className="flex-row items-center justify-between px-5 mt-5 mb-3">
+          <Text className="text-sm font-semibold text-[#1A1A1A]">
+            จัดการบ้าน
+          </Text>
+          <Pressable onPress={handleAdd} hitSlop={12}>
+            <Ionicons name="add" size={22} color="#1A1A1A" />
+          </Pressable>
+        </View>
         <View className="px-5">
           {isLoading ? (
-            // แสดงตัวหมุนโหลดข้อมูล
             <ActivityIndicator className="my-4" color="#000" />
           ) : (
-            // เปลี่ยนจาก string มาใช้ object (h.id และ h.name)
             localHouses.map((h) => (
               <HousePill
                 key={h.id}
@@ -88,15 +98,10 @@ export default function HousesScreen() {
               />
             ))
           )}
-          <AddActionPill
-            label="เพิ่มบ้าน"
-            onPress={handleAdd}
-            rounded="rounded-full"
-          />
         </View>
 
         <Text className="text-sm font-semibold text-[#1A1A1A] px-5 mt-8 mb-3">
-          รับเชิญสำหรับ
+          ยอมรับคำเชิญ
         </Text>
         <View className="px-5">
           <JoinOptionCard

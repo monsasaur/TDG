@@ -8,9 +8,9 @@
  */
 
 import { useEffect, useRef } from "react";
-import * as Notifications from "expo-notifications";
 import { useAlerts } from "../contexts/AlertsContext";
 import { fetchFallEvents, BackendFallEvent } from "../lib/api";
+import { scheduleLocalNotification } from "../lib/notifications";
 import type { Alert } from "../types/alert";
 
 const POLL_INTERVAL_MS = 4000;
@@ -77,15 +77,12 @@ export function useLiveAlerts() {
 
             // ยิง local notification เฉพาะ event ใหม่ที่ยังไม่ ack และยังไม่เคย notify
             if (!seenIds.current.has(e.id) && alert.status === "active") {
-              Notifications.scheduleNotificationAsync({
-                content: {
-                  title: "🚨 ตรวจพบการล้ม!",
-                  body: `${alert.location} — กรุณาตรวจสอบภายใน 60 วินาที`,
-                  sound: "default",
-                  data: { eventId: e.id },
-                },
-                trigger: null,
-              }).catch(() => {});
+              scheduleLocalNotification({
+                title: "🚨 ตรวจพบการล้ม!",
+                body: `${alert.location} — กรุณาตรวจสอบภายใน 60 วินาที`,
+                sound: "default",
+                data: { eventId: e.id },
+              });
             }
             seenIds.current.add(e.id);
           }

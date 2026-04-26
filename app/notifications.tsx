@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { View, Text, Switch, Linking, Platform } from "react-native";
 import { useRouter, Stack } from "expo-router";
-import * as Notifications from "expo-notifications";
 import PageHeader from "../components/PageHeader";
 import ConfirmModal from "../components/ConfirmModal";
+import {
+  getNotificationPermissions,
+  requestNotificationPermissions,
+} from "../lib/notifications";
 
 type Permission = "undetermined" | "granted" | "denied";
 
@@ -15,7 +18,7 @@ export default function NotificationsScreen() {
   const [settingsPrompt, setSettingsPrompt] = useState(false);
 
   useEffect(() => {
-    Notifications.getPermissionsAsync().then(({ status }) => {
+    getNotificationPermissions().then(({ status }) => {
       if (status === "granted") {
         setPermission("granted");
         setEnabled(true);
@@ -31,7 +34,7 @@ export default function NotificationsScreen() {
       return;
     }
     if (permission === "undetermined") {
-      const { status, canAskAgain } = await Notifications.requestPermissionsAsync();
+      const { status, canAskAgain } = await requestNotificationPermissions();
       if (status === "granted") {
         setPermission("granted");
         setEnabled(true);
@@ -50,7 +53,7 @@ export default function NotificationsScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F5F5F5]">
+    <View className="flex-1 bg-[#F2F2F2]">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
       <PageHeader title="การแจ้งเตือน" onBack={() => router.back()} />
