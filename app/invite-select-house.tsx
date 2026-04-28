@@ -5,31 +5,23 @@ import ConfirmModal from "../components/ConfirmModal";
 import HousePicker from "../components/HousePicker";
 import PageHeader from "../components/PageHeader";
 import PrimaryButton from "../components/PrimaryButton";
-import { MAX_MEMBERS_PER_HOUSE, mockContacts } from "../data/useContacts";
-import { MAX_HOUSES } from "../data/useDevices";
+import { MAX_MEMBERS_PER_HOUSE, useContacts } from "../data/useContacts";
 
 const INITIAL_HOUSES = ["บ้านแม่", "บ้านพ่อ"];
 
 export default function InviteSelectHouseScreen() {
   const router = useRouter();
+  const { contacts } = useContacts();
 
-  const [houses, setHouses] = useState<string[]>(INITIAL_HOUSES);
   const [selected, setSelected] = useState(INITIAL_HOUSES[0]);
-  const [houseLimitModal, setHouseLimitModal] = useState(false);
   const [memberLimitModal, setMemberLimitModal] = useState(false);
 
   const handleAddHouse = () => {
-    if (houses.length >= MAX_HOUSES) {
-      setHouseLimitModal(true);
-      return;
-    }
-    const newHouse = `บ้านใหม่ ${houses.length - INITIAL_HOUSES.length + 1}`;
-    setHouses((prev) => [...prev, newHouse]);
-    setSelected(newHouse);
+    router.push("/houses" as never);
   };
 
   const handleNext = () => {
-    const memberCount = mockContacts.filter(
+    const memberCount = contacts.filter(
       (c) =>
         (c.type === "self" || c.type === "member") &&
         c.houses.includes(selected),
@@ -42,7 +34,7 @@ export default function InviteSelectHouseScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F5F5F5]">
+    <View className="flex-1 bg-[#F2F2F2]">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
       <PageHeader title="เลือกบ้าน" onBack={() => router.back()} />
@@ -52,7 +44,7 @@ export default function InviteSelectHouseScreen() {
         contentContainerStyle={{ paddingBottom: 32 }}
       >
         <HousePicker
-          houses={houses}
+          houses={INITIAL_HOUSES}
           selected={selected}
           onSelect={setSelected}
           onAddHouse={handleAddHouse}
@@ -62,13 +54,6 @@ export default function InviteSelectHouseScreen() {
       <View className="px-5 pb-8">
         <PrimaryButton label="ถัดไป" onPress={handleNext} />
       </View>
-
-      <ConfirmModal
-        visible={houseLimitModal}
-        onClose={() => setHouseLimitModal(false)}
-        title="มีบ้านเยอะเกินไป"
-        message="คุณเป็นสมาชิกของบ้านต่างๆ ครบจำนวนสูงสุดที่อนุญาตแล้ว หากคุณต้องการเพิ่มบ้านใหม่ ให้นำบ้านอื่นออกก่อน"
-      />
 
       <ConfirmModal
         visible={memberLimitModal}

@@ -52,7 +52,7 @@ export default function MemberDetailScreen() {
   // แสดงตัวโหลดระหว่างรอข้อมูล
   if (isLoading) {
     return (
-      <View className="flex-1 bg-[#F5F5F5]">
+      <View className="flex-1 bg-[#F2F2F2]">
         <Stack.Screen options={{ animation: "slide_from_right" }} />
         <PageHeader title="" onBack={() => router.back()} />
         <ActivityIndicator className="mt-10" color="#FF3055" />
@@ -62,7 +62,7 @@ export default function MemberDetailScreen() {
 
   if (!member) {
     return (
-      <View className="flex-1 bg-[#F5F5F5]">
+      <View className="flex-1 bg-[#F2F2F2]">
         <Stack.Screen options={{ animation: "slide_from_right" }} />
         <PageHeader title="" onBack={() => router.back()} />
         <Text className="text-sm text-[#888] px-5 mt-5">ไม่พบข้อมูลสมาชิก</Text>
@@ -107,7 +107,7 @@ export default function MemberDetailScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F5F5F5]">
+    <View className="flex-1 bg-[#F2F2F2]">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <PageHeader title="" onBack={() => router.back()} />
 

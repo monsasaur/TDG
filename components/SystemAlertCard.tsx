@@ -11,13 +11,9 @@ export default function SystemAlertCard({ alert }: SystemAlertCardProps) {
   const router = useRouter();
   return (
     <Pressable
-      onPress={() =>
-        router.push(`/device-details?id=${alert.deviceId}` as never)
-      }
-      className="rounded-xl border border-[#E8E8E8] mx-5 mt-3 p-4"
-      style={({ pressed }) => ({
-        backgroundColor: pressed ? "#E8E8E8" : "#FFFFFF",
-      })}
+      onPress={() => router.push("/devices" as never)}
+      className="rounded-xl bg-white mx-5 mt-3 p-4"
+      style={({ pressed }) => (pressed ? { opacity: 0.85 } : undefined)}
     >
       {/* Header */}
       <View className="flex-row items-center">

@@ -19,6 +19,7 @@ export default function WelcomeScreen() {
   const router = useRouter();
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const formatPhone = (input: string): string => {
     const digits = input.replace(/\D/g, "");
@@ -67,7 +68,7 @@ export default function WelcomeScreen() {
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View className="flex-1 px-8 pt-20">
         <View className="items-center mb-6">
-          <SpinningLogo size={RING_SIZE} />
+          <SpinningLogo size={RING_SIZE} paused={dropdownOpen} />
         </View>
 
         <Text className="text-[28px] font-bold text-[#1A1A1A] text-center mb-3">
@@ -83,6 +84,7 @@ export default function WelcomeScreen() {
           error={error}
           onChangeText={handleChange}
           onBlur={handleBlur}
+          onDropdownChange={setDropdownOpen}
         />
 
         <TouchableOpacity

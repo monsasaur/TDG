@@ -11,7 +11,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F5F5F5]">
+    <View className="flex-1 bg-[#F2F2F2]">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
       <PageHeader title="ตั้งค่า" onBack={() => router.back()} centered />
@@ -19,10 +19,8 @@ export default function SettingsScreen() {
       {/* Clear all pill */}
       <Pressable
         onPress={handleClearAll}
-        className="rounded-full border border-[#E8E8E8] mx-5 mt-5 py-3"
-        style={({ pressed }) => ({
-          backgroundColor: pressed ? "#EDEDED" : "#FFFFFF",
-        })}
+        className="rounded-full bg-white mx-5 mt-5 py-3"
+        style={({ pressed }) => (pressed ? { opacity: 0.85 } : undefined)}
       >
         <Text className="text-sm font-semibold text-[#1A1A1A] text-center">
           ลบการแจ้งเตือนทั้งหมด

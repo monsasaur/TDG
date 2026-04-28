@@ -1,10 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
   withTiming,
   withDelay,
+  cancelAnimation,
   Easing,
 } from "react-native-reanimated";
 import { RingOuter, RingMiddle, RingInner } from "./SplashRing";
@@ -12,24 +13,50 @@ import { RingOuter, RingMiddle, RingInner } from "./SplashRing";
 interface SpinningLogoProps {
   size?: number;
   delay?: number;
+  paused?: boolean;
 }
 
-export default function SpinningLogo({ size = 180, delay = 0 }: SpinningLogoProps) {
+export default function SpinningLogo({ size = 180, delay = 0, paused = false }: SpinningLogoProps) {
   const rotateOuter = useSharedValue(0);
   const rotateMiddle = useSharedValue(0);
   const rotateInner = useSharedValue(0);
+  const hasStarted = useRef(false);
 
   useEffect(() => {
-    if (delay > 0) {
+    if (paused) {
+      cancelAnimation(rotateOuter);
+      cancelAnimation(rotateMiddle);
+      cancelAnimation(rotateInner);
+      return;
+    }
+
+    const startSpin = () => {
+      rotateOuter.value = withRepeat(
+        withTiming(rotateOuter.value + 360, { duration: 8000, easing: Easing.linear }),
+        -1,
+        false,
+      );
+      rotateMiddle.value = withRepeat(
+        withTiming(rotateMiddle.value - 360, { duration: 6000, easing: Easing.linear }),
+        -1,
+        false,
+      );
+      rotateInner.value = withRepeat(
+        withTiming(rotateInner.value + 360, { duration: 4000, easing: Easing.linear }),
+        -1,
+        false,
+      );
+    };
+
+    if (!hasStarted.current && delay > 0) {
       rotateOuter.value = withDelay(delay, withRepeat(withTiming(360, { duration: 8000, easing: Easing.linear }), -1, false));
       rotateMiddle.value = withDelay(delay, withRepeat(withTiming(-360, { duration: 6000, easing: Easing.linear }), -1, false));
       rotateInner.value = withDelay(delay, withRepeat(withTiming(360, { duration: 4000, easing: Easing.linear }), -1, false));
     } else {
-      rotateOuter.value = withRepeat(withTiming(360, { duration: 8000, easing: Easing.linear }), -1, false);
-      rotateMiddle.value = withRepeat(withTiming(-360, { duration: 6000, easing: Easing.linear }), -1, false);
-      rotateInner.value = withRepeat(withTiming(360, { duration: 4000, easing: Easing.linear }), -1, false);
+      startSpin();
     }
-  }, []);
+    hasStarted.current = true;
+  }, [paused]);
 
   const outerStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${rotateOuter.value}deg` }],

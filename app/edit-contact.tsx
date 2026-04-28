@@ -131,7 +131,7 @@ export default function EditContactScreen() {
 
   if (!contact) {
     return (
-      <View className="flex-1 bg-[#F5F5F5] items-center justify-center px-8">
+      <View className="flex-1 bg-[#F2F2F2] items-center justify-center px-8">
         <Text className="text-sm text-[#888]">ไม่พบผู้ติดต่อ</Text>
         <TouchableOpacity onPress={goBack} className="mt-4">
           <Text className="text-sm font-semibold text-[#FF3055]">กลับ</Text>
@@ -141,7 +141,7 @@ export default function EditContactScreen() {
   }
 
   return (
-    <View className="flex-1 bg-[#F5F5F5]">
+    <View className="flex-1 bg-[#F2F2F2]">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
       <PageHeader title="แก้ไขผู้ติดต่อ" onBack={goBack} />
