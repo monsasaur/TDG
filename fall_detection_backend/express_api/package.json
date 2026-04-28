@@ -3,7 +3,24 @@
   "version": "1.0.0",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "setupFiles": [
+      "<rootDir>/tests/setup.js"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/index.js"
+    ],
+    "clearMocks": true
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.0.0",
@@ -13,6 +30,7 @@
     "twilio": "^5.12.2"
   },
   "devDependencies": {
+    "jest": "^30.3.0",
     "nodemon": "^3.0.0"
   }
 }
