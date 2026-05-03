@@ -20,6 +20,7 @@
       }
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
@@ -29,17 +30,6 @@
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.BLUETOOTH_SCAN",
-        "android.permission.BLUETOOTH_ADVERTISE",
-        "android.permission.POST_NOTIFICATIONS",
-        "android.permission.CAMERA",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
       "adaptiveIcon": {
@@ -91,14 +81,16 @@
         }
       ]
     ],
-    "extra": {
-      "eas": {
-        "projectId": "REPLACE_AFTER_EAS_INIT"
-      }
-    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e7ee3cf0-1a3b-43a7-b0fc-207a7c8947a4"
+      }
+    },
+    "owner": "peerawoot.nutk"
   }
 }

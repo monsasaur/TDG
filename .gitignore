@@ -38,6 +38,12 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Firebase / FCM credentials — must NOT be committed
+google-services.json
+GoogleService-Info.plist
+firebase-fcm-key.json
+firebase-*-key.json
+
 
 node_modules
 .env
