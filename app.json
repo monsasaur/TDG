@@ -81,8 +81,21 @@
         {
           "photosPermission": "Middle ต้องการเข้าถึงรูปภาพเพื่อเลือกรูปที่มี QR Code สำหรับเข้าร่วมบ้าน"
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#FF3055",
+          "defaultChannel": "fall_alert"
+        }
       ]
     ],
+    "extra": {
+      "eas": {
+        "projectId": "REPLACE_AFTER_EAS_INIT"
+      }
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

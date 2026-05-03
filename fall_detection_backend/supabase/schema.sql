@@ -29,3 +29,14 @@ CREATE INDEX IF NOT EXISTS idx_device_id    ON fall_events(device_id);
 CREATE INDEX IF NOT EXISTS idx_is_fall      ON fall_events(is_fall);
 CREATE INDEX IF NOT EXISTS idx_acknowledged ON fall_events(acknowledged);
 CREATE INDEX IF NOT EXISTS idx_created_at   ON fall_events(created_at DESC);
+
+-- Expo Push tokens (ลงทะเบียนจากแอปตอนเปิดครั้งแรก/อัพเดต)
+CREATE TABLE IF NOT EXISTS push_tokens (
+  token       TEXT PRIMARY KEY,
+  device_id   TEXT,
+  platform    TEXT,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_device_id ON push_tokens(device_id);

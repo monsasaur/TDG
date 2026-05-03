@@ -55,6 +55,19 @@ export async function acknowledgeEvent(
   }
 }
 
+export async function registerPushToken(payload: {
+  token: string;
+  device_id?: string | null;
+  platform?: string | null;
+}): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/push/register`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`POST /push/register ${res.status}`);
+}
+
 export async function healthCheck(): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE_URL}/health`, {

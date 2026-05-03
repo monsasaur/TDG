@@ -134,6 +134,55 @@ module.exports = {
     return data
   },
 
+  // ----- Expo push tokens -----
+  registerPushToken: async ({ token, device_id, platform }) => {
+    const client = getClient()
+    const now = new Date().toISOString()
+
+    if (!client) {
+      mockStore.set(`push:${token}`, { token, device_id, platform, updated_at: now })
+      console.log(`📝 [DB mock] registerPushToken token=${token.slice(0, 24)}... device=${device_id}`)
+      return { token, device_id, platform }
+    }
+
+    const { data, error } = await client
+      .from('push_tokens')
+      .upsert(
+        [{ token, device_id, platform, updated_at: now }],
+        { onConflict: 'token' }
+      )
+      .select()
+      .single()
+
+    if (error) throw new Error(`DB error: ${error.message}`)
+    return data
+  },
+
+  getAllPushTokens: async () => {
+    const client = getClient()
+    if (!client) {
+      return Array.from(mockStore.entries())
+        .filter(([k]) => k.startsWith('push:'))
+        .map(([, v]) => v)
+    }
+
+    const { data, error } = await client
+      .from('push_tokens')
+      .select('token, device_id, platform')
+
+    if (error) throw new Error(`DB error: ${error.message}`)
+    return data || []
+  },
+
+  removePushToken: async (token) => {
+    const client = getClient()
+    if (!client) {
+      mockStore.delete(`push:${token}`)
+      return
+    }
+    await client.from('push_tokens').delete().eq('token', token)
+  },
+
   getFallEvents: async ({ device_id, limit = 50 } = {}) => {
     const client = getClient()
     if (!client) return Array.from(mockStore.values())
