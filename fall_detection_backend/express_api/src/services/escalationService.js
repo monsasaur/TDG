@@ -49,21 +49,34 @@ async function escalate(event) {
   }
 
   try {
-    const callRes = await alertService.makeCall({ location, event_id })
-      .then(v => ({ status: 'fulfilled', value: v }))
-      .catch(reason => ({ status: 'rejected', reason }))
+    const [smsRes, callRes] = await Promise.all([
+      alertService.sendSms({ device_id, location, confidence, event_id })
+        .then(v => ({ status: 'fulfilled', value: v }))
+        .catch(reason => ({ status: 'rejected', reason })),
+      alertService.makeCall({ location, event_id })
+        .then(v => ({ status: 'fulfilled', value: v }))
+        .catch(reason => ({ status: 'rejected', reason })),
+    ])
+
+    const smsOk = smsRes.status === 'fulfilled' &&
+                  !smsRes.value?.skipped &&
+                  (smsRes.value?.failed ?? 0) === 0
 
     const callOk = callRes.status === 'fulfilled' &&
                    !callRes.value?.skipped &&
                    (callRes.value?.failed ?? 0) === 0
 
     if (demoLog.ENABLED) {
+      const sent = smsRes.value?.sent ?? 0
+      const smsTotal = sent + (smsRes.value?.failed ?? 0)
+      demoLog.success(`SMS → ${smsOk ? `sent ${sent}/${smsTotal}` : 'failed'}`)
+
       const made = callRes.value?.made ?? 0
       const total = made + (callRes.value?.failed ?? 0)
       demoLog.success(`Call → ${callOk ? `placed ${made}/${total}` : 'failed'}`)
     }
 
-    await dbService.markEscalated(event_id, { sms_sent: false, call_made: callOk })
+    await dbService.markEscalated(event_id, { sms_sent: smsOk, call_made: callOk })
   } catch (err) {
     console.error(`❌ Escalation failed for ${event_id}:`, err.message)
   } finally {
