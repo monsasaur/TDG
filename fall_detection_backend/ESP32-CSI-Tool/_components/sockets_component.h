@@ -54,11 +54,11 @@ void socket_transmitter_sta_loop(bool (*is_wifi_connected)()) {
                    (const struct sockaddr *) &caddr, sizeof(caddr));
 
 #if defined CONFIG_PACKET_RATE && (CONFIG_PACKET_RATE > 0)
-            double wait_duration = (1000.0 / CONFIG_PACKET_RATE) - lag;
-            int w = (int) floor(wait_duration);
-            if (w > 0) vTaskDelay(w);
+            double wait_ms = (1000.0 / CONFIG_PACKET_RATE) - (lag * 1000.0);
+            int w = (int) floor(wait_ms);
+            if (w > 0) vTaskDelay(pdMS_TO_TICKS(w));
 #else
-            vTaskDelay(10);
+            vTaskDelay(pdMS_TO_TICKS(10));
 #endif
             double end_time = get_steady_clock_timestamp();
             lag = end_time - start_time;

@@ -3,6 +3,7 @@ const { predictBody } = require('../middleware/validate')
 const mlService         = require('../services/mlService')
 const dbService         = require('../services/dbService')
 const escalationService = require('../services/escalationService')
+const pushService       = require('../services/pushService')
 
 router.post('/', predictBody, async (req, res) => {
   const { device_id, timestamp, location, features } = req.body
@@ -44,8 +45,10 @@ router.post('/', predictBody, async (req, res) => {
     // 5. เริ่ม timer — รอ caregiver กด ack ในแอป
     escalationService.schedule(event)
 
-    // TODO: ส่ง push notification ไปแอปที่นี่
-    // expoPushService.send({ event_id: event.id, device_id, location, confidence })
+    // 6. ยิง push notification ไปทุก device ที่ลงทะเบียน (fire-and-forget)
+    pushService.sendFallAlert(event).catch((err) =>
+      console.error('push send failed:', err.message)
+    )
 
     res.json({
       event_id:             event.id,

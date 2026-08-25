@@ -28,7 +28,9 @@ module.exports = {
       const id = `mock-${Date.now()}`
       const record = { id, ...event, created_at: new Date().toISOString() }
       mockStore.set(id, record)
-      console.log('📝 [DB mock] saveEvent:', id, event.is_fall ? 'FALL' : 'normal')
+      if (process.env.DEMO_LOG !== 'true') {
+        console.log('📝 [DB mock] saveEvent:', id, event.is_fall ? 'FALL' : 'normal')
+      }
       return record
     }
 
@@ -70,7 +72,9 @@ module.exports = {
       if (!prev) return null
       const updated = { ...prev, ...patch }
       mockStore.set(event_id, updated)
-      console.log(`📝 [DB mock] ack event ${event_id} by ${acknowledged_by}`)
+      if (process.env.DEMO_LOG !== 'true') {
+        console.log(`📝 [DB mock] ack event ${event_id} by ${acknowledged_by}`)
+      }
       return updated
     }
 
@@ -100,7 +104,9 @@ module.exports = {
       if (!prev) return null
       const updated = { ...prev, ...patch }
       mockStore.set(event_id, updated)
-      console.log(`📝 [DB mock] escalate event ${event_id}`)
+      if (process.env.DEMO_LOG !== 'true') {
+        console.log(`📝 [DB mock] escalate event ${event_id}`)
+      }
       return updated
     }
 
@@ -132,6 +138,55 @@ module.exports = {
     const { data, error } = await query
     if (error) throw new Error(`DB error: ${error.message}`)
     return data
+  },
+
+  // ----- Expo push tokens -----
+  registerPushToken: async ({ token, device_id, platform }) => {
+    const client = getClient()
+    const now = new Date().toISOString()
+
+    if (!client) {
+      mockStore.set(`push:${token}`, { token, device_id, platform, updated_at: now })
+      console.log(`📝 [DB mock] registerPushToken token=${token.slice(0, 24)}... device=${device_id}`)
+      return { token, device_id, platform }
+    }
+
+    const { data, error } = await client
+      .from('push_tokens')
+      .upsert(
+        [{ token, device_id, platform, updated_at: now }],
+        { onConflict: 'token' }
+      )
+      .select()
+      .single()
+
+    if (error) throw new Error(`DB error: ${error.message}`)
+    return data
+  },
+
+  getAllPushTokens: async () => {
+    const client = getClient()
+    if (!client) {
+      return Array.from(mockStore.entries())
+        .filter(([k]) => k.startsWith('push:'))
+        .map(([, v]) => v)
+    }
+
+    const { data, error } = await client
+      .from('push_tokens')
+      .select('token, device_id, platform')
+
+    if (error) throw new Error(`DB error: ${error.message}`)
+    return data || []
+  },
+
+  removePushToken: async (token) => {
+    const client = getClient()
+    if (!client) {
+      mockStore.delete(`push:${token}`)
+      return
+    }
+    await client.from('push_tokens').delete().eq('token', token)
   },
 
   getFallEvents: async ({ device_id, limit = 50 } = {}) => {

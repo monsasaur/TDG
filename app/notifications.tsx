@@ -18,6 +18,8 @@ export default function NotificationsScreen() {
   const [settingsPrompt, setSettingsPrompt] = useState(false);
 
   useEffect(() => {
+    if (Platform.OS === "web") return;
+
     getNotificationPermissions().then(({ status }) => {
       if (status === "granted") {
         setPermission("granted");
@@ -29,6 +31,11 @@ export default function NotificationsScreen() {
   }, []);
 
   const handleToggle = async () => {
+    if (Platform.OS === "web") {
+      setSettingsPrompt(true);
+      return;
+    }
+
     if (permission === "granted") {
       setEnabled((v) => !v);
       return;

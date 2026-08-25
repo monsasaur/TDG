@@ -8,6 +8,8 @@ app.use(require('./middleware/auth'))
 app.use('/api/v1/predict', require('./routes/predict'))
 app.use('/api/v1/alert',   require('./routes/alert'))
 app.use('/api/v1/events',  require('./routes/events'))
+app.use('/api/v1/push',    require('./routes/push'))
+app.use('/api/v1/demo',    require('./routes/demo'))
 
 app.get('/health', (req, res) => res.json({ 
   status: 'ok',

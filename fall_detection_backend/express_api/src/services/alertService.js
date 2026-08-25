@@ -113,7 +113,7 @@ module.exports = {
     const phones = recipients();
     if (phones.length === 0) return { skipped: true };
 
-    const voiceMessage = `ตรวจพบเหตุการณ์ล้มในบริเวณ ห้องนั่งเล่น ที่กลุ่มบ้าน บ้านไซม่อนคุง โปรดตรวจสอบความปลอดภัยและเข้าช่วยเหลือทันที `;
+    const voiceMessage = `ตรวจพบเหตุการณ์ล้มในบริเวณ ห้องผู้สูงอายุ ที่กลุ่มบ้าน บ้านไซม่อนคุง โปรดตรวจสอบความปลอดภัยและเข้าช่วยเหลือทันที `;
 
     // === Fake mode — log แทนการยิงจริง ===
     if (isFakeMode()) {
@@ -164,7 +164,9 @@ module.exports = {
     }
 
     const made = phones.length - failed.length;
-    console.log(`✅ Calls made ${made}/${phones.length} (event=${event_id})`);
+    if (process.env.DEMO_LOG !== 'true') {
+      console.log(`✅ Calls made ${made}/${phones.length} (event=${event_id})`);
+    }
     return { made, failed: failed.length };
   },
 };
