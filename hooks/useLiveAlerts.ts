@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import * as Notifications from "expo-notifications";
+import { Platform } from "react-native";
 import { useAlerts } from "../contexts/AlertsContext";
 import { fetchFallEvents, BackendFallEvent } from "../lib/api";
 import type { Alert } from "../types/alert";
@@ -77,15 +77,21 @@ export function useLiveAlerts() {
 
             // ยิง local notification เฉพาะ event ใหม่ที่ยังไม่ ack และยังไม่เคย notify
             if (!seenIds.current.has(e.id) && alert.status === "active") {
-              Notifications.scheduleNotificationAsync({
-                content: {
-                  title: "🚨 ตรวจพบการล้ม!",
-                  body: `${alert.location} — กรุณาตรวจสอบภายใน 60 วินาที`,
-                  sound: "default",
-                  data: { eventId: e.id },
-                },
-                trigger: null,
-              }).catch(() => {});
+              if (Platform.OS !== "web") {
+                import("expo-notifications")
+                  .then((Notifications) =>
+                    Notifications.scheduleNotificationAsync({
+                      content: {
+                        title: "🚨 ตรวจพบการล้ม!",
+                        body: `${alert.location} — กรุณาตรวจสอบภายใน 60 วินาที`,
+                        sound: "default",
+                        data: { eventId: e.id },
+                      },
+                      trigger: null,
+                    }),
+                  )
+                  .catch(() => {});
+              }
             }
             seenIds.current.add(e.id);
           }

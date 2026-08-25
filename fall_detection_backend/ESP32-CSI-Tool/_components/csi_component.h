@@ -100,7 +100,7 @@ void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
 #endif
     ss << "]\n";
 
-    send_udp(ss.str().c_str());
+    outprintf("%s", ss.str().c_str());
     vTaskDelay(0);
     xSemaphoreGive(mutex);
 }
@@ -112,7 +112,6 @@ void _print_csi_csv_header() {
 
 void csi_init(char *type) {
     project_type = type;
-    udp_init();
 
 #ifdef CONFIG_SHOULD_COLLECT_CSI
     ESP_ERROR_CHECK(esp_wifi_set_csi(1));

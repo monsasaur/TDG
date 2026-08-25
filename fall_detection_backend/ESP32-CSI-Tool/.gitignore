@@ -1,5 +1,7 @@
 build/
 sdkconfig
 sdkconfig.old
+sdkconfig.bak
+.cache/
 .idea
 venv

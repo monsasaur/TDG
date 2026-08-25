@@ -24,6 +24,16 @@ router.post('/register', async (req, res) => {
   }
 })
 
+// debug: ดู token ที่ register อยู่ทั้งหมด
+router.get('/tokens', async (_req, res) => {
+  try {
+    const tokens = await dbService.getAllPushTokens()
+    res.json({ count: tokens.length, tokens })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ทดสอบยิง push ไปทุก device ที่ลงทะเบียน
 router.post('/test', async (_req, res) => {
   try {

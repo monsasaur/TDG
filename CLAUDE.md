@@ -1,5 +1,35 @@
 # Fall Detection System — CLAUDE.md
 
+## Current Status (2026-05-07)
+
+### ✅ ทำเสร็จแล้ว
+
+| Feature | สถานะ | หมายเหตุ |
+|---|---|---|
+| LSTM v3 model | ✅ | Accuracy 97.9%, Fall Recall 98.5% |
+| Express API (core) | ✅ | predict, events, alert endpoints |
+| Push Notification (FCM V1) | ✅ | pushService.js + Expo SDK + useFcmV1 |
+| Escalation / Acknowledge flow | ✅ | escalationService.js — timer in-memory, Twilio fallback |
+| Push token registration | ✅ | `POST /api/v1/push/register` |
+| Demo trigger endpoint | ✅ | `POST /api/v1/demo/fire` — ข้าม ML ไปยิง push ตรงๆ |
+| Mobile app (Expo) | ✅ | รับ push notification, Event log, Acknowledge |
+| Supabase schema | ✅ | fall_events + push_tokens tables |
+| ESP32 USB Serial mode | ✅ | csi_collector_serial.py @ 921600 baud |
+| End-to-end demo flow | ✅ | ESP32 → API → Push → App → Acknowledge → Twilio |
+
+### 🔲 ยังค้าง (Pending)
+
+| Feature | Priority | หมายเหตุ |
+|---|---|---|
+| Threshold tuning | High | ยังใช้ default Softmax — ต้องหา optimal จาก ROC curve |
+| Escalation timer persistence | Med | ตอนนี้เก็บใน memory — server restart หาย ควรใช้ Redis/BullMQ |
+| BLE WiFi Provisioning | Med | ลูกค้าตั้งค่า WiFi ผ่านแอปได้โดยไม่ต้อง hardcode |
+| One-class anomaly model | Low | Mentor แนะนำ — ยังไม่เริ่ม |
+| Unseen test scenario | Low | แยก test data จาก real-world scenario |
+| Production Cloud deploy | Low | API URL ยังเป็น localhost ใน lib/api.ts |
+
+---
+
 ## Project Overview
 
 Hybrid AI-driven fall detection system using WiFi CSI (Channel State Information) and an LSTM model. Designed for elderly care — no camera, no wearable device required. Alerts caregivers via SMS and voice call when a fall is detected.
@@ -73,12 +103,13 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ### Data Collection & Training Pipeline
 ```bash
 cd fall_detection_backend/ml_service
+pip install pyserial   # ครั้งแรกเท่านั้น
 
-# 1. เช็ค ESP32
+# 1. เช็ค ESP32 (USB serial)
 python data_collection/esp_checker.py
 
-# 2. เก็บ data (fall 4 วิ, non_fall 4 วิ → CSV)
-python data_collection/csi_collector.py
+# 2. เก็บ data ผ่าน USB serial (ไม่ใช้ UDP แล้ว)
+python data_collection/csi_collector_serial.py
 
 # 3. Preprocess → data/processed_v2/
 python notebooks/preprocess_v2.py
@@ -86,15 +117,29 @@ python notebooks/preprocess_v2.py
 # 4. Train → เปิด notebooks/train_v3.ipynb → Restart & Run All
 ```
 
-## API Endpoints (Express API, port 3000)
+> หมายเหตุ: `csi_collector.py` (UDP version) เก็บไว้สำหรับโหมด WiFi ในอนาคต — ตอนนี้ใช้ `csi_collector_serial.py` เท่านั้น
+
+## API Endpoints (Express API — Render Cloud)
 
 All endpoints require `x-api-key` header.
 
-- `POST /api/v1/predict` — receives CSI features from ESP32, calls ML service, triggers alert if fall detected
+### Core
+- `POST /api/v1/predict` — รับ CSI features จาก ESP32, เรียก ML service, trigger alert ถ้า fall
 - `GET  /api/v1/events` — list all events (`?device_id=&limit=50`)
 - `GET  /api/v1/events/falls` — falls only
+- `GET  /health`
+
+### Push Notification
+- `POST /api/v1/push/register` — ลงทะเบียน Expo push token (`{ token, device_id, platform }`)
+- `GET  /api/v1/push/tokens` — debug: ดู token ทั้งหมด
+
+### Acknowledge / Escalation
+- `POST /api/v1/events/:id/acknowledge` — ผู้ดูแลกด OK → ยกเลิก escalation timer
+- escalationService จะ auto-call Twilio ถ้าไม่มีใคร ack ภายใน `ACK_TIMEOUT_SECONDS` (default 60s)
+
+### Alert / Demo
 - `POST /api/v1/alert/test` — test Twilio SMS + voice call
-- `GET  /health` — health check
+- `POST /api/v1/demo/fire` — **demo trigger**: ข้าม ML ไปสร้าง fall event + push ตรงๆ (`{ device_id?, location? }`)
 
 ## ML Service Endpoints (FastAPI, port 8000)
 
@@ -145,10 +190,13 @@ CSI_SEQUENCE_LEN=10
 ## Data Pipeline
 
 ```
-ESP32 UDP (100 pkt/s)
-  → csi_collector.py → raw CSV (400 pkts/file) → data/raw/
-  → preprocess_v2.py → X.npy (N, 416), y.npy  → data/processed_v2/
-  → train_v3.ipynb   → lstm_v3.h5, scaler_v3.pkl → models/
+ESP32 #2 (STA) ──WiFi packet──► ESP32 #1 (AP) ──USB Serial──► Mac
+                                                  (921600 baud)
+                                                       │
+                                                       ▼
+                              csi_collector_serial.py → raw CSV (400 pkts/file) → data/raw/
+                              → preprocess_v2.py → X.npy (N, 416), y.npy → data/processed_v2/
+                              → train_v3.ipynb   → lstm_v3.h5, scaler_v3.pkl → models/
 ```
 
 ### Data ปัจจุบัน (data/raw/)
@@ -161,62 +209,67 @@ ESP32 UDP (100 pkt/s)
 | non_fall | 120 | 360 |
 | **รวม** | **420** | **1,260** |
 
-## ESP32 Hardware Setup & Network Topology
+## ESP32 Hardware Setup & Network Topology (Data Collection Mode)
 
-### การเชื่อมต่อ (Dual-Mode AP+STA)
+### การเชื่อมต่อ — USB Serial Mode
+
+โหมดเก็บ data ปัจจุบันใช้ **USB Serial** ส่งข้อมูล ไม่ต้องตั้ง hotspot ใดๆ
 
 ```
-ESP32 #1 (active_ap) — Dual Mode
-  ├── AP interface  → สร้าง WiFi "CSI-Net" (รหัส: 11111111)
-  │                   ← ESP32 #2 เชื่อมต่อเพื่อรับ/ส่ง packet สำหรับวัด CSI
-  └── STA interface → เชื่อมต่อ Hotspot "View" (รหัส: 11111111)
-                      → ส่ง CSI data ผ่าน UDP ไปหา Mac
+ESP32 #1 (active_ap) — AP-only
+  ├── AP interface  → สร้าง WiFi "myssid" @ channel 6 (จาก Kconfig)
+  │                   ← ESP32 #2 เชื่อมต่อเพื่อส่ง packet ให้วัด CSI
+  └── USB Serial    → ส่ง CSI ออก /dev/cu.usbserial-* @ 921600 baud → Mac
 
-ESP32 #2 (active_sta)
-  └── เชื่อมต่อ "CSI-Net" → ส่ง WiFi packet ให้ ESP32 #1 วัด CSI
+ESP32 #2 (active_sta) — STA-only
+  └── เชื่อมต่อ "myssid" → ส่ง WiFi packet (100/sec) ให้ ESP32 #1 วัด CSI
+      Power: USB adapter ที่ไหนก็ได้ (ไม่ต้องเสียบ Mac)
 
-Mac → เชื่อมต่อ Hotspot "View" → รับ UDP จาก ESP32 #1 (port 5500)
+Mac → อ่าน CSI จาก USB serial ผ่าน csi_collector_serial.py
 ```
+
+### ข้อดีของ Serial Mode (เทียบกับ UDP Mode)
+
+- ✅ ไม่ต้องใช้ hotspot (iPhone/Mac/router)
+- ✅ Channel 6 fix แน่นอน — ไม่หลุดตาม external WiFi
+- ✅ CSI 100% มาจาก ESP32 #2 — ไม่มี beacon ภายนอกปน
+- ✅ ไม่มี firewall / client isolation issue
+- ✅ Mac ยัง connect WiFi ปกติได้
 
 ### Flash Firmware
 
 ```bash
-# ESP32 #1 (active_ap) — ตัวที่วัด CSI และส่งข้อมูลออก
+# ESP32 #1 (active_ap) — เสียบ USB ค้างไว้กับ Mac
 cd fall_detection_backend/ESP32-CSI-Tool/active_ap
+idf.py fullclean    # ครั้งแรกหลัง pull code ใหม่ (sdkconfig เปลี่ยนเป็น 921600 baud)
 idf.py flash monitor
 
-# ESP32 #2 (active_sta) — ตัวที่ส่ง packet ให้วัด CSI
+# ESP32 #2 (active_sta) — ตัวที่ส่ง packet ให้วัด CSI (เสียบ USB อะไรก็ได้)
 cd fall_detection_backend/ESP32-CSI-Tool/active_sta
 idf.py flash monitor
 ```
 
-### UDP Target IP
+### Config ที่สำคัญ
 
-กำหนดใน `_components/csi_component.h`:
-```cpp
-#define UDP_TARGET_IP   "172.20.10.3"  // IP ของ Mac บน Hotspot "View"
-#define UDP_TARGET_PORT 5500
+**`active_ap/sdkconfig`** — UART baudrate (ต้องตรงกับ collector script):
+```
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=921600
+CONFIG_ESPTOOLPY_MONITOR_BAUD=921600
 ```
 
-ถ้า IP ของ Mac เปลี่ยน ให้แก้ไฟล์นี้แล้ว flash ESP32 #1 ใหม่
-เช็ค IP ปัจจุบันด้วย: `ipconfig getifaddr en0`
+**`_components/csi_component.h`** — CSI callback ส่ง output ผ่าน `outprintf()` ไม่ใช่ UDP แล้ว
 
-### Hotspot Config ใน active_ap
-
-กำหนดใน `active_ap/main/main.cc`:
-```cpp
-#define HOME_WIFI_SSID  "View"        // ชื่อ hotspot
-#define HOME_WIFI_PASS  "11111111"    // รหัส hotspot
-```
+**`active_ap/main/main.cc`** — `WIFI_MODE_AP` (ไม่มี STA, ไม่มี hotspot config)
 
 ## Production WiFi Provisioning (TODO)
 
-ใน production ลูกค้าไม่ต้อง hardcode WiFi — ใช้ BLE provisioning แทน
+ใน production ESP32 #1 ต้องส่ง CSI ขึ้น cloud ผ่าน WiFi (ไม่ใช่ USB) — ลูกค้าไม่ต้อง hardcode WiFi → ใช้ BLE provisioning แทน
 
 ### Flow
 ```
 ลูกค้าเปิดแอป → แอปค้นหา ESP32 ผ่าน BLE → กรอก SSID + รหัส WiFi
 → ส่งให้ ESP32 ผ่าน BLE → ESP32 เชื่อมต่อ WiFi บ้านลูกค้า → เสร็จ ปิด BLE
+→ ส่ง CSI ผ่าน UDP/HTTP ไป cloud
 ```
 
 ### รายละเอียด
@@ -249,14 +302,36 @@ ESP32 #2 (active_sta)
   → ไม่มีใครกดยืนยัน → โทรฉุกเฉินทันทีผ่าน Twilio
 ```
 
+## New Files (ยังไม่ commit)
+
+| ไฟล์ | คำอธิบาย |
+|---|---|
+| `express_api/src/routes/demo.js` | Demo trigger — `POST /api/v1/demo/fire` ข้าม ML ไปยิง push ตรงๆ |
+| `express_api/src/services/pushService.js` | Expo Push SDK (useFcmV1=true), รองรับ fake mode (`PUSH_MODE=fake`) |
+| `express_api/src/services/escalationService.js` | Acknowledge timer — in-memory Map, auto-escalate → Twilio |
+| `express_api/src/utils/demoLog.js` | Pretty console logger สำหรับ demo |
+| `express_api/scripts/fake_csi_stream.sh` | Shell script จำลอง CSI stream สำหรับทดสอบ |
+| `ml_service/data_collection/csi_collector_serial.py` | USB Serial CSI collector (921600 baud) — แทน UDP version |
+
+## Environment Variables เพิ่มเติม
+
+```
+# Escalation timing
+ACK_TIMEOUT_SECONDS=60     # วินาทีที่รอ ack ก่อน escalate (default 60)
+COOLDOWN_SECONDS=300        # cooldown ระหว่าง alert ต่อ device (default 300)
+
+# Push mode
+PUSH_MODE=real              # real = ยิง FCM จริง | fake = log console แทน
+```
+
 ## Important Notes
 
 - `lstm_v3.h5`, `lstm_v3_best.h5`, `scaler_v3.pkl` are NOT committed to git — must be obtained separately
-- `app/preprocess.py` config โหลดจาก env vars (`CSI_WINDOW_SIZE`, `CSI_STRIDE`, `CSI_SEQUENCE_LEN`) — ต้องตรงกับ training
 - `fall_detection_backend/ESP32-CSI-Tool/` is a git submodule — do not edit directly
-- Mobile app API URL is hardcoded in `app/index.tsx` — update to Render URL for production
+- **`lib/api.ts`** — API_BASE_URL ยังเป็น `http://10.0.2.2:3000` (Android emulator) ต้องเปลี่ยนเป็น Render URL สำหรับ production
+- escalationService เก็บ timer ใน memory — server restart จะ reset ทุก pending timer
 - Twilio Trial accounts can only send to verified numbers — verify caregiver numbers first
-- The `backend/` directory at root is a separate legacy Node.js server, distinct from `fall_detection_backend/express_api/`
+- `backend/` ที่ root เป็น legacy server แยกต่างหาก ไม่เกี่ยวกับ `fall_detection_backend/express_api/`
 
 ## Git Branch Strategy
 

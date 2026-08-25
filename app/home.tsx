@@ -1,6 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -89,9 +88,12 @@ export default function HomeScreen() {
       } catch {}
     }
 
-    try {
-      await Notifications.requestPermissionsAsync();
-    } catch {}
+    if (Platform.OS !== "web") {
+      try {
+        const Notifications = await import("expo-notifications");
+        await Notifications.requestPermissionsAsync();
+      } catch {}
+    }
   };
 
   const handleConfirm = (id: string) => {

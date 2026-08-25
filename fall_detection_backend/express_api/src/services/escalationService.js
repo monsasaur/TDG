@@ -13,6 +13,7 @@
 
 const alertService = require('./alertService')
 const dbService    = require('./dbService')
+const demoLog      = require('../utils/demoLog')
 
 const ACK_TIMEOUT_SECONDS = Number(process.env.ACK_TIMEOUT_SECONDS || 60)
 const COOLDOWN_SECONDS    = Number(process.env.COOLDOWN_SECONDS    || 300)
@@ -36,18 +37,33 @@ function markCooldown(device_id) {
 
 async function escalate(event) {
   const { id: event_id, device_id, location, confidence } = event
-  console.log(`🚨 [ESCALATE] event=${event_id} device=${device_id}`)
+
+  if (demoLog.ENABLED) {
+    demoLog.banner('☎️  ESCALATING — NO ACK RECEIVED', [
+      `event       : ${event_id}`,
+      `device      : ${device_id}`,
+      `triggering  : Twilio Voice Call`,
+    ], 'yellow')
+  } else {
+    console.log(`🚨 [ESCALATE] event=${event_id} device=${device_id}`)
+  }
 
   try {
-    const [smsRes, callRes] = await Promise.allSettled([
-      alertService.sendSms({ device_id, location, confidence, event_id }),
-      alertService.makeCall({ location, event_id })
-    ])
+    const callRes = await alertService.makeCall({ location, event_id })
+      .then(v => ({ status: 'fulfilled', value: v }))
+      .catch(reason => ({ status: 'rejected', reason }))
 
-    await dbService.markEscalated(event_id, {
-      sms_sent:  smsRes.status === 'fulfilled' && !smsRes.value?.skipped,
-      call_made: callRes.status === 'fulfilled' && !callRes.value?.skipped
-    })
+    const callOk = callRes.status === 'fulfilled' &&
+                   !callRes.value?.skipped &&
+                   (callRes.value?.failed ?? 0) === 0
+
+    if (demoLog.ENABLED) {
+      const made = callRes.value?.made ?? 0
+      const total = made + (callRes.value?.failed ?? 0)
+      demoLog.success(`Call → ${callOk ? `placed ${made}/${total}` : 'failed'}`)
+    }
+
+    await dbService.markEscalated(event_id, { sms_sent: false, call_made: callOk })
   } catch (err) {
     console.error(`❌ Escalation failed for ${event_id}:`, err.message)
   } finally {
@@ -78,7 +94,9 @@ module.exports = {
     )
 
     pendingTimers.set(event_id, handle)
-    console.log(`⏱  [ESCALATE] scheduled event=${event_id} timeout=${ACK_TIMEOUT_SECONDS}s`)
+    if (process.env.DEMO_LOG !== 'true') {
+      console.log(`⏱  [ESCALATE] scheduled event=${event_id} timeout=${ACK_TIMEOUT_SECONDS}s`)
+    }
   },
 
   // ยกเลิก escalation (caregiver กดรับทราบทัน)
@@ -88,7 +106,11 @@ module.exports = {
 
     clearTimeout(handle)
     pendingTimers.delete(event_id)
-    console.log(`✅ [ESCALATE] cancelled event=${event_id}`)
+    if (process.env.DEMO_LOG !== 'true') {
+      console.log(`✅ [ESCALATE] cancelled event=${event_id}`)
+    } else {
+      demoLog.success(`Caregiver acknowledged event=${event_id} → escalation cancelled`)
+    }
     return true
   },
 

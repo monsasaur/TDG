@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { View, Text, Switch, Linking, Platform } from "react-native";
 import { useRouter, Stack } from "expo-router";
-import * as Notifications from "expo-notifications";
 import PageHeader from "../components/PageHeader";
 import ConfirmModal from "../components/ConfirmModal";
 
@@ -15,23 +14,34 @@ export default function NotificationsScreen() {
   const [settingsPrompt, setSettingsPrompt] = useState(false);
 
   useEffect(() => {
-    Notifications.getPermissionsAsync().then(({ status }) => {
-      if (status === "granted") {
-        setPermission("granted");
-        setEnabled(true);
-      } else if (status === "denied") {
-        setPermission("denied");
-      }
-    });
+    if (Platform.OS === "web") return;
+
+    import("expo-notifications").then((Notifications) =>
+      Notifications.getPermissionsAsync().then(({ status }) => {
+        if (status === "granted") {
+          setPermission("granted");
+          setEnabled(true);
+        } else if (status === "denied") {
+          setPermission("denied");
+        }
+      }),
+    );
   }, []);
 
   const handleToggle = async () => {
+    if (Platform.OS === "web") {
+      setSettingsPrompt(true);
+      return;
+    }
+
     if (permission === "granted") {
       setEnabled((v) => !v);
       return;
     }
     if (permission === "undetermined") {
-      const { status, canAskAgain } = await Notifications.requestPermissionsAsync();
+      const Notifications = await import("expo-notifications");
+      const { status, canAskAgain } =
+        await Notifications.requestPermissionsAsync();
       if (status === "granted") {
         setPermission("granted");
         setEnabled(true);

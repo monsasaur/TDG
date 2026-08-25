@@ -1,13 +1,14 @@
 /**
  * API client สำหรับ Fall Detection backend
  *
- * ตั้ง API_BASE_URL ให้ตรงกับ IP ของ Mac + port
- * (localhost ใช้ไม่ได้บนมือถือจริง — ต้องเป็น IP ใน LAN)
- *
- * เช็ค IP ด้วย: `ipconfig getifaddr en0`
+ * - Android emulator: ใช้ http://10.0.2.2:3000 (alias พิเศษชี้ไปที่ host Mac)
+ * - มือถือจริงบน LAN/Hotspot: ใช้ IP ของ Mac เช่น http://172.20.10.7:3000
+ *   เช็ค IP ด้วย: `ipconfig getifaddr en0`
  */
+import { Platform } from "react-native";
 
-export const API_BASE_URL = "http://172.20.10.7:3000";
+export const API_BASE_URL =
+  Platform.OS === "web" ? "http://localhost:3000" : "http://10.0.2.2:3000";
 export const API_KEY = "dev-secret-key-123";
 
 export type BackendFallEvent = {

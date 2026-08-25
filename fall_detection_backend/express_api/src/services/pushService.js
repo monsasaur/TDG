@@ -46,7 +46,9 @@ async function sendFallAlert(event) {
   try {
     const tokens = await dbService.getAllPushTokens()
     if (tokens.length === 0) {
-      console.log(`⚠️  no push tokens registered — skip push (event=${event_id})`)
+      if (process.env.DEMO_LOG !== 'true') {
+        console.log(`⚠️  no push tokens registered — skip push (event=${event_id})`)
+      }
       return { sent: 0, failed: 0, skipped: true }
     }
 

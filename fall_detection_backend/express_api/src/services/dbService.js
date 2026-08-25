@@ -28,7 +28,9 @@ module.exports = {
       const id = `mock-${Date.now()}`
       const record = { id, ...event, created_at: new Date().toISOString() }
       mockStore.set(id, record)
-      console.log('📝 [DB mock] saveEvent:', id, event.is_fall ? 'FALL' : 'normal')
+      if (process.env.DEMO_LOG !== 'true') {
+        console.log('📝 [DB mock] saveEvent:', id, event.is_fall ? 'FALL' : 'normal')
+      }
       return record
     }
 
@@ -70,7 +72,9 @@ module.exports = {
       if (!prev) return null
       const updated = { ...prev, ...patch }
       mockStore.set(event_id, updated)
-      console.log(`📝 [DB mock] ack event ${event_id} by ${acknowledged_by}`)
+      if (process.env.DEMO_LOG !== 'true') {
+        console.log(`📝 [DB mock] ack event ${event_id} by ${acknowledged_by}`)
+      }
       return updated
     }
 
@@ -100,7 +104,9 @@ module.exports = {
       if (!prev) return null
       const updated = { ...prev, ...patch }
       mockStore.set(event_id, updated)
-      console.log(`📝 [DB mock] escalate event ${event_id}`)
+      if (process.env.DEMO_LOG !== 'true') {
+        console.log(`📝 [DB mock] escalate event ${event_id}`)
+      }
       return updated
     }
 
