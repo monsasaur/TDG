@@ -11,10 +11,8 @@ export default function SettingItem({ icon, label, onPress }: SettingItemProps) 
   return (
     <Pressable
       onPress={onPress}
-      className="rounded-2xl border border-[#E8E8E8] mx-5 mt-3 px-5 py-4"
-      style={({ pressed }) => ({
-        backgroundColor: pressed ? "#EDEDED" : "#FFFFFF",
-      })}
+      className="rounded-2xl bg-white mx-5 mt-3 px-5 py-4"
+      style={({ pressed }) => (pressed ? { opacity: 0.85 } : undefined)}
     >
       <View className="flex-row items-center justify-between">
         <View className="flex-row items-center">

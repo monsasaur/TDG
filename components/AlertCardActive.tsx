@@ -6,9 +6,10 @@ import { Alert } from "../types/alert";
 interface AlertCardActiveProps {
   alert: Alert;
   onConfirm: (id: string) => void;
+  onTimeout?: (id: string) => void;
 }
 
-export default function AlertCardActive({ alert, onConfirm }: AlertCardActiveProps) {
+export default function AlertCardActive({ alert, onConfirm, onTimeout }: AlertCardActiveProps) {
   const [seconds, setSeconds] = useState(alert.countdown ?? 60);
   const [confirmed, setConfirmed] = useState(false);
 
@@ -17,6 +18,12 @@ export default function AlertCardActive({ alert, onConfirm }: AlertCardActivePro
     const interval = setInterval(() => setSeconds((s) => s - 1), 1000);
     return () => clearInterval(interval);
   }, [seconds]);
+
+  useEffect(() => {
+    if (seconds === 0 && !confirmed) {
+      onTimeout?.(alert.id);
+    }
+  }, [seconds, confirmed, alert.id, onTimeout]);
 
   const handleConfirm = () => {
     setConfirmed(true);

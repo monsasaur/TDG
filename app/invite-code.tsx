@@ -27,7 +27,7 @@ export default function InviteCodeScreen() {
   const handleExpire = useCallback(() => setExpired(true), []);
 
   return (
-    <View className="flex-1 bg-[#F5F5F5]">
+    <View className="flex-1 bg-[#F2F2F2]">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <PageHeader title="รหัสบ้าน" onBack={() => router.back()} />
 

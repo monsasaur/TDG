@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
+import { requestNotificationPermissions } from "../lib/notifications";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -88,12 +89,7 @@ export default function HomeScreen() {
       } catch {}
     }
 
-    if (Platform.OS !== "web") {
-      try {
-        const Notifications = await import("expo-notifications");
-        await Notifications.requestPermissionsAsync();
-      } catch {}
-    }
+    await requestNotificationPermissions();
   };
 
   const handleConfirm = (id: string) => {
@@ -129,6 +125,30 @@ export default function HomeScreen() {
 
   const handleSmallCardPress = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
+  };
+
+  const handleTimeout = (id: string) => {
+    setAlerts((prev) =>
+      prev.map((a) => {
+        if (a.id !== id || a.status !== "active") return a;
+        return {
+          ...a,
+          status: "no_response" as const,
+          countdown: 0,
+          timeline: a.timeline.map((step, idx) => {
+            if (idx === 1) {
+              return {
+                label: "ไม่มีการตอบรับ",
+                detail: "ระบบโทรหาเบอร์ฉุกเฉิน",
+                status: "error" as const,
+              };
+            }
+            return { ...step, status: "error" as const };
+          }),
+        };
+      }),
+    );
+    setExpandedId(id);
   };
 
   // Filter by house
@@ -171,7 +191,13 @@ export default function HomeScreen() {
   const renderFallItem = useCallback(
     ({ item }: { item: AlertType }) => {
       if (item.status === "active") {
-        return <AlertCardActive alert={item} onConfirm={handleConfirm} />;
+        return (
+          <AlertCardActive
+            alert={item}
+            onConfirm={handleConfirm}
+            onTimeout={handleTimeout}
+          />
+        );
       }
       if (expandedId === item.id) {
         return (
@@ -197,7 +223,7 @@ export default function HomeScreen() {
     activeTab === "fall" ? "ไม่มีการแจ้งเตือน" : "ไม่มีการแจ้งเตือนระบบ";
 
   return (
-    <View className="flex-1 bg-[#F5F5F5]">
+    <View className="flex-1 bg-[#F2F2F2]">
       {/* Header */}
       <View className="bg-white px-5 pt-16 pb-3">
         <View className="flex-row items-center justify-between">

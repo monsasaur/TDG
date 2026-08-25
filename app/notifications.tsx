@@ -3,6 +3,10 @@ import { View, Text, Switch, Linking, Platform } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import PageHeader from "../components/PageHeader";
 import ConfirmModal from "../components/ConfirmModal";
+import {
+  getNotificationPermissions,
+  requestNotificationPermissions,
+} from "../lib/notifications";
 
 type Permission = "undetermined" | "granted" | "denied";
 
@@ -16,16 +20,14 @@ export default function NotificationsScreen() {
   useEffect(() => {
     if (Platform.OS === "web") return;
 
-    import("expo-notifications").then((Notifications) =>
-      Notifications.getPermissionsAsync().then(({ status }) => {
-        if (status === "granted") {
-          setPermission("granted");
-          setEnabled(true);
-        } else if (status === "denied") {
-          setPermission("denied");
-        }
-      }),
-    );
+    getNotificationPermissions().then(({ status }) => {
+      if (status === "granted") {
+        setPermission("granted");
+        setEnabled(true);
+      } else if (status === "denied") {
+        setPermission("denied");
+      }
+    });
   }, []);
 
   const handleToggle = async () => {
@@ -39,9 +41,7 @@ export default function NotificationsScreen() {
       return;
     }
     if (permission === "undetermined") {
-      const Notifications = await import("expo-notifications");
-      const { status, canAskAgain } =
-        await Notifications.requestPermissionsAsync();
+      const { status, canAskAgain } = await requestNotificationPermissions();
       if (status === "granted") {
         setPermission("granted");
         setEnabled(true);
@@ -60,7 +60,7 @@ export default function NotificationsScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F5F5F5]">
+    <View className="flex-1 bg-[#F2F2F2]">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
       <PageHeader title="การแจ้งเตือน" onBack={() => router.back()} />
