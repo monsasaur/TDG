@@ -27,6 +27,7 @@
 | One-class anomaly model | Low | Mentor แนะนำ — ยังไม่เริ่ม |
 | Unseen test scenario | Low | แยก test data จาก real-world scenario |
 | Production Cloud deploy | Low | API URL ยังเป็น localhost ใน lib/api.ts |
+| Hybrid AI escalation call | Low | Phase 2a: AI voice agent ช่วยเนื้อหาการโทรตอน escalate, trigger ยังคง rule-based + fallback เป็น static TTS เสมอ · Phase 2b (มีเงื่อนไข): เปิดให้ AI ช่วยปรับ trigger ได้หลังพิสูจน์ผ่าน shadow mode (ดู `docs/reports/hybrid_ai_escalation_design.md`) |
 
 ---
 

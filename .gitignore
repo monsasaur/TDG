@@ -55,3 +55,6 @@ app-example
 # generated native folders
 /ios
 /android
+
+# presentation decks / slide scripts — kept local only, not in git
+/docs/presentations/
