@@ -301,7 +301,7 @@ module.exports = {
 
     // update ก่อน insert เพื่อไม่ให้ upsert ทับ label/owner_name ที่กรอกไว้เป็น null
     const { data, error } = await client
-      .from('devices')
+      .from('csi_devices')
       .update({ last_seen_at: now })
       .eq('device_id', device_id)
       .select()
@@ -310,7 +310,7 @@ module.exports = {
     if (data && data.length > 0) return data[0]
 
     const { data: inserted, error: insertError } = await client
-      .from('devices')
+      .from('csi_devices')
       .insert([{ device_id, last_seen_at: now }])
       .select()
       .single()
@@ -332,7 +332,7 @@ module.exports = {
         .sort((a, b) => String(a.device_id).localeCompare(String(b.device_id)))
     }
 
-    let query = client.from('devices').select('*').order('device_id')
+    let query = client.from('csi_devices').select('*').order('device_id')
     if (!include_inactive) query = query.eq('is_active', true)
 
     const { data, error } = await query
