@@ -12,6 +12,7 @@ const { createClient } = (() => {
 let supabase = null
 const mockStore = new Map()        // fallback เมื่อไม่มี Supabase (fall_events + push_tokens)
 const mockDevices = new Map()      // fallback ของตาราง devices
+let mockSeq = 0                    // กัน id ชนกันเมื่อบันทึกหลาย event ในมิลลิวินาทีเดียวกัน
 
 function getClient() {
   if (!supabase && createClient &&
@@ -37,7 +38,7 @@ module.exports = {
     const client = getClient()
 
     if (!client) {
-      const id = `mock-${Date.now()}`
+      const id = `mock-${Date.now()}-${++mockSeq}`
       const record = { id, ...event, created_at: new Date().toISOString() }
       mockStore.set(id, record)
       if (process.env.DEMO_LOG !== 'true') {

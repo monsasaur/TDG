@@ -16,13 +16,14 @@
 | Supabase schema | ✅ | fall_events + push_tokens tables |
 | ESP32 USB Serial mode | ✅ | csi_collector_serial.py @ 921600 baud |
 | End-to-end demo flow | ✅ | ESP32 → API → Push → App → Acknowledge → Twilio |
+| Admin Client API | ✅ | 6 endpoints + auth แยกจาก x-api-key — ดู `docs/reports/admin_api_progress.md` |
+| Escalation timer persistence | ✅ | สร้าง timer ใหม่จาก DB ตอน boot + sweeper ทุก 60 วิ ไม่ใช้ Redis |
 
 ### 🔲 ยังค้าง (Pending)
 
 | Feature | Priority | หมายเหตุ |
 |---|---|---|
 | Threshold tuning | High | ยังใช้ default Softmax — ต้องหา optimal จาก ROC curve |
-| Escalation timer persistence | Med | ตอนนี้เก็บใน memory — server restart หาย ควรใช้ Redis/BullMQ |
 | BLE WiFi Provisioning | Med | ลูกค้าตั้งค่า WiFi ผ่านแอปได้โดยไม่ต้อง hardcode |
 | One-class anomaly model | Low | Mentor แนะนำ — ยังไม่เริ่ม |
 | Unseen test scenario | Low | แยก test data จาก real-world scenario |
@@ -137,6 +138,16 @@ All endpoints require `x-api-key` header.
 ### Acknowledge / Escalation
 - `POST /api/v1/events/:id/acknowledge` — ผู้ดูแลกด OK → ยกเลิก escalation timer
 - escalationService จะ auto-call Twilio ถ้าไม่มีใคร ack ภายใน `ACK_TIMEOUT_SECONDS` (default 60s)
+
+### Admin Client (ใช้ Bearer token ไม่ใช่ x-api-key)
+- `POST /api/v1/admin/login` / `logout` — `{ username, password }` → `{ token, expires_at }`
+- `GET  /api/v1/admin/summary` — ตัวเลข dashboard (อุปกรณ์ online/offline, fall วันนี้/สัปดาห์นี้, escalation rate)
+- `GET  /api/v1/admin/events` — ทุก device (`?from=&to=&device_id=&status=&limit=&offset=`)
+- `GET  /api/v1/admin/events/:id` — รายละเอียด + timeline
+- `GET  /api/v1/admin/devices` — รายการอุปกรณ์ + สถานะ (`?status=online|offline&include_inactive=`)
+
+> ตั้ง `ADMIN_USERNAME` + `ADMIN_PASSWORD_HASH` ก่อนใช้ ไม่งั้นทุกเส้นตอบ 503
+> สร้าง hash: `node scripts/hash_admin_password.js '<รหัส>'`
 
 ### Alert / Demo
 - `POST /api/v1/alert/test` — test Twilio SMS + voice call
@@ -330,7 +341,7 @@ PUSH_MODE=real              # real = ยิง FCM จริง | fake = log con
 - `lstm_v3.h5`, `lstm_v3_best.h5`, `scaler_v3.pkl` are NOT committed to git — must be obtained separately
 - `fall_detection_backend/ESP32-CSI-Tool/` is a git submodule — do not edit directly
 - **`lib/api.ts`** — API_BASE_URL ยังเป็น `http://10.0.2.2:3000` (Android emulator) ต้องเปลี่ยนเป็น Render URL สำหรับ production
-- escalationService เก็บ timer ใน memory — server restart จะ reset ทุก pending timer
+- escalationService เก็บ timer ใน memory แต่กู้คืนได้ — ตอน boot อ่านเหตุการณ์ที่ยัง pending จาก DB มาตั้ง timer ใหม่ด้วยเวลาที่เหลือจริง และมี sweeper เช็คซ้ำทุก 60 วิ (เหตุการณ์ที่เลยกำหนดเกิน 1 ชม. จะไม่โทร แต่ปิดสถานะไว้ไม่ให้ค้าง pending)
 - Twilio Trial accounts can only send to verified numbers — verify caregiver numbers first
 - `backend/` ที่ root เป็น legacy server แยกต่างหาก ไม่เกี่ยวกับ `fall_detection_backend/express_api/`
 
@@ -341,13 +352,32 @@ PUSH_MODE=real              # real = ยิง FCM จริง | fake = log con
 
 ## Database Schema (Supabase)
 
+> **แหล่งอ้างอิงจริงคือ `fall_detection_backend/supabase/schema.sql` เสมอ**
+> หัวข้อนี้เคยล้าสมัยจนทำให้เอกสาร BA (`TDG_BA.pdf`) สั่งให้เพิ่มฟิลด์ที่มีอยู่แล้ว — ถ้าแก้ schema ต้องอัปเดตที่นี่ด้วย
+
 Table: `fall_events`
 - `id` UUID PK
 - `device_id` TEXT
 - `timestamp` BIGINT
 - `location` TEXT
-- `prediction` TEXT (`fall` | `no_fall`)
+- `is_fall` BOOLEAN — binary ไม่ใช่ `prediction` TEXT แล้ว
 - `confidence` FLOAT
-- `risk_score` INT
-- `alerted` BOOLEAN
+- `acknowledged` BOOLEAN / `acknowledged_at` TIMESTAMPTZ / `acknowledged_by` TEXT
+- `escalated` BOOLEAN / `escalated_at` TIMESTAMPTZ
+- `sms_sent` BOOLEAN / `call_made` BOOLEAN — ผลการยิง Twilio ตอน escalate
 - `created_at` TIMESTAMPTZ
+
+Table: `push_tokens`
+- `token` TEXT PK
+- `device_id` TEXT
+- `platform` TEXT
+- `created_at` / `updated_at` TIMESTAMPTZ
+
+Table: `devices` — สำหรับหน้า Admin Client
+- `device_id` TEXT PK
+- `label` TEXT — ชื่อที่คนอ่านเข้าใจ
+- `owner_name` TEXT
+- `location` TEXT
+- `last_seen_at` TIMESTAMPTZ — อัปเดตทุก packet ที่ ESP32 ส่งเข้ามา ไม่ใช่เฉพาะตอนล้ม
+- `is_active` BOOLEAN — ปลดการติดตั้งแล้วตั้ง false
+- `installed_at` / `created_at` TIMESTAMPTZ

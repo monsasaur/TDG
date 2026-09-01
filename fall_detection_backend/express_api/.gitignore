@@ -5,5 +5,8 @@
 node_modules/
 npm-debug.log*
 
+# Coverage report artifacts (npm run test:coverage)
+coverage/
+
 # OS
 .DS_Store

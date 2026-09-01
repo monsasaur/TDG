@@ -29,6 +29,12 @@ venv/
 *.egg-info/
 .pytest_cache/
 
+# Coverage report artifacts
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
 # Jupyter
 .ipynb_checkpoints/
 
