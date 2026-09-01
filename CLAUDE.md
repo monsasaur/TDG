@@ -24,7 +24,7 @@
 | Feature | Priority | หมายเหตุ |
 |---|---|---|
 | Threshold tuning | Med | หาแล้วสำหรับ RandomForest — แนะนำ 0.36 (recall 97.6%, false alarm 9.6%) เหลือแค่ตัดสินใจว่าจะเปลี่ยน production model ไหม |
-| BLE WiFi Provisioning | Med | **โค้ดครบทั้งแอปและ firmware แล้ว** · เหลือ build/flash/ทดสอบกับบอร์ดจริง (เครื่องที่เขียนไม่มี ESP-IDF) และหน้าจอกรอก PoP — ดูหัวข้อ Production WiFi Provisioning |
+| BLE WiFi Provisioning | Med | **โค้ดครบทั้งแอปและ firmware แล้ว** · เหลือ 1) build/flash/ทดสอบกับบอร์ดจริง (เครื่องที่เขียนไม่มี ESP-IDF) 2) หน้าจอกรอก PoP → **ใบงานทีมฟรอนต์** `docs/reports/frontend_req_device_pairing_code.md` |
 | One-class anomaly model | ✅ ตอบแล้ว | ลอง 4 ตัว ROC-AUC ดีสุด 0.70 เทียบ supervised 0.985 — ใช้แทนไม่ได้กับ feature ชุดนี้ |
 | เก็บ dataset ใหม่ (สลับคลาสใน session) | **High** | ข้อมูลชุดเดิมเก็บ fall ทั้งหมดก่อนแล้วค่อย non_fall → สภาพห้องกับคลาสทับกันสนิท แก้ย้อนหลังไม่ได้ · **ต้องสลับคลาสภายใน session เดียวกัน** ดูข้อกำหนดใน `docs/reports/data_quality_audit_2026-09.md` |
 | Unseen test scenario | **High** | test set ต้องเป็น session ที่ไม่เคยเห็น ไม่ใช่แค่ไฟล์ที่ไม่เคยเห็น |
@@ -363,7 +363,7 @@ CONFIG_ESPTOOLPY_MONITOR_BAUD=921600
 | **ESP32 firmware — `wifi_provisioning` + `scheme_ble`** | ✅ เขียนแล้ว |
 | ปุ่ม reset กลับเข้าโหมดตั้งค่า | ✅ |
 | **ยังไม่เคย build / flash / ทดสอบกับบอร์ดจริง** | ❌ |
-| หน้าจอกรอก PoP ในแอป | ❌ |
+| หน้าจอกรอก PoP ในแอป | ❌ ทีมฟรอนต์ — ใบงาน `docs/reports/frontend_req_device_pairing_code.md` |
 
 ### สองโหมดใน firmware — เลือกใน menuconfig
 
