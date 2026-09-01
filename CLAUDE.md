@@ -28,7 +28,7 @@
 | One-class anomaly model | ✅ ตอบแล้ว | ลอง 4 ตัว ROC-AUC ดีสุด 0.70 เทียบ supervised 0.985 — ใช้แทนไม่ได้กับ feature ชุดนี้ |
 | เก็บ dataset ใหม่ (สลับคลาสใน session) | **High** | ข้อมูลชุดเดิมเก็บ fall ทั้งหมดก่อนแล้วค่อย non_fall → สภาพห้องกับคลาสทับกันสนิท แก้ย้อนหลังไม่ได้ · **ต้องสลับคลาสภายใน session เดียวกัน** ดูข้อกำหนดใน `docs/reports/data_quality_audit_2026-09.md` |
 | Unseen test scenario | **High** | test set ต้องเป็น session ที่ไม่เคยเห็น ไม่ใช่แค่ไฟล์ที่ไม่เคยเห็น |
-| Production Cloud deploy | Low | API URL ยังเป็น localhost ใน lib/api.ts |
+| Production Cloud deploy | Med | **Dockerfile + render.yaml + compose พร้อมแล้ว** · เหลือ: ตัดสินใจเรื่องไฟล์โมเดลที่ถูก gitignore · กรอก env ใน Render · ทดสอบ `docker compose up` (ยังไม่ได้รัน — เครื่องนี้ไม่มี docker) |
 | Hybrid AI escalation call | Low | **สเปค Phase 2a พร้อมให้ implement แล้ว** → `docs/reports/spec_hybrid_ai_escalation_phase2a.md` (จุดเชื่อมต่อระดับบรรทัด · คำตอบคำถามเปิด 5 ข้อ · เทสต์ 14 เคส · เกณฑ์งานเสร็จ) · Phase 2b ยังไม่อนุญาต ต้องผ่าน shadow mode ก่อน (`docs/reports/hybrid_ai_escalation_design.md`) |
 
 ---
@@ -375,6 +375,69 @@ Library: `@orbital-systems/react-native-esp-idf-provisioning` (ห่อ ESP-IDF
 > หมายเหตุ: `app/scan-qr.tsx` ที่มีอยู่เป็นของ "เข้าร่วมบ้านด้วย QR เชิญ" (เรียกจาก `houses.tsx`)
 > ไม่ใช่ PoP ของอุปกรณ์ และตอนนี้ยัง reject ทุก QR (`handleBarcode` ตั้ง error เสมอ)
 
+## Deploy (Docker + Render)
+
+### ไฟล์ที่เกี่ยวข้อง
+
+| ไฟล์ | ใช้ทำอะไร |
+|---|---|
+| `render.yaml` | Render Blueprint — deploy ทั้งสอง service พร้อมกัน (Render → New → Blueprint) |
+| `fall_detection_backend/docker-compose.yml` | รันทั้งสอง service บนเครื่องตัวเองเพื่อทดสอบก่อน deploy |
+| `express_api/Dockerfile` | node:20-alpine · multi-stage · `npm ci --omit=dev` · non-root · tini |
+| `ml_service/Dockerfile` | python:3.11-slim · non-root · tini · เช็คไฟล์โมเดลตั้งแต่ตอน build |
+| `ml_service/requirements-serve.txt` | dependency เฉพาะตอน serve — **ไม่มี tensorflow** |
+
+```bash
+cd fall_detection_backend
+docker compose up --build
+curl localhost:3000/health && curl localhost:8000/health
+```
+
+### ทำไม requirements-serve.txt ไม่มี tensorflow
+
+`app/predict.py` โหลด **RandomForest จาก pickle ผ่าน sklearn** (`models/rf_v1.pkl`)
+ไม่ได้แตะ Keras/TensorFlow เลย — ตรวจแล้วว่า import chain ตอน serve ไม่มี tensorflow
+tensorflow กิน image เป็น GB และจำเป็นเฉพาะตอน train ใน notebooks
+
+> `requirements.txt` (ตัวเต็ม) ยังมี tensorflow ไว้สำหรับ dev/train
+> ถ้าจะกลับไปใช้โมเดล `.h5` ต้องเพิ่ม tensorflow กลับเข้า `requirements-serve.txt`
+
+### ⚠️ ไฟล์โมเดลถูก gitignore — ต้องแก้ก่อน deploy ครั้งแรก
+
+`ml_service/.gitignore` มี `models/*.pkl` → Render build จาก git จะไม่มีไฟล์
+Dockerfile เช็คตั้งแต่ตอน build จะได้ fail พร้อมข้อความบอกสาเหตุ ไม่ใช่ไป crash ตอน boot
+
+เลือกทางใดทางหนึ่ง:
+1. **commit ไฟล์โมเดลเข้า git** — `rf_v1.pkl` 2.5 MB + `scaler_rf_v1.pkl` 10 KB
+   รวม 2.6 MB เล็กพอที่จะ commit ได้ ทำให้ deploy ทำซ้ำได้ (แก้ `.gitignore` ให้ยกเว้นสองไฟล์นี้)
+2. อัปโหลดขึ้น object storage แล้วให้ Dockerfile `curl` ลงมาตอน build
+3. build image บนเครื่องตัวเองแล้ว push ขึ้น registry แทนที่จะให้ Render build
+
+### ตัวแปรที่ต้องกรอกเองใน Render dashboard
+
+`API_KEY` · `SUPABASE_URL` · `SUPABASE_KEY` · `TWILIO_ACCOUNT_SID` · `TWILIO_AUTH_TOKEN` ·
+`TWILIO_PHONE` · `ALERT_PHONES` · `ADMIN_USERNAME` · `ADMIN_PASSWORD_HASH` · `ADMIN_ORIGINS`
+
+`ML_SERVICE_URL` ต่อให้อัตโนมัติจาก `render.yaml` ไม่ต้องกรอก
+
+### ฝั่งแอปมือถือ
+
+URL และคีย์ย้ายออกจากซอร์สแล้ว — อ่านจาก `app.config.js` → `Constants.expoConfig.extra`
+
+```bash
+# dev บนเครื่องตัวเอง — .env.local
+EXPO_PUBLIC_API_BASE_URL=http://192.168.1.42:3000
+EXPO_PUBLIC_API_KEY=dev-secret-key-123
+```
+
+ตอน build ผ่าน EAS ตั้งเป็น environment variable ต่อ profile (ดู `eas.json`)
+
+> ⚠️ **ยังไม่ได้แก้:** คีย์นี้เป็นตัวเดียวกับที่ ESP32 ใช้ และแอปที่ build แล้วมีคีย์อยู่ในตัวเสมอ
+> ใครแกะ APK ได้ก็เรียก `POST /api/v1/demo/fire` สั่งให้ระบบโทรออกจริงได้
+> ทางแก้จริงคือแยก auth ของแอปออกจาก `x-api-key` ของอุปกรณ์ แบบเดียวกับที่ทำแล้วฝั่งเว็บ admin
+
+---
+
 ## Alert Flow (Production)
 
 เปลี่ยนจากแบ่งระดับแจ้งเตือนตามคลาส → เป็น Binary + Acknowledge system
@@ -399,9 +462,7 @@ PUSH_MODE=real              # real = ยิง FCM จริง | fake = log con
 
 - `lstm_v3.h5`, `lstm_v3_best.h5`, `scaler_v3.pkl` are NOT committed to git — must be obtained separately
 - `fall_detection_backend/ESP32-CSI-Tool/` **ไม่ใช่ submodule** — เป็นโฟลเดอร์ธรรมดาในรีโปหลัก (ไม่มี `.gitmodules` ไม่มี `.git` ข้างใน · git ติดตามไฟล์ในนั้น 50 ไฟล์) แก้ตรงได้เลย
-- **`lib/api.ts`** — API_BASE_URL ยังเป็น `http://10.0.2.2:3000` (Android emulator) ต้องเปลี่ยนเป็น Render URL สำหรับ production
-- **`lib/api.ts:12`** — `API_KEY = "dev-secret-key-123"` hardcode อยู่ในซอร์สแอป เป็นคีย์ตัวเดียวกับที่ ESP32 ใช้ ใครแกะ APK ได้ก็ยิง `POST /api/v1/demo/fire` สั่งให้ระบบโทรออกจริงได้ (ปัญหาคลาสเดียวกับ SEC-02 ที่แก้ไปแล้วฝั่งเว็บ admin)
-- **`express_api/Dockerfile` และ `ml_service/Dockerfile` เป็นไฟล์เปล่า** (0 bytes) ทั้งคู่ — ยัง deploy ไม่ได้
+- **`lib/api.ts`** — URL/คีย์ย้ายไป `app.config.js` แล้ว ตั้งผ่าน `EXPO_PUBLIC_API_BASE_URL` / `EXPO_PUBLIC_API_KEY` · แต่คีย์ยังเป็นตัวเดียวกับ ESP32 อยู่ ดูหัวข้อ Deploy
 - ต้องรัน `ALTER TABLE devices` ใน `schema.sql` ก่อนใช้หน้า Admin — คอลัมน์ `last_seen_at`/`is_active`/`installed_at` ยังไม่มีใน Supabase จริง
 - escalationService เก็บ timer ใน memory แต่กู้คืนได้ — ตอน boot อ่านเหตุการณ์ที่ยัง pending จาก DB มาตั้ง timer ใหม่ด้วยเวลาที่เหลือจริง และมี sweeper เช็คซ้ำทุก 60 วิ (เหตุการณ์ที่เลยกำหนดเกิน 1 ชม. จะไม่โทร แต่ปิดสถานะไว้ไม่ให้ค้าง pending)
 - Twilio Trial accounts can only send to verified numbers — verify caregiver numbers first

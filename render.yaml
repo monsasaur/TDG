@@ -1,0 +1,79 @@
+# Render Blueprint — deploy ทั้งสอง service จาก repo นี้
+# ใช้โดยไปที่ Render → New → Blueprint แล้วชี้มาที่ repo
+#
+# ⚠️ ก่อน deploy ml_service ครั้งแรก: ไฟล์โมเดล models/*.pkl ถูก gitignore ไว้
+#    Render build จาก git จึงจะไม่มีไฟล์ → build fail พร้อมข้อความบอกสาเหตุ
+#    ดูวิธีแก้ในหัวข้อ Deploy ของ CLAUDE.md
+
+services:
+  - type: web
+    name: tdg-ml-service
+    runtime: docker
+    dockerfilePath: ./fall_detection_backend/ml_service/Dockerfile
+    dockerContext: ./fall_detection_backend/ml_service
+    healthCheckPath: /health
+    plan: starter
+    envVars:
+      - key: CSI_WINDOW_SIZE
+        value: "200"
+      - key: CSI_STRIDE
+        value: "50"
+      - key: CSI_SEQUENCE_LEN
+        value: "10"
+
+  - type: web
+    name: tdg-express-api
+    runtime: docker
+    dockerfilePath: ./fall_detection_backend/express_api/Dockerfile
+    dockerContext: ./fall_detection_backend/express_api
+    healthCheckPath: /health
+    plan: starter
+    envVars:
+      # ชี้ไปที่ ml service ตัวข้างบนโดยอัตโนมัติ ไม่ต้องกรอก URL เอง
+      - key: ML_SERVICE_URL
+        fromService:
+          name: tdg-ml-service
+          type: web
+          property: hostport
+
+      # ค่าที่ต้องกรอกเองใน Render dashboard (sync: false = ไม่เก็บไว้ในไฟล์นี้)
+      - key: API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE
+        sync: false
+      - key: ALERT_PHONES
+        sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD_HASH
+        sync: false
+      - key: ADMIN_ORIGINS
+        sync: false
+
+      # ค่าที่ตั้งไว้ตายตัวได้
+      - key: TWILIO_MODE
+        value: real
+      - key: PUSH_MODE
+        value: real
+      - key: USE_MOCK_ML
+        value: "false"
+      - key: ACK_TIMEOUT_SECONDS
+        value: "60"
+      - key: COOLDOWN_SECONDS
+        value: "300"
+      - key: ESCALATION_SWEEP_SECONDS
+        value: "60"
+      - key: ADMIN_SESSION_HOURS
+        value: "8"
+      - key: DEVICE_OFFLINE_AFTER_MINUTES
+        value: "15"
+      - key: ADMIN_TZ_OFFSET_HOURS
+        value: "7"

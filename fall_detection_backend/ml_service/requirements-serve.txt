@@ -1,0 +1,17 @@
+# Dependency เฉพาะตอนรัน inference — ใช้โดย Dockerfile
+#
+# ไม่มี tensorflow โดยตั้งใจ: serving path (app/predict.py) โหลด RandomForest
+# จาก pickle ผ่าน sklearn ไม่ได้แตะ Keras/TF เลย
+# tensorflow กินพื้นที่ image เป็น GB และจำเป็นเฉพาะตอน train ใน notebooks
+# ถ้าจะกลับไปใช้โมเดล .h5 ต้องเพิ่ม tensorflow กลับเข้ามาที่นี่
+#
+# ตัวเต็มสำหรับ dev/train อยู่ใน requirements.txt
+
+fastapi==0.111.0
+uvicorn==0.29.0
+numpy==1.26.4
+scipy==1.13.1
+scikit-learn==1.5.2
+pandas==3.0.1
+pydantic==2.7.0
+python-dotenv==1.0.1
