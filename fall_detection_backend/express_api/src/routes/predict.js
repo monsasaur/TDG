@@ -4,6 +4,7 @@ const mlService         = require('../services/mlService')
 const dbService         = require('../services/dbService')
 const escalationService = require('../services/escalationService')
 const pushService       = require('../services/pushService')
+const appAlertService   = require('../services/appAlertService')
 
 router.post('/', predictBody, async (req, res) => {
   const { device_id, timestamp, location, features } = req.body
@@ -52,7 +53,13 @@ router.post('/', predictBody, async (req, res) => {
     // 5. เริ่ม timer — รอ caregiver กด ack ในแอป
     escalationService.schedule(event)
 
-    // 6. ยิง push notification ไปทุก device ที่ลงทะเบียน (fire-and-forget)
+    // 6. สร้าง alert ให้แอปแสดง — fire-and-forget
+    //    เป็นแค่การแสดงผล ห้ามให้พังแล้วกระทบ path แจ้งเตือน
+    appAlertService
+      .createFromEvent(event, escalationService.ACK_TIMEOUT_SECONDS)
+      .catch((err) => console.error('create app alert failed:', err.message))
+
+    // 7. ยิง push notification ไปทุก device ที่ลงทะเบียน (fire-and-forget)
     pushService.sendFallAlert(event).catch((err) =>
       console.error('push send failed:', err.message)
     )

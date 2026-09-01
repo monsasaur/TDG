@@ -1,13 +1,23 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { Alert } from "../types/alert"; // ใช้ Type Alert เดิมของคุณได้เลย แต่ต้องปรับบาง field ให้ตรง
+
+/**
+ * ดึงเวลาใหม่ทุกกี่มิลลิวินาที
+ *
+ * Express API เขียนแถวใน `alerts` ให้ทุกครั้งที่ตรวจพบการล้ม (appAlertService.js)
+ * แอปจึงต้องดึงซ้ำเป็นระยะ ไม่งั้นเหตุการณ์ใหม่จะไม่โผล่จนกว่าจะเปิดแอปใหม่
+ *
+ * 10 วินาทีถือว่าพอ เพราะการแจ้งเตือนทันทีมาทาง push notification อยู่แล้ว
+ * ตรงนี้เป็นแค่การอัปเดตรายการบนหน้าจอ
+ */
+const REFRESH_MS = 10_000;
 
 export function useAlerts() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchAlerts() {
+  const fetchAlerts = useCallback(async () => {
       try {
         const { data, error } = await supabase
           .from("alerts")
@@ -55,10 +65,13 @@ export function useAlerts() {
       } finally {
         setIsLoading(false);
       }
-    }
-
-    fetchAlerts();
   }, []);
 
-  return { alerts, isLoading };
+  useEffect(() => {
+    fetchAlerts();
+    const timer = setInterval(fetchAlerts, REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [fetchAlerts]);
+
+  return { alerts, isLoading, refetch: fetchAlerts };
 }

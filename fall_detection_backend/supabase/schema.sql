@@ -68,3 +68,17 @@ CREATE INDEX        IF NOT EXISTS idx_devices_last_seen ON devices(last_seen_at 
 --    ส่วนหน้า admin คำนวณ online/offline จาก last_seen_at ตาม NFR-09 (คำนวณฝั่งเซิร์ฟเวอร์)
 --    ตอนนี้เป็นสองแหล่งความจริง — ควรตัดสินใจว่าจะให้ `status` เลิกใช้แล้วอนุมานจาก
 --    last_seen_at อย่างเดียวไหม
+
+-- ผูกตาราง `alerts` ของแอปเข้ากับ `fall_events` ของ CSI pipeline
+--
+-- เดิมสองตารางนี้ไม่รู้จักกันเลย — `alerts` ที่แอปแสดงมาจาก seed.sql ล้วน
+-- ส่วนการล้มจริงอยู่ใน `fall_events` แอปเห็นได้ทางเดียวคือ poll API มา merge
+-- ทำให้ประวัติการแจ้งเตือนในแอปเป็นข้อมูลปลอม
+--
+-- ตอนนี้ Express API เขียนแถวใน `alerts` ให้ทุกครั้งที่ตรวจพบการล้ม
+-- โดยหา house จากอุปกรณ์: fall_events.device_id → devices.code → devices.house_id
+-- (ทำได้เพราะตัดสินใจเรื่อง device_id ↔ code ไปแล้ว)
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS fall_event_id TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_fall_event_id
+  ON alerts(fall_event_id) WHERE fall_event_id IS NOT NULL;
