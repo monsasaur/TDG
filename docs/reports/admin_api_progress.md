@@ -11,7 +11,7 @@
 
 | ส่วน | สถานะ |
 |---|:---:|
-| ตาราง `csi_devices` + schema | ✅ |
+| ต่อยอดตาราง `devices` + schema | ✅ |
 | Admin authentication (login/logout/session) | ✅ |
 | `GET /admin/summary` | ✅ |
 | `GET /admin/events` | ✅ |
@@ -47,7 +47,7 @@
 
 ## สิ่งที่ทำไปแล้ว
 
-### 1. ตาราง `csi_devices` — BA ข้อ 12.2 จุดที่ 2
+### 1. ต่อยอดตาราง `devices` — BA ข้อ 12.2 จุดที่ 2
 
 เพิ่มใน `fall_detection_backend/supabase/schema.sql`
 
@@ -241,8 +241,10 @@ ESCALATION_MAX_AGE_SECONDS=3600
 ## 🔲 ยังไม่ได้ทำ / ต้องตัดสินใจ
 
 ### ต้องทำก่อนต่อ frontend
-1. **รัน SQL สร้างตาราง `csi_devices` ใน Supabase** — โค้ดพร้อมแล้วแต่ตารางจริงยังไม่มี
-   > ⚠️ เดิมตั้งชื่อ `devices` ซึ่งชนกับตารางของแอปมือถือที่มีอยู่แล้ว (`id`/`house_id`/`code`/`wifi_ssid`/`status`) — `CREATE TABLE IF NOT EXISTS` จะเงียบไปแล้ว `touchDevice()` พังตอน runtime · เปลี่ยนชื่อแล้ว 2026-09-01
+1. **รัน `ALTER TABLE devices` ใน Supabase** — เพิ่ม `last_seen_at`, `is_active`, `installed_at`
+   > ประวัติ: ตอนแรกสร้างตาราง `devices` ใหม่ซึ่ง**ชนกับตารางของแอปที่มีอยู่แล้ว** —
+   > `CREATE TABLE IF NOT EXISTS` จะเงียบไปแล้ว `touchDevice()` พังตอน runtime
+   > แก้เป็นใช้ตารางเดียวกัน โดย `fall_events.device_id` ↔ `devices.code` (2026-09-01)
 2. **ตั้ง `ADMIN_USERNAME` + `ADMIN_PASSWORD_HASH` ใน `.env`** — ไม่ตั้งแล้วทุกเส้น admin ตอบ 503
 3. **ยืนยัน `ADMIN_ORIGINS`** ให้ตรงกับ origin จริงที่เว็บ admin รันอยู่
 4. **ถามคนทำ frontend ว่า response shape ตรงกับที่เขียนไว้ไหม** — ยังไม่ได้เทียบกับโค้ดฝั่งเว็บ

@@ -401,7 +401,7 @@ PUSH_MODE=real              # real = ยิง FCM จริง | fake = log con
 - **`lib/api.ts`** — API_BASE_URL ยังเป็น `http://10.0.2.2:3000` (Android emulator) ต้องเปลี่ยนเป็น Render URL สำหรับ production
 - **`lib/api.ts:12`** — `API_KEY = "dev-secret-key-123"` hardcode อยู่ในซอร์สแอป เป็นคีย์ตัวเดียวกับที่ ESP32 ใช้ ใครแกะ APK ได้ก็ยิง `POST /api/v1/demo/fire` สั่งให้ระบบโทรออกจริงได้ (ปัญหาคลาสเดียวกับ SEC-02 ที่แก้ไปแล้วฝั่งเว็บ admin)
 - **`express_api/Dockerfile` และ `ml_service/Dockerfile` เป็นไฟล์เปล่า** (0 bytes) ทั้งคู่ — ยัง deploy ไม่ได้
-- ตาราง `devices` ของแอปกับ `csi_devices` ของ backend ยังแยกกันอยู่ ดูหัวข้อ Database Schema
+- ต้องรัน `ALTER TABLE devices` ใน `schema.sql` ก่อนใช้หน้า Admin — คอลัมน์ `last_seen_at`/`is_active`/`installed_at` ยังไม่มีใน Supabase จริง
 - escalationService เก็บ timer ใน memory แต่กู้คืนได้ — ตอน boot อ่านเหตุการณ์ที่ยัง pending จาก DB มาตั้ง timer ใหม่ด้วยเวลาที่เหลือจริง และมี sweeper เช็คซ้ำทุก 60 วิ (เหตุการณ์ที่เลยกำหนดเกิน 1 ชม. จะไม่โทร แต่ปิดสถานะไว้ไม่ให้ค้าง pending)
 - Twilio Trial accounts can only send to verified numbers — verify caregiver numbers first
 - `backend/` ที่ root เป็น legacy server แยกต่างหาก ไม่เกี่ยวกับ `fall_detection_backend/express_api/`
@@ -416,14 +416,14 @@ PUSH_MODE=real              # real = ยิง FCM จริง | fake = log con
 > **แหล่งอ้างอิงจริงคือ `fall_detection_backend/supabase/schema.sql` เสมอ**
 > หัวข้อนี้เคยล้าสมัยจนทำให้เอกสาร BA (`TDG_BA.pdf`) สั่งให้เพิ่มฟิลด์ที่มีอยู่แล้ว — ถ้าแก้ schema ต้องอัปเดตที่นี่ด้วย
 
-### ⚠️ มีตารางสองชุดที่ยังไม่เชื่อมกัน
+### ตารางสองชุด — เชื่อมกันแล้วบางส่วน
 
-Supabase โปรเจกต์เดียวมีตารางสองกลุ่มที่ออกแบบแยกกันคนละที และ**ยังไม่มีอะไรผูกถึงกัน**
+Supabase โปรเจกต์เดียวมีตารางสองกลุ่มที่ออกแบบแยกกันคนละที
 
 **กลุ่ม A — CSI pipeline** (มี `CREATE TABLE` ใน `schema.sql`)
 
 Table: `fall_events` — Express API เขียนเมื่อ ESP32 ตรวจพบการล้ม
-- `id` UUID PK · `device_id` TEXT · `timestamp` BIGINT · `location` TEXT
+- `id` UUID PK · **`device_id` TEXT ← ตรงกับ `devices.code`** · `timestamp` BIGINT · `location` TEXT
 - `is_fall` BOOLEAN — binary ไม่ใช่ `prediction` TEXT แล้ว
 - `confidence` FLOAT
 - `acknowledged` / `acknowledged_at` / `acknowledged_by`
@@ -432,32 +432,39 @@ Table: `fall_events` — Express API เขียนเมื่อ ESP32 ตร
 
 Table: `push_tokens` — `token` PK · `device_id` · `platform` · `created_at` / `updated_at`
 
-Table: `csi_devices` — สำหรับ Admin Client (FR-16 ถึง FR-21)
-- `device_id` TEXT PK — ค่าที่ ESP32 ส่งมาใน `POST /api/v1/predict`
-- `label` · `owner_name` · `location`
-- `last_seen_at` — อัปเดตทุก packet ที่เข้ามา ไม่ใช่เฉพาะตอนล้ม
-- `is_active` · `installed_at` · `created_at`
-
 **กลุ่ม B — แอปมือถือ** (❗ **ไม่มี `CREATE TABLE` ในรีโปเลย** รู้โครงสร้างได้จาก `seed.sql` กับโค้ดใน `data/` เท่านั้น)
 
 | ตาราง | คอลัมน์ที่ใช้จริง |
 |---|---|
 | `houses` | `id` · `name` · `created_at` |
-| `devices` | `id` (PK เช่น `'d1'`) · `house_id` → houses · `name` · `code` (`'ESP-0001A'`) · `wifi_ssid` · `status` |
+| `devices` | `id` (PK เช่น `'d1'`) · `house_id` → houses · `name` · **`code`** (`'ESP-0001A'`) · `wifi_ssid` · `status` · **+ `last_seen_at` · `is_active` · `installed_at`** (เพิ่มโดย `schema.sql` ให้ admin ใช้) |
 | `emergency_contacts` | ผู้ติดต่อฉุกเฉิน (self / member / external) |
 | `house_contacts` | เชื่อม contact กับบ้าน (many-to-many) |
 | `alerts` | `id` · `house_id` · `title` · `description` · `location` · `status` · `answered_by` · `countdown` · `timeline` (JSON) |
 
-### 🔲 สองเรื่องที่ต้องตัดสินใจ
+### ✅ ตัดสินใจแล้ว 2026-09-01 — `fall_events.device_id` ↔ `devices.code`
 
-1. **`devices` กับ `csi_devices` คือของสิ่งเดียวกันในโลกจริง** แต่คนละโครงสร้างสนิท
-   ตอนแรกตั้งชื่อ `devices` เหมือนกันแล้วเกือบพัง — `CREATE TABLE IF NOT EXISTS` จะเงียบไป
-   แล้ว `dbService.touchDevice()` พังตอน runtime จึงแยกชื่อไว้ก่อน
-   **ต้องรู้ก่อนว่า `device_id` ที่ ESP32 ส่งมา ตรงกับ `devices.code` หรือ `devices.id`** ถึงจะรวมได้
+ใช้ตาราง `devices` ตัวเดียวร่วมกันทั้งแอปและ backend ไม่แยกเป็นสองตาราง
 
-2. **`alerts` ไม่ได้ผูกกับ `fall_events` เลย** — ไม่มี `device_id` ไม่มี FK
-   `alerts` ที่เห็นในแอปตอนนี้มาจาก `seed.sql` ล้วน ส่วนการล้มจริงอยู่ใน `fall_events`
+**ทำไมใช้ `code` ไม่ใช่ `id`:** `id` เป็น surrogate key ที่ต้องเปลี่ยนได้อิสระ (เช่นย้ายไป UUID)
+ถ้าเอา firmware ไปผูกกับมัน อุปกรณ์ที่ flash ไปแล้วจะพังหมดตอน migrate ส่วน `code` คือรหัส
+ที่พิมพ์บนตัวเครื่อง ซึ่ง BLE provisioning เขียนลง NVS และผู้ใช้สแกน QR ได้อยู่แล้ว
+
+`dbService` แปลงคอลัมน์ให้ `adminService` อัตโนมัติ — `device_id ← code` · `label ← name` ·
+`owner_name ← houses.name`
+
+**`touchDevice()` ไม่สร้างแถวใหม่ให้อุปกรณ์ที่ไม่รู้จัก** เพราะ `devices.house_id` เป็น FK บังคับ
+อุปกรณ์ต้องลงทะเบียนผ่านแอปก่อน — ถ้า ESP32 ส่งข้อมูลมาด้วย `code` ที่ไม่มีในตาราง ระบบยังบันทึก
+`fall_events` และแจ้งเตือนตามปกติ แค่ไม่โผล่ในหน้า Devices
+
+### 🔲 ยังต้องตัดสินใจ
+
+1. **`alerts` ไม่ได้ผูกกับ `fall_events`** — ไม่มี `device_id` ไม่มี FK
+   `alerts` ที่เห็นในแอปมาจาก `seed.sql` ล้วน ส่วนการล้มจริงอยู่ใน `fall_events`
    แอปเห็นของจริงได้ทางเดียวคือ `hooks/useLiveAlerts.ts` ที่ poll Express API มา merge
+2. **`devices.status` กับ online/offline ของ admin เป็นสองแหล่งความจริง**
+   `status` ('connected'/'disconnected') ฝั่งแอปตั้งเอง · admin คำนวณจาก `last_seen_at` ตาม NFR-09
+   ควรตัดสินใจว่าจะเลิกใช้ `status` แล้วอนุมานจาก `last_seen_at` อย่างเดียวไหม
 
 ### เส้นทางข้อมูลของแอป — มีสองทางขนานกัน
 

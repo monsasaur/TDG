@@ -41,29 +41,30 @@ CREATE TABLE IF NOT EXISTS push_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_push_device_id ON push_tokens(device_id);
 
--- อุปกรณ์ ESP32 ตามที่ CSI pipeline มองเห็น
+-- ต่อยอดตาราง `devices` ของแอปมือถือให้หน้า Admin Client ใช้ได้
 -- ตาม TDG_BA.pdf ข้อ 12.2 จุดที่ 2 — รองรับ FR-16 ถึง FR-21, REP-01 ถึง REP-03
 --
--- ⚠️ ทำไมไม่ชื่อ `devices` เฉย ๆ
--- Supabase ตัวจริงมีตาราง `devices` ของแอปมือถืออยู่แล้ว คนละโครงสร้างกันสนิท:
---     app:  id (PK, 'd1') · house_id → houses · name · code ('ESP-0001A') · wifi_ssid · status
---     นี่:  device_id (PK, ค่าที่ ESP32 ส่งมาใน /predict) · last_seen_at · is_active
--- ถ้าใช้ชื่อ `devices` ซ้ำ CREATE TABLE IF NOT EXISTS จะเงียบไปเฉย ๆ แล้ว
--- dbService.touchDevice() จะพังตอน runtime เพราะไม่มีคอลัมน์ device_id
+-- `devices` มีอยู่แล้วใน Supabase (สร้างจากฝั่งแอป ไม่มี CREATE TABLE ในรีโป):
+--     id (PK, 'd1') · house_id → houses · name · code ('ESP-0001A') · wifi_ssid · status
 --
--- 🔲 ต้องตัดสินใจ: สองตารางนี้คือของสิ่งเดียวกันในโลกจริง ควรรวมเป็นตารางเดียว
---    แต่ต้องรู้ก่อนว่าค่า device_id ที่ ESP32 ส่งมา ตรงกับคอลัมน์ไหนของแอป
---    (`devices.code` หรือ `devices.id`) — ยังไม่มีใครกำหนด จึงแยกไว้ก่อนไม่ให้ทับของเดิม
-CREATE TABLE IF NOT EXISTS csi_devices (
-  device_id     TEXT PRIMARY KEY,              -- ตรงกับที่ ESP32 ส่งใน POST /api/v1/predict
-  label         TEXT,                          -- ชื่อที่คนอ่านเข้าใจ เช่น "บ้านคุณสมชาย ห้องนอน"
-  owner_name    TEXT,
-  location      TEXT,
-  last_seen_at  TIMESTAMPTZ,                   -- อัปเดตทุกครั้งที่ ESP32 ส่งข้อมูล ไม่ใช่เฉพาะตอนล้ม
-  is_active     BOOLEAN     DEFAULT TRUE,      -- BR-08: ปลดการติดตั้งแล้วตั้งเป็น false
-  installed_at  TIMESTAMPTZ DEFAULT NOW(),
-  created_at    TIMESTAMPTZ DEFAULT NOW()
-);
+-- ตัดสินใจแล้ว 2026-09-01:
+--   fall_events.device_id  ↔  devices.code
+--
+-- ทำไมใช้ code ไม่ใช่ id: `id` เป็น surrogate key ที่ต้องเปลี่ยนได้อิสระ (เช่นย้ายไป UUID)
+-- ถ้าเอา firmware ไปผูกกับมัน อุปกรณ์ที่ flash ไปแล้วจะพังทั้งหมดตอน migrate
+-- ส่วน `code` คือรหัสที่พิมพ์อยู่บนตัวเครื่อง ซึ่ง BLE provisioning เขียนลง NVS
+-- และผู้ใช้สแกน QR ได้อยู่แล้ว — log กับหน้า admin ก็อ่านรู้เรื่องด้วย
 
-CREATE INDEX IF NOT EXISTS idx_csi_devices_is_active    ON csi_devices(is_active);
-CREATE INDEX IF NOT EXISTS idx_csi_devices_last_seen_at ON csi_devices(last_seen_at DESC);
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_active    BOOLEAN DEFAULT TRUE;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS installed_at TIMESTAMPTZ DEFAULT NOW();
+
+-- ค้นด้วย code ตอน ESP32 ส่งข้อมูลเข้ามา — ต้อง unique เพราะเป็นตัวระบุอุปกรณ์จริง
+CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_code      ON devices(code);
+CREATE INDEX        IF NOT EXISTS idx_devices_is_active ON devices(is_active);
+CREATE INDEX        IF NOT EXISTS idx_devices_last_seen ON devices(last_seen_at DESC);
+
+-- 🔲 หมายเหตุ: `devices.status` ('connected'/'disconnected') เป็นค่าที่ฝั่งแอปตั้งเอง
+--    ส่วนหน้า admin คำนวณ online/offline จาก last_seen_at ตาม NFR-09 (คำนวณฝั่งเซิร์ฟเวอร์)
+--    ตอนนี้เป็นสองแหล่งความจริง — ควรตัดสินใจว่าจะให้ `status` เลิกใช้แล้วอนุมานจาก
+--    last_seen_at อย่างเดียวไหม
