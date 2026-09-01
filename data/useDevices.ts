@@ -12,12 +12,6 @@ export interface Device {
   houseName?: string; // จะได้มาจากการ Join
 }
 
-export const mockAvailableNetworks: string[] = [
-  "MyHome_2.4G",
-  "NeighborWifi_5G",
-  "TrueNet-ABCD",
-]; // อันนี้เก็บไว้ใช้เป็น Mock ตอนเลือก WiFi ได้ครับ
-
 export function useDevices() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [isLoading, setIsLoading] = useState(true);

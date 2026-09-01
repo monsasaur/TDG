@@ -1,0 +1,29 @@
+venv
+.venv
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+.coverage
+.env
+.env.*
+!.env.example
+
+# ข้อมูลดิบและผลการทดลอง — ไม่ต้องเข้า image
+data
+experiments
+notebooks
+data_collection
+tests
+docs
+
+# โมเดลที่ไม่ได้ใช้ตอน serve (serving ใช้แค่ rf_v1.pkl + scaler_rf_v1.pkl)
+models/*.h5
+models/*.keras
+models/*.png
+models/*.json
+
+.DS_Store
+Dockerfile
+.dockerignore
+*.md

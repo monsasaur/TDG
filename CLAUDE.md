@@ -24,11 +24,11 @@
 | Feature | Priority | หมายเหตุ |
 |---|---|---|
 | Threshold tuning | Med | หาแล้วสำหรับ RandomForest — แนะนำ 0.36 (recall 97.6%, false alarm 9.6%) เหลือแค่ตัดสินใจว่าจะเปลี่ยน production model ไหม |
-| BLE WiFi Provisioning | Med | **UI ครบทั้ง flow + permission ครบแล้ว** เหลือของจริง: ยังไม่มี BLE library ใน package.json (`scan-devices.tsx:21` เป็น array คงที่ + setTimeout) และ firmware ฝั่ง ESP32 ยังไม่เริ่ม — ดูหัวข้อ Production WiFi Provisioning |
+| BLE WiFi Provisioning | Med | **ฝั่งแอปเสร็จแล้ว** (library + `lib/provisioning.ts` + ต่อ 3 หน้าจอ) · เหลือ firmware ฝั่ง ESP32 กับการส่ง PoP เข้า flow — ดูหัวข้อ Production WiFi Provisioning |
 | One-class anomaly model | ✅ ตอบแล้ว | ลอง 4 ตัว ROC-AUC ดีสุด 0.70 เทียบ supervised 0.985 — ใช้แทนไม่ได้กับ feature ชุดนี้ |
 | เก็บ dataset ใหม่ (สลับคลาสใน session) | **High** | ข้อมูลชุดเดิมเก็บ fall ทั้งหมดก่อนแล้วค่อย non_fall → สภาพห้องกับคลาสทับกันสนิท แก้ย้อนหลังไม่ได้ · **ต้องสลับคลาสภายใน session เดียวกัน** ดูข้อกำหนดใน `docs/reports/data_quality_audit_2026-09.md` |
 | Unseen test scenario | **High** | test set ต้องเป็น session ที่ไม่เคยเห็น ไม่ใช่แค่ไฟล์ที่ไม่เคยเห็น |
-| Production Cloud deploy | Low | API URL ยังเป็น localhost ใน lib/api.ts |
+| Production Cloud deploy | Med | **Dockerfile + render.yaml + compose พร้อมแล้ว** · เหลือ: ตัดสินใจเรื่องไฟล์โมเดลที่ถูก gitignore · กรอก env ใน Render · ทดสอบ `docker compose up` (ยังไม่ได้รัน — เครื่องนี้ไม่มี docker) |
 | Hybrid AI escalation call | Low | **สเปค Phase 2a พร้อมให้ implement แล้ว** → `docs/reports/spec_hybrid_ai_escalation_phase2a.md` (จุดเชื่อมต่อระดับบรรทัด · คำตอบคำถามเปิด 5 ข้อ · เทสต์ 14 เคส · เกณฑ์งานเสร็จ) · Phase 2b ยังไม่อนุญาต ต้องผ่าน shadow mode ก่อน (`docs/reports/hybrid_ai_escalation_design.md`) |
 
 ---
@@ -325,54 +325,118 @@ CONFIG_ESPTOOLPY_MONITOR_BAUD=921600
 
 ใน production ESP32 #1 ต้องส่ง CSI ขึ้น cloud ผ่าน WiFi (ไม่ใช่ USB) — ลูกค้าไม่ต้อง hardcode WiFi → ใช้ BLE provisioning แทน
 
-### สถานะจริง (ตรวจ 2026-09-01)
+### สถานะ (2026-09-01)
 
 | ส่วน | สถานะ |
 |---|:---:|
-| UI ทั้ง flow (`scan-devices` → `connect-device` → `add-network` → `wifi-password` → `device-setup`) | ✅ |
-| Permission ใน `app.json` (`BLUETOOTH_SCAN/CONNECT/ADVERTISE`, `ACCESS_FINE_LOCATION`) | ✅ |
-| ขอ permission ตอน runtime + จัดการเคส `NEVER_ASK_AGAIN` (`scan-devices.tsx:69`) | ✅ |
-| หน้า PoP — `scan-qr.tsx`, `enter-code.tsx` | ✅ (UI) |
-| **BLE library** — ยังไม่มีใน `package.json` | ❌ |
-| ESP32 firmware `wifi_provisioning` + `scheme_ble` | ❌ |
-| เก็บ WiFi ลง NVS + ปุ่ม reset เข้า provisioning mode | ❌ |
+| UI ทั้ง flow (`scan-devices` → `connect-device` → `wifi-password` → `device-setup`) | ✅ |
+| Permission ใน `app.json` + ขอตอน runtime (จัดการเคส `NEVER_ASK_AGAIN` ด้วย) | ✅ |
+| BLE library + Expo config plugin | ✅ |
+| `lib/provisioning.ts` — ห่อ library + fallback เป็น mock อัตโนมัติ | ✅ |
+| ต่อ 3 หน้าจอเข้ากับ BLE จริง (สแกน → connect → scan WiFi → provision) | ✅ |
+| **ESP32 firmware `wifi_provisioning` + `scheme_ble`** | ❌ |
+| PoP — ยังไม่มีหน้าจอรับรหัสอุปกรณ์ใน flow (ดูหมายเหตุด้านล่าง) | ❌ |
+| ปุ่ม reset บนอุปกรณ์เพื่อกลับเข้า provisioning mode | ❌ |
 
-จุดที่ต้องแทน mock ด้วยของจริง:
-- `app/scan-devices.tsx:21` — `const FOUND_DEVICES = ["ESP-BT001", "ESP-BT002"]` + `setTimeout` แกล้งสแกน
-- `app/connect-device.tsx:24` — `setNetworks(mockAvailableNetworks)` จาก `data/useDevices.ts:15`
-- `app/wifi-password.tsx:38` และ `app/add-network.tsx:38` — `setTimeout` แกล้งเชื่อมต่อ
+### ฝั่งแอป — ทำเสร็จแล้ว
 
-> งานฝั่งแอปเหลือแค่เปลี่ยน mock เป็นของจริง ไม่ต้องออกแบบ UI ใหม่
-> ฝั่ง ESP32 ยังไม่มีอะไรเลย และ `ESP32-CSI-Tool/` เป็น submodule ที่ห้ามแก้ตรง ๆ —
-> ต้องตัดสินใจก่อนว่าจะ fork, patch ทับ หรือแยก component ออกมา
+Library: `@orbital-systems/react-native-esp-idf-provisioning` (ห่อ ESP-IDF provisioning
+ของ Espressif ทั้ง Android/iOS) + config plugin ใน `app.json`
 
-### Flow
+`lib/provisioning.ts` เป็นชั้นเดียวที่หน้าจอเรียก — เหตุผลที่ไม่ import library ตรง:
+1. `ESPDevice` ที่ connect แล้วต้องส่งข้ามหน้าจอ แต่ router param ส่งได้แค่ string
+   จึงเก็บไว้ที่ระดับ module
+2. native module ไม่มีใน Expo Go และไม่มีบนเว็บ — ถ้า import ตรงแอปจะ crash ทันที
+   ไฟล์นี้จับ error ตอน require แล้วสลับไปโหมด mock ให้เอง (`isMock`)
+3. แปลง error จาก native เป็นข้อความไทยที่ผู้ใช้ทำอะไรต่อได้ (`errorMessage`)
+
+**ตัวระบุอุปกรณ์คือ `devices.code`** เช่น `ESP-0001A` — ค่าเดียวกับที่ ESP32 ส่งมาใน
+`POST /api/v1/predict` และเป็นค่าที่ BLE provisioning ต้องเขียนลง NVS
+
+> ⚠️ **หลังเพิ่ม native module แล้ว Expo Go ใช้ไม่ได้อีก** ต้อง build dev client ใหม่
+> (`eas build --profile development`) โปรเจกต์ใช้ `expo-dev-client` อยู่แล้วจึงไม่กระทบ workflow
+> แต่ **ต้อง rebuild** ก่อนถึงจะทดสอบ BLE จริงได้ · ถ้ายังไม่ rebuild แอปจะรันในโหมด mock
+> และขึ้นป้ายเตือนในหน้า scan
+
+### งานที่เหลือ — ฝั่ง ESP32
+
+แก้ใน `ESP32-CSI-Tool/active_ap/` ได้ตรง ๆ (ไม่ใช่ submodule — ตรวจแล้ว 2026-09-01)
+สิ่งที่ต้องเพิ่ม:
+- `wifi_provisioning` component + `scheme_ble`
+- ประกาศชื่อ BLE ขึ้นต้นด้วย `ESP-` (ตรงกับ `DEVICE_PREFIX` ใน `lib/provisioning.ts`)
+- Security 2 + PoP ที่ตรงกับรหัสบนกล่อง/QR
+- เก็บ SSID/รหัสผ่านลง NVS — reboot แล้วไม่หาย
+- ปุ่ม reset ค้างเพื่อลบ NVS แล้วกลับเข้า provisioning mode
+
+> **PoP ต้องรอ firmware ก่อน** — `lib/provisioning.ts` ตั้ง `ESPSecurity.secure2` ไว้ ซึ่งใช้ SRP6a
+> ต้องมีทั้ง username และ PoP ส่วน `secure1` ใช้ PoP อย่างเดียว เลือกอันไหนเป็นการตัดสินใจฝั่ง firmware
+> และมันกำหนดว่าแอปต้องเก็บข้อมูลอะไรจากผู้ใช้ **จึงยังไม่ควรสร้างหน้าจอ PoP จนกว่าจะเลือก**
+>
+> หมายเหตุ: `app/scan-qr.tsx` ที่มีอยู่เป็นของ "เข้าร่วมบ้านด้วย QR เชิญ" (เรียกจาก `houses.tsx`)
+> ไม่ใช่ PoP ของอุปกรณ์ และตอนนี้ยัง reject ทุก QR (`handleBarcode` ตั้ง error เสมอ)
+
+## Deploy (Docker + Render)
+
+### ไฟล์ที่เกี่ยวข้อง
+
+| ไฟล์ | ใช้ทำอะไร |
+|---|---|
+| `render.yaml` | Render Blueprint — deploy ทั้งสอง service พร้อมกัน (Render → New → Blueprint) |
+| `fall_detection_backend/docker-compose.yml` | รันทั้งสอง service บนเครื่องตัวเองเพื่อทดสอบก่อน deploy |
+| `express_api/Dockerfile` | node:20-alpine · multi-stage · `npm ci --omit=dev` · non-root · tini |
+| `ml_service/Dockerfile` | python:3.11-slim · non-root · tini · เช็คไฟล์โมเดลตั้งแต่ตอน build |
+| `ml_service/requirements-serve.txt` | dependency เฉพาะตอน serve — **ไม่มี tensorflow** |
+
+```bash
+cd fall_detection_backend
+docker compose up --build
+curl localhost:3000/health && curl localhost:8000/health
 ```
-ลูกค้าเปิดแอป → แอปค้นหา ESP32 ผ่าน BLE → กรอก SSID + รหัส WiFi
-→ ส่งให้ ESP32 ผ่าน BLE → ESP32 เชื่อมต่อ WiFi บ้านลูกค้า → เสร็จ ปิด BLE
-→ ส่ง CSI ผ่าน UDP/HTTP ไป cloud
+
+### ทำไม requirements-serve.txt ไม่มี tensorflow
+
+`app/predict.py` โหลด **RandomForest จาก pickle ผ่าน sklearn** (`models/rf_v1.pkl`)
+ไม่ได้แตะ Keras/TensorFlow เลย — ตรวจแล้วว่า import chain ตอน serve ไม่มี tensorflow
+tensorflow กิน image เป็น GB และจำเป็นเฉพาะตอน train ใน notebooks
+
+> `requirements.txt` (ตัวเต็ม) ยังมี tensorflow ไว้สำหรับ dev/train
+> ถ้าจะกลับไปใช้โมเดล `.h5` ต้องเพิ่ม tensorflow กลับเข้า `requirements-serve.txt`
+
+### ⚠️ ไฟล์โมเดลถูก gitignore — ต้องแก้ก่อน deploy ครั้งแรก
+
+`ml_service/.gitignore` มี `models/*.pkl` → Render build จาก git จะไม่มีไฟล์
+Dockerfile เช็คตั้งแต่ตอน build จะได้ fail พร้อมข้อความบอกสาเหตุ ไม่ใช่ไป crash ตอน boot
+
+เลือกทางใดทางหนึ่ง:
+1. **commit ไฟล์โมเดลเข้า git** — `rf_v1.pkl` 2.5 MB + `scaler_rf_v1.pkl` 10 KB
+   รวม 2.6 MB เล็กพอที่จะ commit ได้ ทำให้ deploy ทำซ้ำได้ (แก้ `.gitignore` ให้ยกเว้นสองไฟล์นี้)
+2. อัปโหลดขึ้น object storage แล้วให้ Dockerfile `curl` ลงมาตอน build
+3. build image บนเครื่องตัวเองแล้ว push ขึ้น registry แทนที่จะให้ Render build
+
+### ตัวแปรที่ต้องกรอกเองใน Render dashboard
+
+`API_KEY` · `SUPABASE_URL` · `SUPABASE_KEY` · `TWILIO_ACCOUNT_SID` · `TWILIO_AUTH_TOKEN` ·
+`TWILIO_PHONE` · `ALERT_PHONES` · `ADMIN_USERNAME` · `ADMIN_PASSWORD_HASH` · `ADMIN_ORIGINS`
+
+`ML_SERVICE_URL` ต่อให้อัตโนมัติจาก `render.yaml` ไม่ต้องกรอก
+
+### ฝั่งแอปมือถือ
+
+URL และคีย์ย้ายออกจากซอร์สแล้ว — อ่านจาก `app.config.js` → `Constants.expoConfig.extra`
+
+```bash
+# dev บนเครื่องตัวเอง — .env.local
+EXPO_PUBLIC_API_BASE_URL=http://192.168.1.42:3000
+EXPO_PUBLIC_API_KEY=dev-secret-key-123
 ```
 
-### รายละเอียด
-- ใช้ ESP-IDF `wifi_provisioning` component + `scheme_ble`
-- ฝั่งแอป React Native ใช้ `esp-idf-provisioning-react-native` หรือ `react-native-ble-plx`
-- Security: ใช้ Proof of Possession (PoP) เช่น QR code / PIN ที่มากับกล่อง
-- เก็บรหัส WiFi ใน NVS (Non-Volatile Storage) ของ ESP32 — reboot ไม่หาย
-- ต้องมีปุ่ม reset บน ESP32 เพื่อเข้า provisioning mode ใหม่ (กรณีเปลี่ยน WiFi)
-- Provision แค่ ESP32 #1 (active_ap) ตัวเดียว — STA interface ที่เชื่อมต่อ WiFi บ้าน
-- ESP32 #2 (active_sta) ต่อ "CSI-Net" อัตโนมัติ ไม่ต้อง provision
+ตอน build ผ่าน EAS ตั้งเป็น environment variable ต่อ profile (ดู `eas.json`)
 
-### Network Topology (Production)
-```
-ESP32 #1 (active_ap) — Dual Mode
-  ├── AP interface  → สร้าง WiFi "CSI-Net" (auto, ไม่ต้องตั้ง)
-  │                   ← ESP32 #2 เชื่อมต่ออัตโนมัติ
-  └── STA interface → เชื่อมต่อ WiFi บ้านลูกค้า (ได้จาก BLE provisioning)
-                      → ส่ง CSI data ผ่าน UDP ไป cloud / local server
+> ⚠️ **ยังไม่ได้แก้:** คีย์นี้เป็นตัวเดียวกับที่ ESP32 ใช้ และแอปที่ build แล้วมีคีย์อยู่ในตัวเสมอ
+> ใครแกะ APK ได้ก็เรียก `POST /api/v1/demo/fire` สั่งให้ระบบโทรออกจริงได้
+> ทางแก้จริงคือแยก auth ของแอปออกจาก `x-api-key` ของอุปกรณ์ แบบเดียวกับที่ทำแล้วฝั่งเว็บ admin
 
-ESP32 #2 (active_sta)
-  └── เชื่อมต่อ "CSI-Net" อัตโนมัติ
-```
+---
 
 ## Alert Flow (Production)
 
@@ -397,11 +461,9 @@ PUSH_MODE=real              # real = ยิง FCM จริง | fake = log con
 ## Important Notes
 
 - `lstm_v3.h5`, `lstm_v3_best.h5`, `scaler_v3.pkl` are NOT committed to git — must be obtained separately
-- `fall_detection_backend/ESP32-CSI-Tool/` is a git submodule — do not edit directly
-- **`lib/api.ts`** — API_BASE_URL ยังเป็น `http://10.0.2.2:3000` (Android emulator) ต้องเปลี่ยนเป็น Render URL สำหรับ production
-- **`lib/api.ts:12`** — `API_KEY = "dev-secret-key-123"` hardcode อยู่ในซอร์สแอป เป็นคีย์ตัวเดียวกับที่ ESP32 ใช้ ใครแกะ APK ได้ก็ยิง `POST /api/v1/demo/fire` สั่งให้ระบบโทรออกจริงได้ (ปัญหาคลาสเดียวกับ SEC-02 ที่แก้ไปแล้วฝั่งเว็บ admin)
-- **`express_api/Dockerfile` และ `ml_service/Dockerfile` เป็นไฟล์เปล่า** (0 bytes) ทั้งคู่ — ยัง deploy ไม่ได้
-- ตาราง `devices` ของแอปกับ `csi_devices` ของ backend ยังแยกกันอยู่ ดูหัวข้อ Database Schema
+- `fall_detection_backend/ESP32-CSI-Tool/` **ไม่ใช่ submodule** — เป็นโฟลเดอร์ธรรมดาในรีโปหลัก (ไม่มี `.gitmodules` ไม่มี `.git` ข้างใน · git ติดตามไฟล์ในนั้น 50 ไฟล์) แก้ตรงได้เลย
+- **`lib/api.ts`** — URL/คีย์ย้ายไป `app.config.js` แล้ว ตั้งผ่าน `EXPO_PUBLIC_API_BASE_URL` / `EXPO_PUBLIC_API_KEY` · แต่คีย์ยังเป็นตัวเดียวกับ ESP32 อยู่ ดูหัวข้อ Deploy
+- ต้องรัน `ALTER TABLE devices` ใน `schema.sql` ก่อนใช้หน้า Admin — คอลัมน์ `last_seen_at`/`is_active`/`installed_at` ยังไม่มีใน Supabase จริง
 - escalationService เก็บ timer ใน memory แต่กู้คืนได้ — ตอน boot อ่านเหตุการณ์ที่ยัง pending จาก DB มาตั้ง timer ใหม่ด้วยเวลาที่เหลือจริง และมี sweeper เช็คซ้ำทุก 60 วิ (เหตุการณ์ที่เลยกำหนดเกิน 1 ชม. จะไม่โทร แต่ปิดสถานะไว้ไม่ให้ค้าง pending)
 - Twilio Trial accounts can only send to verified numbers — verify caregiver numbers first
 - `backend/` ที่ root เป็น legacy server แยกต่างหาก ไม่เกี่ยวกับ `fall_detection_backend/express_api/`
@@ -416,14 +478,14 @@ PUSH_MODE=real              # real = ยิง FCM จริง | fake = log con
 > **แหล่งอ้างอิงจริงคือ `fall_detection_backend/supabase/schema.sql` เสมอ**
 > หัวข้อนี้เคยล้าสมัยจนทำให้เอกสาร BA (`TDG_BA.pdf`) สั่งให้เพิ่มฟิลด์ที่มีอยู่แล้ว — ถ้าแก้ schema ต้องอัปเดตที่นี่ด้วย
 
-### ⚠️ มีตารางสองชุดที่ยังไม่เชื่อมกัน
+### ตารางสองชุด — เชื่อมกันแล้วบางส่วน
 
-Supabase โปรเจกต์เดียวมีตารางสองกลุ่มที่ออกแบบแยกกันคนละที และ**ยังไม่มีอะไรผูกถึงกัน**
+Supabase โปรเจกต์เดียวมีตารางสองกลุ่มที่ออกแบบแยกกันคนละที
 
 **กลุ่ม A — CSI pipeline** (มี `CREATE TABLE` ใน `schema.sql`)
 
 Table: `fall_events` — Express API เขียนเมื่อ ESP32 ตรวจพบการล้ม
-- `id` UUID PK · `device_id` TEXT · `timestamp` BIGINT · `location` TEXT
+- `id` UUID PK · **`device_id` TEXT ← ตรงกับ `devices.code`** · `timestamp` BIGINT · `location` TEXT
 - `is_fall` BOOLEAN — binary ไม่ใช่ `prediction` TEXT แล้ว
 - `confidence` FLOAT
 - `acknowledged` / `acknowledged_at` / `acknowledged_by`
@@ -432,32 +494,39 @@ Table: `fall_events` — Express API เขียนเมื่อ ESP32 ตร
 
 Table: `push_tokens` — `token` PK · `device_id` · `platform` · `created_at` / `updated_at`
 
-Table: `csi_devices` — สำหรับ Admin Client (FR-16 ถึง FR-21)
-- `device_id` TEXT PK — ค่าที่ ESP32 ส่งมาใน `POST /api/v1/predict`
-- `label` · `owner_name` · `location`
-- `last_seen_at` — อัปเดตทุก packet ที่เข้ามา ไม่ใช่เฉพาะตอนล้ม
-- `is_active` · `installed_at` · `created_at`
-
 **กลุ่ม B — แอปมือถือ** (❗ **ไม่มี `CREATE TABLE` ในรีโปเลย** รู้โครงสร้างได้จาก `seed.sql` กับโค้ดใน `data/` เท่านั้น)
 
 | ตาราง | คอลัมน์ที่ใช้จริง |
 |---|---|
 | `houses` | `id` · `name` · `created_at` |
-| `devices` | `id` (PK เช่น `'d1'`) · `house_id` → houses · `name` · `code` (`'ESP-0001A'`) · `wifi_ssid` · `status` |
+| `devices` | `id` (PK เช่น `'d1'`) · `house_id` → houses · `name` · **`code`** (`'ESP-0001A'`) · `wifi_ssid` · `status` · **+ `last_seen_at` · `is_active` · `installed_at`** (เพิ่มโดย `schema.sql` ให้ admin ใช้) |
 | `emergency_contacts` | ผู้ติดต่อฉุกเฉิน (self / member / external) |
 | `house_contacts` | เชื่อม contact กับบ้าน (many-to-many) |
 | `alerts` | `id` · `house_id` · `title` · `description` · `location` · `status` · `answered_by` · `countdown` · `timeline` (JSON) |
 
-### 🔲 สองเรื่องที่ต้องตัดสินใจ
+### ✅ ตัดสินใจแล้ว 2026-09-01 — `fall_events.device_id` ↔ `devices.code`
 
-1. **`devices` กับ `csi_devices` คือของสิ่งเดียวกันในโลกจริง** แต่คนละโครงสร้างสนิท
-   ตอนแรกตั้งชื่อ `devices` เหมือนกันแล้วเกือบพัง — `CREATE TABLE IF NOT EXISTS` จะเงียบไป
-   แล้ว `dbService.touchDevice()` พังตอน runtime จึงแยกชื่อไว้ก่อน
-   **ต้องรู้ก่อนว่า `device_id` ที่ ESP32 ส่งมา ตรงกับ `devices.code` หรือ `devices.id`** ถึงจะรวมได้
+ใช้ตาราง `devices` ตัวเดียวร่วมกันทั้งแอปและ backend ไม่แยกเป็นสองตาราง
 
-2. **`alerts` ไม่ได้ผูกกับ `fall_events` เลย** — ไม่มี `device_id` ไม่มี FK
-   `alerts` ที่เห็นในแอปตอนนี้มาจาก `seed.sql` ล้วน ส่วนการล้มจริงอยู่ใน `fall_events`
+**ทำไมใช้ `code` ไม่ใช่ `id`:** `id` เป็น surrogate key ที่ต้องเปลี่ยนได้อิสระ (เช่นย้ายไป UUID)
+ถ้าเอา firmware ไปผูกกับมัน อุปกรณ์ที่ flash ไปแล้วจะพังหมดตอน migrate ส่วน `code` คือรหัส
+ที่พิมพ์บนตัวเครื่อง ซึ่ง BLE provisioning เขียนลง NVS และผู้ใช้สแกน QR ได้อยู่แล้ว
+
+`dbService` แปลงคอลัมน์ให้ `adminService` อัตโนมัติ — `device_id ← code` · `label ← name` ·
+`owner_name ← houses.name`
+
+**`touchDevice()` ไม่สร้างแถวใหม่ให้อุปกรณ์ที่ไม่รู้จัก** เพราะ `devices.house_id` เป็น FK บังคับ
+อุปกรณ์ต้องลงทะเบียนผ่านแอปก่อน — ถ้า ESP32 ส่งข้อมูลมาด้วย `code` ที่ไม่มีในตาราง ระบบยังบันทึก
+`fall_events` และแจ้งเตือนตามปกติ แค่ไม่โผล่ในหน้า Devices
+
+### 🔲 ยังต้องตัดสินใจ
+
+1. **`alerts` ไม่ได้ผูกกับ `fall_events`** — ไม่มี `device_id` ไม่มี FK
+   `alerts` ที่เห็นในแอปมาจาก `seed.sql` ล้วน ส่วนการล้มจริงอยู่ใน `fall_events`
    แอปเห็นของจริงได้ทางเดียวคือ `hooks/useLiveAlerts.ts` ที่ poll Express API มา merge
+2. **`devices.status` กับ online/offline ของ admin เป็นสองแหล่งความจริง**
+   `status` ('connected'/'disconnected') ฝั่งแอปตั้งเอง · admin คำนวณจาก `last_seen_at` ตาม NFR-09
+   ควรตัดสินใจว่าจะเลิกใช้ `status` แล้วอนุมานจาก `last_seen_at` อย่างเดียวไหม
 
 ### เส้นทางข้อมูลของแอป — มีสองทางขนานกัน
 

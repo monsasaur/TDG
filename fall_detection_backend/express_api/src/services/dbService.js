@@ -266,15 +266,21 @@ module.exports = {
   },
 
   // ----- devices (ตาม TDG_BA.pdf 12.2 จุดที่ 2) -----
+  //
+  // ใช้ตาราง `devices` ตัวเดียวกับแอปมือถือ โดย fall_events.device_id ↔ devices.code
+  // (ตัดสินใจ 2026-09-01 — เหตุผลอยู่ใน supabase/schema.sql)
+  //
+  // แปลงคอลัมน์ของแอปให้เป็นรูปแบบที่ adminService ใช้:
+  //     device_id ← code   ·   label ← name   ·   owner_name ← houses.name
 
   /**
-   * touchDevice — อัปเดต last_seen_at
+   * touchDevice — อัปเดต last_seen_at ของอุปกรณ์
    * ต้องเรียกทุกครั้งที่ ESP32 ส่งข้อมูลเข้ามา ไม่ใช่เฉพาะตอนตรวจพบการล้ม
    * (บ้านที่ปลอดภัยจะไม่มีเหตุการณ์ล้มเลยเป็นเดือน — ถ้าอัปเดตเฉพาะตอนล้ม
    *  อุปกรณ์ที่ทำงานดีที่สุดจะถูกแสดงว่า offline ซึ่งกลับหัวกลับหางกับความจริง)
    *
-   * อุปกรณ์ที่ยังไม่เคยลงทะเบียนจะถูกสร้างแถวให้อัตโนมัติ โดยไม่แตะ label/owner
-   * ที่ admin กรอกไว้แล้ว
+   * ไม่สร้างแถวใหม่ให้อุปกรณ์ที่ไม่รู้จัก — `devices.house_id` เป็น FK บังคับ
+   * การแทรกแถวลอย ๆ จะทำให้ข้อมูลฝั่งแอปเสีย อุปกรณ์ต้องถูกลงทะเบียนผ่านแอปก่อน
    */
   touchDevice: async (device_id) => {
     if (!device_id) return null
@@ -285,59 +291,60 @@ module.exports = {
       const prev = mockDevices.get(device_id)
       const record = prev
         ? { ...prev, last_seen_at: now }
-        : {
-            device_id,
-            label:        null,
-            owner_name:   null,
-            location:     null,
-            last_seen_at: now,
-            is_active:    true,
-            installed_at: now,
-            created_at:   now
-          }
+        : { code: device_id, name: null, house_id: null,
+            last_seen_at: now, is_active: true, installed_at: now }
       mockDevices.set(device_id, record)
       return record
     }
 
-    // update ก่อน insert เพื่อไม่ให้ upsert ทับ label/owner_name ที่กรอกไว้เป็น null
     const { data, error } = await client
-      .from('csi_devices')
+      .from('devices')
       .update({ last_seen_at: now })
-      .eq('device_id', device_id)
+      .eq('code', device_id)
       .select()
 
     if (error) throw new Error(`DB error: ${error.message}`)
-    if (data && data.length > 0) return data[0]
 
-    const { data: inserted, error: insertError } = await client
-      .from('csi_devices')
-      .insert([{ device_id, last_seen_at: now }])
-      .select()
-      .single()
-
-    // แข่งกันสร้างพร้อมกัน (unique violation) ถือว่าสำเร็จ — อีก request สร้างให้แล้ว
-    if (insertError && insertError.code !== '23505') {
-      throw new Error(`DB error: ${insertError.message}`)
+    if (!data || data.length === 0) {
+      // อุปกรณ์ส่งข้อมูลเข้ามาแต่ยังไม่ได้ลงทะเบียนในแอป — บันทึก event ต่อได้ตามปกติ
+      // แต่จะไม่โผล่ในหน้า Devices จนกว่าจะผูกกับบ้าน
+      console.warn(`⚠️  [DEVICE] ไม่รู้จัก code="${device_id}" — ยังไม่ได้ลงทะเบียนผ่านแอป`)
+      return null
     }
-    return inserted || null
+    return data[0]
   },
 
   // include_inactive = true → รวมอุปกรณ์ที่ปลดการติดตั้งแล้วด้วย (BR-08)
   listDevices: async ({ include_inactive = false } = {}) => {
     const client = getClient()
 
+    // แปลงแถวของตาราง devices (ฝั่งแอป) → รูปแบบที่ adminService ใช้
+    const normalize = (row) => ({
+      device_id:    row.code,
+      label:        row.name || null,
+      owner_name:   row.houses?.name || null,
+      location:     null,               // ตาราง devices ของแอปยังไม่มีคอลัมน์นี้
+      last_seen_at: row.last_seen_at || null,
+      is_active:    row.is_active !== false,
+      installed_at: row.installed_at || null
+    })
+
     if (!client) {
       return Array.from(mockDevices.values())
         .filter(d => include_inactive || d.is_active !== false)
-        .sort((a, b) => String(a.device_id).localeCompare(String(b.device_id)))
+        .sort((a, b) => String(a.code).localeCompare(String(b.code)))
+        .map(normalize)
     }
 
-    let query = client.from('csi_devices').select('*').order('device_id')
+    let query = client
+      .from('devices')
+      .select('code, name, last_seen_at, is_active, installed_at, houses(name)')
+      .order('code')
     if (!include_inactive) query = query.eq('is_active', true)
 
     const { data, error } = await query
     if (error) throw new Error(`DB error: ${error.message}`)
-    return data || []
+    return (data || []).map(normalize)
   },
 
   // 'supabase' = ต่อจริง | 'memory' = fallback in-memory (restart แล้วหาย)

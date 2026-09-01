@@ -1,15 +1,31 @@
 /**
  * API client สำหรับ Fall Detection backend
  *
- * - Android emulator: ใช้ http://10.0.2.2:3000 (alias พิเศษชี้ไปที่ host Mac)
- * - มือถือจริงบน LAN/Hotspot: ใช้ IP ของ Mac เช่น http://172.20.10.7:3000
- *   เช็ค IP ด้วย: `ipconfig getifaddr en0`
+ * ค่า URL และคีย์มาจาก app.config.js (อ่านจาก env ตอน build) ไม่ hardcode ในไฟล์นี้
+ * ตั้งค่าตอน dev บนเครื่องตัวเองด้วย .env.local:
+ *
+ *   EXPO_PUBLIC_API_BASE_URL=http://192.168.1.42:3000   # IP เครื่องคุณ ถ้าใช้มือถือจริง
+ *   EXPO_PUBLIC_API_KEY=dev-secret-key-123
+ *
+ * ตอน build ผ่าน EAS ให้ตั้งเป็น environment variable ต่อ profile (ดู eas.json)
+ *
+ * ⚠️ ข้อจำกัดที่ยังไม่แก้: คีย์นี้ยังเป็นตัวเดียวกับที่ ESP32 ใช้ และแอปที่ build แล้ว
+ *    มีคีย์อยู่ในตัวเสมอ ใครแกะ APK ได้ก็เรียก POST /api/v1/demo/fire สั่งให้ระบบ
+ *    โทรออกจริงได้ ทางแก้จริงคือแยก auth ของแอปออกจาก x-api-key ของอุปกรณ์
+ *    (แบบเดียวกับที่ทำไปแล้วฝั่งเว็บ admin — ดู SEC-01 ใน TDG_BA.pdf)
  */
+import Constants from "expo-constants";
 import { Platform } from "react-native";
 
-export const API_BASE_URL =
+type ApiExtra = { apiBaseUrl?: string; apiKey?: string };
+const extra = (Constants.expoConfig?.extra ?? {}) as ApiExtra;
+
+// เว็บรันบนเครื่องเดียวกับ backend อยู่แล้ว 10.0.2.2 ใช้ไม่ได้
+const fallbackBaseUrl =
   Platform.OS === "web" ? "http://localhost:3000" : "http://10.0.2.2:3000";
-export const API_KEY = "dev-secret-key-123";
+
+export const API_BASE_URL = extra.apiBaseUrl ?? fallbackBaseUrl;
+export const API_KEY = extra.apiKey ?? "dev-secret-key-123";
 
 export type BackendFallEvent = {
   id: string;

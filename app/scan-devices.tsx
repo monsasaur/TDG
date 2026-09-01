@@ -14,13 +14,12 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import PageHeader from "../components/PageHeader";
 import ConfirmModal from "../components/ConfirmModal";
+import { searchDevices, errorMessage, isMock } from "../lib/provisioning";
 
 type Permission = "undetermined" | "granted" | "denied";
-type ScanOutcome = "found" | "empty";
 
-const FOUND_DEVICES = ["ESP-BT001", "ESP-BT002"];
-const PARTIAL_MS = 1500;
-const DONE_MS = 3000;
+// ค้นหาไม่เจอภายในเวลานี้ถือว่าไม่มีอุปกรณ์อยู่ในโหมด provisioning
+const SCAN_TIMEOUT_MS = 8000;
 
 export default function ScanDevicesScreen() {
   const router = useRouter();
@@ -34,7 +33,7 @@ export default function ScanDevicesScreen() {
 
   const [scanning, setScanning] = useState(false);
   const [devices, setDevices] = useState<string[]>([]);
-  const outcomeRef = useRef<ScanOutcome>("found");
+  const [scanError, setScanError] = useState<string | undefined>();
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const allowed =
@@ -47,21 +46,38 @@ export default function ScanDevicesScreen() {
     timers.current = [];
   }, []);
 
-  const runScan = useCallback(
-    (outcome: ScanOutcome) => {
-      clearTimers();
-      outcomeRef.current = outcome;
-      setScanning(true);
+  const runScan = useCallback(async () => {
+    clearTimers();
+    setScanning(true);
+    setDevices([]);
+    setScanError(undefined);
+
+    // ค้นหาค้างนานเกินไปให้ตัดเอง — native ไม่ได้การันตีว่าจะ reject
+    let settled = false;
+    const timeout = new Promise<string[]>((_, reject) => {
+      timers.current.push(
+        setTimeout(() => {
+          if (!settled) reject(new Error("timeout"));
+        }, SCAN_TIMEOUT_MS)
+      );
+    });
+
+    try {
+      const found = await Promise.race([searchDevices(), timeout]);
+      settled = true;
+      setDevices(found);
+    } catch (err) {
+      settled = true;
       setDevices([]);
-      if (outcome === "found") {
-        timers.current.push(
-          setTimeout(() => setDevices(FOUND_DEVICES), PARTIAL_MS)
-        );
+      // หมดเวลา = ไม่เจออุปกรณ์ ซึ่งเป็นเรื่องปกติ ไม่ใช่ error ที่ต้องเตือน
+      if ((err as Error)?.message !== "timeout") {
+        setScanError(errorMessage(err));
       }
-      timers.current.push(setTimeout(() => setScanning(false), DONE_MS));
-    },
-    [clearTimers]
-  );
+    } finally {
+      setScanning(false);
+      clearTimers();
+    }
+  }, [clearTimers]);
 
   const requestBluetooth = useCallback(async (): Promise<Permission> => {
     if (Platform.OS !== "android") return "granted";
@@ -106,14 +122,12 @@ export default function ScanDevicesScreen() {
   }, [requestAll]);
 
   useEffect(() => {
-    if (allowed) runScan("found");
+    if (allowed) runScan();
     return clearTimers;
   }, [allowed, runScan, clearTimers]);
 
   const handleReset = () => {
-    const next: ScanOutcome =
-      outcomeRef.current === "found" ? "empty" : "found";
-    runScan(next);
+    runScan();
   };
 
   const handleOpenSettings = () => {
@@ -167,12 +181,17 @@ export default function ScanDevicesScreen() {
         {showEmpty ? (
           <View className="px-8 items-center">
             <Text className="text-base font-semibold text-[#1A1A1A] mb-2">
-              ไม่พบอุปกรณ์
+              {scanError ? "ค้นหาไม่สำเร็จ" : "ไม่พบอุปกรณ์"}
             </Text>
             <Text className="text-xs text-[#888] text-center leading-5">
-              หากค้นหาอุปกรณ์ของคุณไม่พบ ให้ดูคู่มือที่มาพร้อมกับ
-              อุปกรณ์เพื่อหาวิธีทำให้ค้นหาอุปกรณ์ได้
+              {scanError ??
+                "หากค้นหาอุปกรณ์ของคุณไม่พบ ให้ดูคู่มือที่มาพร้อมกับ อุปกรณ์เพื่อหาวิธีทำให้ค้นหาอุปกรณ์ได้"}
             </Text>
+            {isMock && (
+              <Text className="text-[10px] text-[#BBB] text-center mt-3">
+                โหมดจำลอง — ยังไม่ได้ใช้บลูทูธจริง ต้อง build dev client ก่อน
+              </Text>
+            )}
           </View>
         ) : (
           <>

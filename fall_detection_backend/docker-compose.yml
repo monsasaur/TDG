@@ -1,0 +1,34 @@
+# รันทั้งสอง service พร้อมกันบนเครื่องตัวเอง — ไว้ทดสอบก่อน deploy จริง
+#
+#   docker compose up --build
+#   curl localhost:3000/health
+#   curl localhost:8000/health
+#
+# ค่า secret อ่านจาก express_api/.env (ไม่ commit) — ดูตัวอย่างที่ .env.example
+
+services:
+  ml:
+    build:
+      context: ./ml_service
+    environment:
+      PORT: 8000
+      CSI_WINDOW_SIZE: 200
+      CSI_STRIDE: 50
+      CSI_SEQUENCE_LEN: 10
+    ports:
+      - "8000:8000"
+
+  api:
+    build:
+      context: ./express_api
+    env_file:
+      - ./express_api/.env
+    environment:
+      PORT: 3000
+      # ชื่อ service ใน compose ใช้เป็น hostname ได้เลย ไม่ต้องรู้ IP
+      ML_SERVICE_URL: http://ml:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      ml:
+        condition: service_healthy
