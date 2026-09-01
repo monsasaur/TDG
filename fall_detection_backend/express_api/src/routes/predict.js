@@ -9,6 +9,13 @@ router.post('/', predictBody, async (req, res) => {
   const { device_id, timestamp, location, features } = req.body
 
   try {
+    // 0. อุปกรณ์ยังส่งข้อมูลอยู่ — อัปเดตทุกครั้งที่มี packet เข้ามา ไม่ใช่เฉพาะตอนล้ม
+    //    ถ้าอัปเดตเฉพาะตอนล้ม บ้านที่ปลอดภัยที่สุดจะถูกแสดงว่า offline (BA doc 12.2 จุดที่ 2)
+    //    fire-and-forget — ห้ามให้หน้า admin ทำให้ path ตรวจจับการล้มช้าลงหรือพัง (NFR-10)
+    dbService.touchDevice(device_id).catch((err) =>
+      console.error('touchDevice failed:', err.message)
+    )
+
     // 1. ML inference (binary)
     const { is_fall, confidence } = await mlService.predict(features)
 
