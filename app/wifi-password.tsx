@@ -11,10 +11,9 @@ import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import PageHeader from "../components/PageHeader";
 import LabeledTextField from "../components/LabeledTextField";
 import PrimaryButton from "../components/PrimaryButton";
+import { provision, errorMessage } from "../lib/provisioning";
 
 const MIN_PASSWORD = 8;
-const CONNECT_MS = 2000;
-const WRONG_PASSWORD = "wrong";
 
 export default function WifiPasswordScreen() {
   const router = useRouter();
@@ -31,16 +30,14 @@ export default function WifiPasswordScreen() {
   const canSubmit = password.length >= MIN_PASSWORD && !connecting;
   const wifiName = ssid && ssid.length > 0 ? ssid : "";
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canSubmit) return;
     setError(undefined);
     setConnecting(true);
-    setTimeout(() => {
-      setConnecting(false);
-      if (password === WRONG_PASSWORD) {
-        setError("รหัสผ่านไม่ถูกต้อง");
-        return;
-      }
+    try {
+      // ส่ง SSID + รหัสผ่านให้อุปกรณ์ไปเชื่อมต่อเอง แล้วเก็บลง NVS
+      // ตั้งแต่จุดนี้อุปกรณ์จะจำ WiFi ได้เอง reboot แล้วไม่หาย
+      await provision(wifiName, password);
       router.replace(
         `/device-setup?device=${encodeURIComponent(
           device ?? ""
@@ -48,7 +45,11 @@ export default function WifiPasswordScreen() {
           deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""
         }` as never
       );
-    }, CONNECT_MS);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setConnecting(false);
+    }
   };
 
   return (

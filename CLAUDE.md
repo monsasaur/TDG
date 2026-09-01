@@ -24,7 +24,7 @@
 | Feature | Priority | หมายเหตุ |
 |---|---|---|
 | Threshold tuning | Med | หาแล้วสำหรับ RandomForest — แนะนำ 0.36 (recall 97.6%, false alarm 9.6%) เหลือแค่ตัดสินใจว่าจะเปลี่ยน production model ไหม |
-| BLE WiFi Provisioning | Med | **UI ครบทั้ง flow + permission ครบแล้ว** เหลือของจริง: ยังไม่มี BLE library ใน package.json (`scan-devices.tsx:21` เป็น array คงที่ + setTimeout) และ firmware ฝั่ง ESP32 ยังไม่เริ่ม — ดูหัวข้อ Production WiFi Provisioning |
+| BLE WiFi Provisioning | Med | **ฝั่งแอปเสร็จแล้ว** (library + `lib/provisioning.ts` + ต่อ 3 หน้าจอ) · เหลือ firmware ฝั่ง ESP32 กับการส่ง PoP เข้า flow — ดูหัวข้อ Production WiFi Provisioning |
 | One-class anomaly model | ✅ ตอบแล้ว | ลอง 4 ตัว ROC-AUC ดีสุด 0.70 เทียบ supervised 0.985 — ใช้แทนไม่ได้กับ feature ชุดนี้ |
 | เก็บ dataset ใหม่ (สลับคลาสใน session) | **High** | ข้อมูลชุดเดิมเก็บ fall ทั้งหมดก่อนแล้วค่อย non_fall → สภาพห้องกับคลาสทับกันสนิท แก้ย้อนหลังไม่ได้ · **ต้องสลับคลาสภายใน session เดียวกัน** ดูข้อกำหนดใน `docs/reports/data_quality_audit_2026-09.md` |
 | Unseen test scenario | **High** | test set ต้องเป็น session ที่ไม่เคยเห็น ไม่ใช่แค่ไฟล์ที่ไม่เคยเห็น |
@@ -325,54 +325,55 @@ CONFIG_ESPTOOLPY_MONITOR_BAUD=921600
 
 ใน production ESP32 #1 ต้องส่ง CSI ขึ้น cloud ผ่าน WiFi (ไม่ใช่ USB) — ลูกค้าไม่ต้อง hardcode WiFi → ใช้ BLE provisioning แทน
 
-### สถานะจริง (ตรวจ 2026-09-01)
+### สถานะ (2026-09-01)
 
 | ส่วน | สถานะ |
 |---|:---:|
-| UI ทั้ง flow (`scan-devices` → `connect-device` → `add-network` → `wifi-password` → `device-setup`) | ✅ |
-| Permission ใน `app.json` (`BLUETOOTH_SCAN/CONNECT/ADVERTISE`, `ACCESS_FINE_LOCATION`) | ✅ |
-| ขอ permission ตอน runtime + จัดการเคส `NEVER_ASK_AGAIN` (`scan-devices.tsx:69`) | ✅ |
-| หน้า PoP — `scan-qr.tsx`, `enter-code.tsx` | ✅ (UI) |
-| **BLE library** — ยังไม่มีใน `package.json` | ❌ |
-| ESP32 firmware `wifi_provisioning` + `scheme_ble` | ❌ |
-| เก็บ WiFi ลง NVS + ปุ่ม reset เข้า provisioning mode | ❌ |
+| UI ทั้ง flow (`scan-devices` → `connect-device` → `wifi-password` → `device-setup`) | ✅ |
+| Permission ใน `app.json` + ขอตอน runtime (จัดการเคส `NEVER_ASK_AGAIN` ด้วย) | ✅ |
+| BLE library + Expo config plugin | ✅ |
+| `lib/provisioning.ts` — ห่อ library + fallback เป็น mock อัตโนมัติ | ✅ |
+| ต่อ 3 หน้าจอเข้ากับ BLE จริง (สแกน → connect → scan WiFi → provision) | ✅ |
+| **ESP32 firmware `wifi_provisioning` + `scheme_ble`** | ❌ |
+| PoP — ยังไม่มีหน้าจอรับรหัสอุปกรณ์ใน flow (ดูหมายเหตุด้านล่าง) | ❌ |
+| ปุ่ม reset บนอุปกรณ์เพื่อกลับเข้า provisioning mode | ❌ |
 
-จุดที่ต้องแทน mock ด้วยของจริง:
-- `app/scan-devices.tsx:21` — `const FOUND_DEVICES = ["ESP-BT001", "ESP-BT002"]` + `setTimeout` แกล้งสแกน
-- `app/connect-device.tsx:24` — `setNetworks(mockAvailableNetworks)` จาก `data/useDevices.ts:15`
-- `app/wifi-password.tsx:38` และ `app/add-network.tsx:38` — `setTimeout` แกล้งเชื่อมต่อ
+### ฝั่งแอป — ทำเสร็จแล้ว
 
-> งานฝั่งแอปเหลือแค่เปลี่ยน mock เป็นของจริง ไม่ต้องออกแบบ UI ใหม่
-> ฝั่ง ESP32 ยังไม่มีอะไรเลย และ `ESP32-CSI-Tool/` เป็น submodule ที่ห้ามแก้ตรง ๆ —
-> ต้องตัดสินใจก่อนว่าจะ fork, patch ทับ หรือแยก component ออกมา
+Library: `@orbital-systems/react-native-esp-idf-provisioning` (ห่อ ESP-IDF provisioning
+ของ Espressif ทั้ง Android/iOS) + config plugin ใน `app.json`
 
-### Flow
-```
-ลูกค้าเปิดแอป → แอปค้นหา ESP32 ผ่าน BLE → กรอก SSID + รหัส WiFi
-→ ส่งให้ ESP32 ผ่าน BLE → ESP32 เชื่อมต่อ WiFi บ้านลูกค้า → เสร็จ ปิด BLE
-→ ส่ง CSI ผ่าน UDP/HTTP ไป cloud
-```
+`lib/provisioning.ts` เป็นชั้นเดียวที่หน้าจอเรียก — เหตุผลที่ไม่ import library ตรง:
+1. `ESPDevice` ที่ connect แล้วต้องส่งข้ามหน้าจอ แต่ router param ส่งได้แค่ string
+   จึงเก็บไว้ที่ระดับ module
+2. native module ไม่มีใน Expo Go และไม่มีบนเว็บ — ถ้า import ตรงแอปจะ crash ทันที
+   ไฟล์นี้จับ error ตอน require แล้วสลับไปโหมด mock ให้เอง (`isMock`)
+3. แปลง error จาก native เป็นข้อความไทยที่ผู้ใช้ทำอะไรต่อได้ (`errorMessage`)
 
-### รายละเอียด
-- ใช้ ESP-IDF `wifi_provisioning` component + `scheme_ble`
-- ฝั่งแอป React Native ใช้ `esp-idf-provisioning-react-native` หรือ `react-native-ble-plx`
-- Security: ใช้ Proof of Possession (PoP) เช่น QR code / PIN ที่มากับกล่อง
-- เก็บรหัส WiFi ใน NVS (Non-Volatile Storage) ของ ESP32 — reboot ไม่หาย
-- ต้องมีปุ่ม reset บน ESP32 เพื่อเข้า provisioning mode ใหม่ (กรณีเปลี่ยน WiFi)
-- Provision แค่ ESP32 #1 (active_ap) ตัวเดียว — STA interface ที่เชื่อมต่อ WiFi บ้าน
-- ESP32 #2 (active_sta) ต่อ "CSI-Net" อัตโนมัติ ไม่ต้อง provision
+**ตัวระบุอุปกรณ์คือ `devices.code`** เช่น `ESP-0001A` — ค่าเดียวกับที่ ESP32 ส่งมาใน
+`POST /api/v1/predict` และเป็นค่าที่ BLE provisioning ต้องเขียนลง NVS
 
-### Network Topology (Production)
-```
-ESP32 #1 (active_ap) — Dual Mode
-  ├── AP interface  → สร้าง WiFi "CSI-Net" (auto, ไม่ต้องตั้ง)
-  │                   ← ESP32 #2 เชื่อมต่ออัตโนมัติ
-  └── STA interface → เชื่อมต่อ WiFi บ้านลูกค้า (ได้จาก BLE provisioning)
-                      → ส่ง CSI data ผ่าน UDP ไป cloud / local server
+> ⚠️ **หลังเพิ่ม native module แล้ว Expo Go ใช้ไม่ได้อีก** ต้อง build dev client ใหม่
+> (`eas build --profile development`) โปรเจกต์ใช้ `expo-dev-client` อยู่แล้วจึงไม่กระทบ workflow
+> แต่ **ต้อง rebuild** ก่อนถึงจะทดสอบ BLE จริงได้ · ถ้ายังไม่ rebuild แอปจะรันในโหมด mock
+> และขึ้นป้ายเตือนในหน้า scan
 
-ESP32 #2 (active_sta)
-  └── เชื่อมต่อ "CSI-Net" อัตโนมัติ
-```
+### งานที่เหลือ — ฝั่ง ESP32
+
+แก้ใน `ESP32-CSI-Tool/active_ap/` ได้ตรง ๆ (ไม่ใช่ submodule — ตรวจแล้ว 2026-09-01)
+สิ่งที่ต้องเพิ่ม:
+- `wifi_provisioning` component + `scheme_ble`
+- ประกาศชื่อ BLE ขึ้นต้นด้วย `ESP-` (ตรงกับ `DEVICE_PREFIX` ใน `lib/provisioning.ts`)
+- Security 2 + PoP ที่ตรงกับรหัสบนกล่อง/QR
+- เก็บ SSID/รหัสผ่านลง NVS — reboot แล้วไม่หาย
+- ปุ่ม reset ค้างเพื่อลบ NVS แล้วกลับเข้า provisioning mode
+
+> **PoP ต้องรอ firmware ก่อน** — `lib/provisioning.ts` ตั้ง `ESPSecurity.secure2` ไว้ ซึ่งใช้ SRP6a
+> ต้องมีทั้ง username และ PoP ส่วน `secure1` ใช้ PoP อย่างเดียว เลือกอันไหนเป็นการตัดสินใจฝั่ง firmware
+> และมันกำหนดว่าแอปต้องเก็บข้อมูลอะไรจากผู้ใช้ **จึงยังไม่ควรสร้างหน้าจอ PoP จนกว่าจะเลือก**
+>
+> หมายเหตุ: `app/scan-qr.tsx` ที่มีอยู่เป็นของ "เข้าร่วมบ้านด้วย QR เชิญ" (เรียกจาก `houses.tsx`)
+> ไม่ใช่ PoP ของอุปกรณ์ และตอนนี้ยัง reject ทุก QR (`handleBarcode` ตั้ง error เสมอ)
 
 ## Alert Flow (Production)
 
@@ -397,7 +398,7 @@ PUSH_MODE=real              # real = ยิง FCM จริง | fake = log con
 ## Important Notes
 
 - `lstm_v3.h5`, `lstm_v3_best.h5`, `scaler_v3.pkl` are NOT committed to git — must be obtained separately
-- `fall_detection_backend/ESP32-CSI-Tool/` is a git submodule — do not edit directly
+- `fall_detection_backend/ESP32-CSI-Tool/` **ไม่ใช่ submodule** — เป็นโฟลเดอร์ธรรมดาในรีโปหลัก (ไม่มี `.gitmodules` ไม่มี `.git` ข้างใน · git ติดตามไฟล์ในนั้น 50 ไฟล์) แก้ตรงได้เลย
 - **`lib/api.ts`** — API_BASE_URL ยังเป็น `http://10.0.2.2:3000` (Android emulator) ต้องเปลี่ยนเป็น Render URL สำหรับ production
 - **`lib/api.ts:12`** — `API_KEY = "dev-secret-key-123"` hardcode อยู่ในซอร์สแอป เป็นคีย์ตัวเดียวกับที่ ESP32 ใช้ ใครแกะ APK ได้ก็ยิง `POST /api/v1/demo/fire` สั่งให้ระบบโทรออกจริงได้ (ปัญหาคลาสเดียวกับ SEC-02 ที่แก้ไปแล้วฝั่งเว็บ admin)
 - **`express_api/Dockerfile` และ `ml_service/Dockerfile` เป็นไฟล์เปล่า** (0 bytes) ทั้งคู่ — ยัง deploy ไม่ได้

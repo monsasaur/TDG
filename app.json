@@ -49,6 +49,14 @@
     "plugins": [
       "expo-router",
       [
+        "@orbital-systems/react-native-esp-idf-provisioning",
+        {
+          "transport": "ble",
+          "neverForLocation": true,
+          "bluetoothAlwaysPermission": "ใช้บลูทูธเพื่อค้นหาและตั้งค่าอุปกรณ์ตรวจจับการล้ม"
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
