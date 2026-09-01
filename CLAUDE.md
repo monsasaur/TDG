@@ -29,7 +29,7 @@
 | เก็บ dataset ใหม่ (สลับคลาสใน session) | **High** | ข้อมูลชุดเดิมเก็บ fall ทั้งหมดก่อนแล้วค่อย non_fall → สภาพห้องกับคลาสทับกันสนิท แก้ย้อนหลังไม่ได้ · **ต้องสลับคลาสภายใน session เดียวกัน** ดูข้อกำหนดใน `docs/reports/data_quality_audit_2026-09.md` |
 | Unseen test scenario | **High** | test set ต้องเป็น session ที่ไม่เคยเห็น ไม่ใช่แค่ไฟล์ที่ไม่เคยเห็น |
 | Production Cloud deploy | Low | API URL ยังเป็น localhost ใน lib/api.ts |
-| Hybrid AI escalation call | Low | Phase 2a: AI voice agent ช่วยเนื้อหาการโทรตอน escalate, trigger ยังคง rule-based + fallback เป็น static TTS เสมอ · Phase 2b (มีเงื่อนไข): เปิดให้ AI ช่วยปรับ trigger ได้หลังพิสูจน์ผ่าน shadow mode (ดู `docs/reports/hybrid_ai_escalation_design.md`) |
+| Hybrid AI escalation call | Low | **สเปค Phase 2a พร้อมให้ implement แล้ว** → `docs/reports/spec_hybrid_ai_escalation_phase2a.md` (จุดเชื่อมต่อระดับบรรทัด · คำตอบคำถามเปิด 5 ข้อ · เทสต์ 14 เคส · เกณฑ์งานเสร็จ) · Phase 2b ยังไม่อนุญาต ต้องผ่าน shadow mode ก่อน (`docs/reports/hybrid_ai_escalation_design.md`) |
 
 ---
 
