@@ -15,12 +15,30 @@
  * 3. ตัวระบุอุปกรณ์คือ `devices.code` เช่น "ESP-0001A" (ตัดสินใจ 2026-09-01
  *    ดูเหตุผลใน fall_detection_backend/supabase/schema.sql)
  *    ค่านี้คือค่าเดียวกับที่ ESP32 ส่งมาใน POST /api/v1/predict
+ *    และเป็นชื่อ BLE ที่ firmware ประกาศออกมาด้วย
+ *
+ * ── ต้องตรงกับ firmware ────────────────────────────────────────
+ * ค่าพวกนี้ต้องตรงกับ `_components/provisioning_component.h` เป๊ะ ๆ
+ * ถ้าฝั่งใดฝั่งหนึ่งเปลี่ยน ต้องแก้พร้อมกันทั้งคู่ ไม่งั้นจับคู่ไม่ติด
+ * โดยไม่มี error ที่บอกสาเหตุชัด:
+ *   - DEVICE_PREFIX  ต้องตรงกับชื่อ BLE ที่ firmware ประกาศ
+ *   - ESPSecurity    ต้องตรงกับ WIFI_PROV_SECURITY_* ใน firmware
  */
 
 import { Platform } from "react-native";
 
 // ชื่อ BLE ที่ firmware ประกาศต้องขึ้นต้นด้วยคำนี้ ถึงจะถูกกรองมาแสดง
 export const DEVICE_PREFIX = "ESP-";
+
+/**
+ * ต้องตรงกับ WIFI_PROV_SECURITY_1 ใน firmware
+ *
+ * เลือก secure1 เพราะ secure2 (SRP6a) ต้อง generate salt/verifier แยกต่อเครื่อง
+ * ตอนผลิต เพิ่มขั้นตอนโดยไม่ได้ประโยชน์เพิ่ม ในเมื่อ PoP เป็นสตริงสุ่มยาวบนกล่อง
+ *
+ * ⚠️ ถ้าเปลี่ยนตรงนี้ ต้องแก้ firmware พร้อมกัน ไม่งั้นจับคู่ไม่ติด
+ */
+const SECURITY_LEVEL = 1;
 
 type WifiNetwork = { ssid: string; rssi?: number; auth?: number };
 
@@ -43,6 +61,9 @@ try {
 
 /** true = ไม่มี native module (Expo Go / เว็บ / simulator) → ใช้ข้อมูลจำลอง */
 export const isMock = native === null || Platform.OS === "web";
+
+// ESPSecurity.secure = 1 — อ่านจาก enum ของ library ถ้าโหลดได้ กันค่าเพี้ยนเวลา library เปลี่ยน
+const SECURITY = native ? native.ESPSecurity.secure : SECURITY_LEVEL;
 
 const MOCK_DEVICES = ["ESP-0001A", "ESP-0002B"];
 const MOCK_NETWORKS = ["MyHome_2.4G", "NeighborWifi_5G", "TrueNet-ABCD"];
@@ -67,7 +88,7 @@ export async function searchDevices(): Promise<string[]> {
   const found = await ESPProvisionManager.searchESPDevices(
     DEVICE_PREFIX,
     ESPTransport.ble,
-    ESPSecurity.secure2
+    SECURITY
   );
   return found.map((d: any) => d.name);
 }
@@ -82,11 +103,11 @@ export async function connect(name: string, proofOfPossession?: string): Promise
     current = { name, device: null };
     return;
   }
-  const { ESPDevice, ESPTransport, ESPSecurity } = native!;
+  const { ESPDevice, ESPTransport } = native!;
   const device = new ESPDevice({
     name,
     transport: ESPTransport.ble,
-    security: ESPSecurity.secure2,
+    security: SECURITY,
   });
   await device.connect(proofOfPossession);
   current = { name, device };

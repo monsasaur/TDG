@@ -57,3 +57,44 @@ menu "ESP32 CSI Tool Config"
             If your ESP32 does not have an SD card, there is no reason to use this feature.
             If you do though, the program will be recognize this and not attempt writing to the SD card.
 endmenu
+
+menu "BLE WiFi Provisioning"
+
+    config ENABLE_BLE_PROVISIONING
+        bool "เปิดโหมด production (ตั้ง WiFi ผ่าน BLE + AP/STA)"
+        default n
+        help
+            ปิดไว้ = โหมดเก็บข้อมูล AP อย่างเดียว ช่องสัญญาณคงที่ ส่ง CSI ผ่าน USB Serial
+            (โหมดที่ใช้อยู่ตอนนี้สำหรับ train โมเดล — อย่าเปิดถ้ากำลังเก็บ dataset)
+
+            เปิด = ครั้งแรกจะเปิด BLE ให้แอปตั้ง WiFi บ้าน แล้วทำงานเป็น AP+STA พร้อมกัน
+            ต้องเปิด Bluetooth (NimBLE) และใช้ partitions.csv ที่มี app 2MB ด้วย
+
+    config PROV_POP
+        string "Proof of Possession (รหัสจับคู่บนกล่อง)"
+        depends on ENABLE_BLE_PROVISIONING
+        default "tdg-change-me-per-device"
+        help
+            รหัสที่ลูกค้าต้องกรอก/สแกนจากกล่องเพื่อจับคู่อุปกรณ์
+            กันคนข้างบ้านมาตั้งค่าอุปกรณ์เรา
+
+            ⚠️ ต้องยาวและสุ่ม และไม่ซ้ำกันระหว่างเครื่อง
+            Security 1 ใช้ค่านี้ใน key derivation — ถ้าสั้นหรือเดาง่าย
+            คนที่ดักจับ handshake ไว้จะ brute force offline ได้
+            ห้ามใช้ PIN 4 หลัก หรือค่าเดียวกันทุกเครื่อง
+
+    config DEVICE_CODE
+        string "Device code (เว้นว่าง = สร้างจาก MAC)"
+        depends on ENABLE_BLE_PROVISIONING
+        default ""
+        help
+            ต้องขึ้นต้นด้วย "ESP-" เช่น ESP-0001A
+
+            ค่านี้ใช้เป็น 3 อย่างพร้อมกัน ต้องตรงกันหมด:
+              1. ชื่อ BLE ที่ประกาศให้แอปเห็นตอนสแกน
+              2. devices.code ใน Supabase
+              3. device_id ที่ส่งไปกับ POST /api/v1/predict
+
+            เว้นว่างไว้จะสร้างเป็น ESP-XXXXXX จาก MAC ให้อัตโนมัติ
+
+endmenu
