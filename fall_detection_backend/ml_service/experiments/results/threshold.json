@@ -1,0 +1,64 @@
+{
+  "model": "RandomForest (per-window)",
+  "evaluation": "out-of-fold, StratifiedGroupKFold n_splits=5 by file",
+  "recommended_threshold": 0.36,
+  "criterion": "max fall recall subject to false alarm rate <= 10%",
+  "sweep": [
+    {
+      "threshold": 0.2,
+      "fall_recall": 0.9866666666666667,
+      "false_alarm_rate": 0.18646864686468648,
+      "missed_falls": 16,
+      "false_alarms": 226
+    },
+    {
+      "threshold": 0.3,
+      "fall_recall": 0.9791666666666666,
+      "false_alarm_rate": 0.12293729372937294,
+      "missed_falls": 25,
+      "false_alarms": 149
+    },
+    {
+      "threshold": 0.35,
+      "fall_recall": 0.9758333333333333,
+      "false_alarm_rate": 0.10066006600660066,
+      "missed_falls": 29,
+      "false_alarms": 122
+    },
+    {
+      "threshold": 0.4,
+      "fall_recall": 0.9725,
+      "false_alarm_rate": 0.08250825082508251,
+      "missed_falls": 33,
+      "false_alarms": 100
+    },
+    {
+      "threshold": 0.45,
+      "fall_recall": 0.9691666666666666,
+      "false_alarm_rate": 0.06930693069306931,
+      "missed_falls": 37,
+      "false_alarms": 84
+    },
+    {
+      "threshold": 0.5,
+      "fall_recall": 0.9658333333333333,
+      "false_alarm_rate": 0.05363036303630363,
+      "missed_falls": 41,
+      "false_alarms": 65
+    },
+    {
+      "threshold": 0.6,
+      "fall_recall": 0.9358333333333333,
+      "false_alarm_rate": 0.039603960396039604,
+      "missed_falls": 77,
+      "false_alarms": 48
+    },
+    {
+      "threshold": 0.7,
+      "fall_recall": 0.89,
+      "false_alarm_rate": 0.028877887788778877,
+      "missed_falls": 132,
+      "false_alarms": 35
+    }
+  ]
+}

@@ -6,7 +6,7 @@
 
 | Feature | สถานะ | หมายเหตุ |
 |---|---|---|
-| LSTM v3 model | ✅ | Accuracy 97.9%, Fall Recall 98.5% |
+| LSTM v3 model | ⚠️ | 97.9% วัดด้วย split ที่ข้อมูลรั่ว · ไม่รั่วได้ 95.6% · **แต่ 95.6% นั้นมาจากการแยก session ไม่ใช่การจับการล้ม** — ความสามารถจริงราว 72.6% · ดู `docs/reports/data_quality_audit_2026-09.md` |
 | Express API (core) | ✅ | predict, events, alert endpoints |
 | Push Notification (FCM V1) | ✅ | pushService.js + Expo SDK + useFcmV1 |
 | Escalation / Acknowledge flow | ✅ | escalationService.js — timer in-memory, Twilio fallback |
@@ -23,10 +23,11 @@
 
 | Feature | Priority | หมายเหตุ |
 |---|---|---|
-| Threshold tuning | High | ยังใช้ default Softmax — ต้องหา optimal จาก ROC curve |
+| Threshold tuning | Med | หาแล้วสำหรับ RandomForest — แนะนำ 0.36 (recall 97.6%, false alarm 9.6%) เหลือแค่ตัดสินใจว่าจะเปลี่ยน production model ไหม |
 | BLE WiFi Provisioning | Med | ลูกค้าตั้งค่า WiFi ผ่านแอปได้โดยไม่ต้อง hardcode |
-| One-class anomaly model | Low | Mentor แนะนำ — ยังไม่เริ่ม |
-| Unseen test scenario | Low | แยก test data จาก real-world scenario |
+| One-class anomaly model | ✅ ตอบแล้ว | ลอง 4 ตัว ROC-AUC ดีสุด 0.70 เทียบ supervised 0.985 — ใช้แทนไม่ได้กับ feature ชุดนี้ |
+| เก็บ dataset ใหม่ (สลับคลาสใน session) | **High** | ข้อมูลชุดเดิมเก็บ fall ทั้งหมดก่อนแล้วค่อย non_fall → สภาพห้องกับคลาสทับกันสนิท แก้ย้อนหลังไม่ได้ · **ต้องสลับคลาสภายใน session เดียวกัน** ดูข้อกำหนดใน `docs/reports/data_quality_audit_2026-09.md` |
+| Unseen test scenario | **High** | test set ต้องเป็น session ที่ไม่เคยเห็น ไม่ใช่แค่ไฟล์ที่ไม่เคยเห็น |
 | Production Cloud deploy | Low | API URL ยังเป็น localhost ใน lib/api.ts |
 | Hybrid AI escalation call | Low | Phase 2a: AI voice agent ช่วยเนื้อหาการโทรตอน escalate, trigger ยังคง rule-based + fallback เป็น static TTS เสมอ · Phase 2b (มีเงื่อนไข): เปิดให้ AI ช่วยปรับ trigger ได้หลังพิสูจน์ผ่าน shadow mode (ดู `docs/reports/hybrid_ai_escalation_design.md`) |
 
@@ -196,8 +197,15 @@ CSI_SEQUENCE_LEN=10
 - Architecture: LSTM 128→64→32
 - WINDOW_SIZE: 200, STRIDE: 50, SEQUENCE_LEN: 10
 - Features: 8 stats × 52 subcarriers = 416
-- Fall recall: 98.5%
-- Train/Val/Test: 868 / 187 / 187
+- Fall recall: 98.5% — **ตัวเลขนี้วัดด้วย split ที่ข้อมูลรั่ว อย่าใช้รายงาน**
+- Train/Val/Test: 868 / 187 / 187 (`train_test_split` สุ่ม ไม่ได้แบ่งตามไฟล์บันทึก)
+
+> ⚠️ **ปัญหาที่พบ 2026-09-01** — `train_v3.ipynb` ไม่ได้โหลด `file_ids.npy` ที่ preprocess เซฟไว้
+> ทำให้ window จากการล้มครั้งเดียวกัน (ซ้อนกัน 75%) กระจายไปทั้ง train และ test
+> และ SEQUENCE_LEN=10 ก็เกินกว่าที่ข้อมูลรองรับ (3 window ต่อไฟล์) → 100% ของ sequence
+> ประกอบจากคนละไฟล์ · ฝั่ง serving workaround ด้วยการซ้ำ window เดียว 10 ครั้ง
+> **ตัวเลขที่ควรใช้: accuracy 95.6% / fall recall 96.6% (RandomForest per-window, grouped 5-fold)**
+> รายละเอียด: `docs/reports/model_evaluation_2026-09.md` · โค้ด: `ml_service/experiments/`
 
 ## Data Pipeline
 
@@ -212,6 +220,11 @@ ESP32 #2 (STA) ──WiFi packet──► ESP32 #1 (AP) ──USB Serial──�
 ```
 
 ### Data ปัจจุบัน (data/raw/)
+
+> ⚠️ **ข้อมูลชุดนี้มี session confound** — เก็บ fall ทั้งหมดก่อนแล้วค่อยเก็บ non_fall
+> ทำให้สภาพห้องกับคลาสแยกกันไม่ออก โมเดลได้ 95.6% จากการแยก session ไม่ใช่จับการล้ม
+> ตรวจซ้ำได้ด้วย `python experiments/audit_data.py` · รายละเอียด `docs/reports/data_quality_audit_2026-09.md`
+
 
 | Class | ไฟล์ | Windows |
 |---|---|---|
