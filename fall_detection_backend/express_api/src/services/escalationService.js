@@ -22,6 +22,7 @@
 
 const alertService = require('./alertService')
 const dbService    = require('./dbService')
+const appAlertService = require('./appAlertService')
 const demoLog      = require('../utils/demoLog')
 
 const ACK_TIMEOUT_SECONDS = Number(process.env.ACK_TIMEOUT_SECONDS || 60)
@@ -123,6 +124,11 @@ async function escalate(event) {
     }
 
     await dbService.markEscalated(event_id, { sms_sent: smsOk, call_made: callOk })
+
+    await appAlertService.markEscalated(event_id, {
+      sms_sent: smsOk, call_made: callOk,
+      ack_timeout_seconds: ACK_TIMEOUT_SECONDS,
+    })
   } catch (err) {
     console.error(`❌ Escalation failed for ${event_id}:`, err.message)
   } finally {

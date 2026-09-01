@@ -12,6 +12,7 @@ const router            = require('express').Router()
 const dbService         = require('../services/dbService')
 const escalationService = require('../services/escalationService')
 const pushService       = require('../services/pushService')
+const appAlertService   = require('../services/appAlertService')
 const demoLog           = require('../utils/demoLog')
 
 router.post('/fire', async (req, res) => {
@@ -49,12 +50,17 @@ router.post('/fire', async (req, res) => {
     escalationService.schedule(event)
     demoLog.step(3, 'Escalation', `timer armed (${escalationService.ACK_TIMEOUT_SECONDS}s window)`)
 
+    appAlertService
+      .createFromEvent(event, escalationService.ACK_TIMEOUT_SECONDS)
+      .then((a) => demoLog.step(4, 'App Alert', a ? `alert ${a.id}` : 'ข้าม (อุปกรณ์ยังไม่ผูกกับบ้าน)'))
+      .catch((err) => console.error('create app alert failed:', err.message))
+
     pushService.sendFallAlert(event)
       .then((r) => {
         if (r?.skipped) {
-          demoLog.step(4, 'Push Notification', `skipped (no tokens registered)`)
+          demoLog.step(5, 'Push Notification', `skipped (no tokens registered)`)
         } else {
-          demoLog.step(4, 'Push Notification', `sent ${r?.sent ?? 0}/${(r?.sent ?? 0) + (r?.failed ?? 0)} to caregiver app`)
+          demoLog.step(5, 'Push Notification', `sent ${r?.sent ?? 0}/${(r?.sent ?? 0) + (r?.failed ?? 0)} to caregiver app`)
         }
       })
       .catch((err) => console.error('push send failed:', err.message))

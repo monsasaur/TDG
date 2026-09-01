@@ -12,6 +12,7 @@ const { createClient } = (() => {
 let supabase = null
 const mockStore = new Map()        // fallback เมื่อไม่มี Supabase (fall_events + push_tokens)
 const mockDevices = new Map()      // fallback ของตาราง devices
+const mockAlerts = new Map()      // fallback ของตาราง alerts
 let mockSeq = 0                    // กัน id ชนกันเมื่อบันทึกหลาย event ในมิลลิวินาทีเดียวกัน
 
 function getClient() {
@@ -345,6 +346,88 @@ module.exports = {
     const { data, error } = await query
     if (error) throw new Error(`DB error: ${error.message}`)
     return (data || []).map(normalize)
+  },
+
+  // ----- alerts (ตารางที่แอปมือถือแสดง) -----
+  //
+  // แยกจาก fall_events คนละหน้าที่:
+  //   fall_events = บันทึกดิบของ CSI pipeline ใช้โดย backend/admin
+  //   alerts      = สิ่งที่ผู้ใช้เห็นในแอป มี title/description/timeline พร้อมแสดง
+  // ผูกกันด้วย alerts.fall_event_id
+
+  /** หา house จากอุปกรณ์ — fall_events.device_id ↔ devices.code */
+  getDeviceContext: async (device_id) => {
+    if (!device_id) return null
+    const client = getClient()
+
+    if (!client) {
+      const d = mockDevices.get(device_id)
+      return d ? { house_id: d.house_id || null, house_name: null, device_name: d.name || null } : null
+    }
+
+    const { data, error } = await client
+      .from('devices')
+      .select('house_id, name, houses(name)')
+      .eq('code', device_id)
+      .maybeSingle()
+
+    if (error || !data) return null
+    return {
+      house_id:    data.house_id || null,
+      house_name:  data.houses?.name || null,
+      device_name: data.name || null
+    }
+  },
+
+  createAlert: async (alert) => {
+    const client = getClient()
+
+    if (!client) {
+      const record = { ...alert, created_at: alert.created_at || new Date().toISOString() }
+      mockAlerts.set(alert.id, record)
+      return record
+    }
+
+    const { data, error } = await client.from('alerts').insert([alert]).select().single()
+    if (error) throw new Error(`DB error: ${error.message}`)
+    return data
+  },
+
+  /** อัปเดต alert ที่ผูกกับ fall event นี้ — ไม่เจอก็ไม่ใช่ error */
+  updateAlertByEvent: async (fall_event_id, patch) => {
+    const client = getClient()
+
+    if (!client) {
+      for (const [id, a] of mockAlerts) {
+        if (a.fall_event_id === fall_event_id) {
+          const updated = { ...a, ...patch }
+          mockAlerts.set(id, updated)
+          return updated
+        }
+      }
+      return null
+    }
+
+    const { data, error } = await client
+      .from('alerts')
+      .update(patch)
+      .eq('fall_event_id', fall_event_id)
+      .select()
+
+    if (error) throw new Error(`DB error: ${error.message}`)
+    return (data && data[0]) || null
+  },
+
+  getAlertByEvent: async (fall_event_id) => {
+    const client = getClient()
+    if (!client) {
+      return Array.from(mockAlerts.values())
+        .find(a => a.fall_event_id === fall_event_id) || null
+    }
+    const { data, error } = await client
+      .from('alerts').select('*').eq('fall_event_id', fall_event_id).maybeSingle()
+    if (error) return null
+    return data
   },
 
   // 'supabase' = ต่อจริง | 'memory' = fallback in-memory (restart แล้วหาย)

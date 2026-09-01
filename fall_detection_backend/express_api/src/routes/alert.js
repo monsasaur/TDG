@@ -2,6 +2,7 @@ const router = require('express').Router()
 const alertService      = require('../services/alertService')
 const dbService         = require('../services/dbService')
 const escalationService = require('../services/escalationService')
+const appAlertService   = require('../services/appAlertService')
 
 // ผู้ดูแลกด "รับทราบ" ในแอป → ยกเลิก escalation
 router.post('/ack/:event_id', async (req, res) => {
@@ -35,6 +36,11 @@ router.post('/ack/:event_id', async (req, res) => {
 
     const cancelled = escalationService.cancel(event_id)
     const updated   = await dbService.acknowledgeEvent(event_id, acknowledged_by)
+
+    // อัปเดตสิ่งที่แอปเห็น — ไม่ await เพราะห้ามให้การแสดงผลถ่วงการตอบกลับ
+    appAlertService
+      .markAcknowledged(event_id, acknowledged_by)
+      .catch((err) => console.error('update app alert failed:', err.message))
 
     res.json({
       event_id,

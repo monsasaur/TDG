@@ -161,6 +161,10 @@ python experiments/check_dataset.py
 
 All endpoints require `x-api-key` header.
 
+> **`x-api-key` แยกตาม scope แล้ว** — `DEVICE_API_KEY` (predict) · `APP_API_KEY` (events/ack/push) ·
+> `DEMO_API_KEY` (demo/fire, alert/test) · scope ไหนไม่ได้ตั้ง จะถอยไปใช้ `API_KEY` เดิม
+> คีย์ที่ฝังใน APK จึงสั่งให้ระบบโทรออกไม่ได้ · ดู `src/middleware/auth.js`
+
 ### Core
 - `POST /api/v1/predict` — รับ CSI features จาก ESP32, เรียก ML service, trigger alert ถ้า fall
 - `GET  /api/v1/events` — list all events (`?device_id=&limit=50`)
@@ -375,6 +379,13 @@ Library: `@orbital-systems/react-native-esp-idf-provisioning` (ห่อ ESP-IDF
 > หมายเหตุ: `app/scan-qr.tsx` ที่มีอยู่เป็นของ "เข้าร่วมบ้านด้วย QR เชิญ" (เรียกจาก `houses.tsx`)
 > ไม่ใช่ PoP ของอุปกรณ์ และตอนนี้ยัง reject ทุก QR (`handleBarcode` ตั้ง error เสมอ)
 
+## Demo
+
+วิธีรันสาธิตทั้งระบบ ตั้งค่าที่แนะนำ และตารางแก้ปัญหาเฉพาะหน้า อยู่ที่
+**[`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md)**
+
+---
+
 ## Deploy (Docker + Render)
 
 ### ไฟล์ที่เกี่ยวข้อง
@@ -502,7 +513,7 @@ Table: `push_tokens` — `token` PK · `device_id` · `platform` · `created_at`
 | `devices` | `id` (PK เช่น `'d1'`) · `house_id` → houses · `name` · **`code`** (`'ESP-0001A'`) · `wifi_ssid` · `status` · **+ `last_seen_at` · `is_active` · `installed_at`** (เพิ่มโดย `schema.sql` ให้ admin ใช้) |
 | `emergency_contacts` | ผู้ติดต่อฉุกเฉิน (self / member / external) |
 | `house_contacts` | เชื่อม contact กับบ้าน (many-to-many) |
-| `alerts` | `id` · `house_id` · `title` · `description` · `location` · `status` · `answered_by` · `countdown` · `timeline` (JSON) |
+| `alerts` | `id` · `house_id` · `title` · `description` · `location` · `status` · `answered_by` · `countdown` · `timeline` (JSON) · **+ `fall_event_id`** → ผูกกับ `fall_events` |
 
 ### ✅ ตัดสินใจแล้ว 2026-09-01 — `fall_events.device_id` ↔ `devices.code`
 
@@ -519,12 +530,33 @@ Table: `push_tokens` — `token` PK · `device_id` · `platform` · `created_at`
 อุปกรณ์ต้องลงทะเบียนผ่านแอปก่อน — ถ้า ESP32 ส่งข้อมูลมาด้วย `code` ที่ไม่มีในตาราง ระบบยังบันทึก
 `fall_events` และแจ้งเตือนตามปกติ แค่ไม่โผล่ในหน้า Devices
 
+### ✅ ตัดสินใจแล้ว 2026-09-02 — `alerts` ผูกกับ `fall_events` แล้ว
+
+`alerts.fall_event_id` เชื่อมสองตารางเข้าด้วยกัน · ทุกครั้งที่ตรวจพบการล้ม Express API
+เขียนแถวใน `alerts` ให้ด้วย (`services/appAlertService.js`) โดยหา house จากอุปกรณ์:
+`fall_events.device_id` → `devices.code` → `devices.house_id`
+
+หน้าจอแอปที่มีอยู่จึงแสดงของจริงได้เลยโดยไม่ต้องแก้ UI — `title`, `description`,
+`location`, `timeline`, `countdown` ถูกเติมจากข้อมูลจริง
+
+| จังหวะ | `alerts.status` | timeline |
+|---|---|---|
+| ตรวจพบการล้ม | `active` + countdown | ตรวจพบ ❌ · แจ้งเตือนในแอป ⏳ · โทรฉุกเฉิน ⏳ |
+| ผู้ดูแลกดรับทราบ | `completed` + `answered_by` | แจ้งเตือนในแอป ✅ รับทราบโดย : X |
+| หมดเวลา → โทรออก | `in_progress` | แจ้งเตือนในแอป ❌ · โทรฉุกเฉิน ⏳ โทรออกแล้ว |
+
+**ไม่ตั้ง `no_response`** เพราะจะรู้ว่า "ไม่มีใครรับสาย" จริง ๆ ต้องมี Twilio status callback ก่อน
+เดาแล้วบอกผู้ใช้ว่าไม่มีใครรับ ทั้งที่อาจมีคนรับ เป็นการโกหกในเรื่องที่คนใช้ตัดสินใจต่อจากมัน
+
+**อุปกรณ์ที่ยังไม่ผูกกับบ้าน** จะไม่มี alert สร้างให้ (`house_id` เป็น FK บังคับ) —
+เหตุการณ์ยังบันทึกใน `fall_events` และแจ้งเตือนตามปกติ แค่ไม่โผล่ในแอป และขึ้น warning ใน log
+
+ฝั่งแอป: `data/useAlerts.ts` ดึงซ้ำทุก 10 วินาที · `hooks/useLiveAlerts.ts` ถูกลบแล้ว
+เพราะจะทำให้เหตุการณ์เดียวกันโผล่สองครั้ง (ทั้งจากตาราง `alerts` และจากการ poll API)
+
 ### 🔲 ยังต้องตัดสินใจ
 
-1. **`alerts` ไม่ได้ผูกกับ `fall_events`** — ไม่มี `device_id` ไม่มี FK
-   `alerts` ที่เห็นในแอปมาจาก `seed.sql` ล้วน ส่วนการล้มจริงอยู่ใน `fall_events`
-   แอปเห็นของจริงได้ทางเดียวคือ `hooks/useLiveAlerts.ts` ที่ poll Express API มา merge
-2. **`devices.status` กับ online/offline ของ admin เป็นสองแหล่งความจริง**
+1. **`devices.status` กับ online/offline ของ admin เป็นสองแหล่งความจริง**
    `status` ('connected'/'disconnected') ฝั่งแอปตั้งเอง · admin คำนวณจาก `last_seen_at` ตาม NFR-09
    ควรตัดสินใจว่าจะเลิกใช้ `status` แล้วอนุมานจาก `last_seen_at` อย่างเดียวไหม
 
