@@ -37,6 +37,7 @@ Output : data/processed/X.npy, y.npy, file_ids.npy, metadata.json
 
 import os
 import glob
+import re
 import json
 import numpy as np
 import pandas as pd
@@ -47,6 +48,7 @@ from scipy.signal import savgol_filter
 BASE_DIR      = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW_DIR       = os.path.join(BASE_DIR, "data", "raw")
 PROCESSED_DIR = os.path.join(BASE_DIR, "data", "processed_v2")
+SESSION_DIR   = os.path.join(BASE_DIR, "data", "sessions")
 
 # =================== ตั้งค่า ===================
 WINDOW_SIZE       = 200   # samples ต่อ window (2 วิ ที่ 100 pkt/s)
@@ -134,6 +136,50 @@ def extract_features(window: np.ndarray) -> np.ndarray:
 
 
 # =================== Sliding Window ===================
+# =================== Session (สำหรับตรวจ confound) ===================
+"""
+csi_collector_serial.py โหมด session จะตั้งชื่อไฟล์เป็น
+    s<session_id>_<seq>_<label>_<ท่า>_<เวลา>_<n>.csv
+เช่น  s20260901_1630_007_fall_ล้มไปข้างหน้า_20260901_163412_007.csv
+
+session_id จำเป็นสำหรับ:
+  - แบ่ง test set ตาม session (test ต้องเป็น session ที่โมเดลไม่เคยเห็น ไม่ใช่แค่ไฟล์)
+  - ตรวจ confound อัตโนมัติด้วย experiments/audit_data.py
+
+ไฟล์เก่าที่เก็บก่อนมีโหมด session จะไม่มี prefix — จัดเป็น session "legacy" ก้อนเดียว
+ซึ่งตรงกับความจริงว่ามันเป็นการเก็บชุดเดียวที่แยก session ย่อยไม่ได้แล้ว
+"""
+
+SESSION_PATTERN = re.compile(r"^s(\d{8}_\d{4})_(\d+)_")
+LEGACY_SESSION  = "legacy"
+
+
+def parse_session(filename):
+    """คืน (session_id, seq) — ไฟล์เก่าที่ไม่มี prefix ได้ ("legacy", None)"""
+    match = SESSION_PATTERN.match(filename)
+    if not match:
+        return LEGACY_SESSION, None
+    return match.group(1), int(match.group(2))
+
+
+def load_session_manifests():
+    """อ่าน metadata ที่ collector เขียนไว้ (ห้อง/ตำแหน่ง ESP32/คนแสดง)"""
+    info = {}
+    for path in sorted(glob.glob(os.path.join(SESSION_DIR, "session_*.json"))):
+        try:
+            with open(path, encoding="utf-8") as f:
+                manifest = json.load(f)
+            info[manifest["session_id"]] = {
+                "collection": manifest.get("collection"),
+                "started_at": manifest.get("started_at"),
+                "collected":  manifest.get("collected"),
+                **(manifest.get("info") or {}),
+            }
+        except (json.JSONDecodeError, KeyError, OSError) as err:
+            print(f"  ⚠️  อ่าน manifest ไม่ได้: {os.path.basename(path)} ({err})")
+    return info
+
+
 def sliding_window_extract(amp_seq: np.ndarray, label_int: int):
     """
     Input  : amp_seq (T, N_SUBCARRIERS)
@@ -212,18 +258,28 @@ def main():
     print(f"  {'ไฟล์':<42} {'raw_label':>10} {'windows':>8} {'trimmed':>8}")
     print(f"  {'─'*70}")
 
-    all_X, all_y, all_file_ids = [], [], []
+    all_X, all_y, all_file_ids, all_session_ids = [], [], [], []
     binary_counts = {0: 0, 1: 0}  # fall=0, non_fall=1
     raw_counts    = {}             # ติดตาม fall_A/B/C แยกกัน
+
+    # session_id เป็นข้อความ → แปลงเป็นเลขเรียงตามลำดับที่เจอ
+    session_index = {}
+    session_files = {}
 
     for file_id, path in enumerate(csv_files):
         fname        = os.path.basename(path)
         X, y, label  = process_csv(path)
 
         if X:
+            session_name, _ = parse_session(fname)
+            if session_name not in session_index:
+                session_index[session_name] = len(session_index)
+            session_files.setdefault(session_name, []).append(label)
+
             all_X.extend(X)
             all_y.extend(y)
             all_file_ids.extend([file_id] * len(X))
+            all_session_ids.extend([session_index[session_name]] * len(X))
             label_int = y[0]
             binary_counts[label_int] += len(X)
             raw_counts[label] = raw_counts.get(label, 0) + len(X)
@@ -238,19 +294,44 @@ def main():
         print("\n❌ ไม่มีข้อมูลที่ใช้ได้")
         return
 
-    X_arr        = np.array(all_X,        dtype=np.float32)
-    y_arr        = np.array(all_y,        dtype=np.int32)
-    file_ids_arr = np.array(all_file_ids, dtype=np.int32)
+    X_arr           = np.array(all_X,           dtype=np.float32)
+    y_arr           = np.array(all_y,           dtype=np.int32)
+    file_ids_arr    = np.array(all_file_ids,    dtype=np.int32)
+    session_ids_arr = np.array(all_session_ids, dtype=np.int32)
 
-    X_path        = os.path.join(PROCESSED_DIR, "X.npy")
-    y_path        = os.path.join(PROCESSED_DIR, "y.npy")
-    file_ids_path = os.path.join(PROCESSED_DIR, "file_ids.npy")
-    meta_path     = os.path.join(PROCESSED_DIR, "metadata.json")
+    X_path           = os.path.join(PROCESSED_DIR, "X.npy")
+    y_path           = os.path.join(PROCESSED_DIR, "y.npy")
+    file_ids_path    = os.path.join(PROCESSED_DIR, "file_ids.npy")
+    session_ids_path = os.path.join(PROCESSED_DIR, "session_ids.npy")
+    meta_path        = os.path.join(PROCESSED_DIR, "metadata.json")
 
     np.save(X_path, X_arr)
     np.save(y_path, y_arr)
     np.save(file_ids_path, file_ids_arr)
+    np.save(session_ids_path, session_ids_arr)
     print(f"\n  💾 file_ids.npy → {file_ids_path}  ({len(np.unique(file_ids_arr))} files)")
+
+    # สรุปแต่ละ session พร้อมสัดส่วนคลาส — ดูตรงนี้ก็รู้แล้วว่าเก็บสลับคลาสจริงไหม
+    manifests = load_session_manifests()
+    session_summary = {}
+    print(f"\n  📦 Session ({len(session_index)} ชุด)")
+    for name, idx in sorted(session_index.items(), key=lambda kv: kv[1]):
+        labels    = session_files[name]
+        n_fall    = sum(1 for l in labels if l != "non_fall")
+        n_normal  = len(labels) - n_fall
+        balance   = min(n_fall, n_normal) / max(n_fall, n_normal) if max(n_fall, n_normal) else 0
+        flag      = "✅" if balance >= 0.8 else "⚠️ "
+        print(f"    {flag} [{idx}] {name:<18} ไฟล์ {len(labels):4d}  "
+              f"fall {n_fall:4d} · non_fall {n_normal:4d}")
+        session_summary[name] = {
+            "index": idx, "files": len(labels),
+            "fall": n_fall, "non_fall": n_normal,
+            **manifests.get(name, {}),
+        }
+
+    if len(session_index) == 1:
+        print("    ⚠️  มี session เดียว — แบ่ง test set ตาม session ไม่ได้")
+        print("       เก็บเพิ่มอีกอย่างน้อย 1 session (คนละวัน/ห้อง) ก่อนเทรนจริง")
 
     meta = {
         "version":              "v5_binary_trimmed",
@@ -266,6 +347,8 @@ def main():
         "label_map":            {"fall": 0, "non_fall": 1},
         "binary_counts":        {BINARY_NAMES[k]: int(v) for k, v in binary_counts.items()},
         "raw_label_counts":     raw_counts,
+        "n_sessions":           len(session_index),
+        "sessions":             session_summary,
         "created_at":           pd.Timestamp.now().isoformat(),
     }
     with open(meta_path, "w") as f:
@@ -290,6 +373,7 @@ def main():
     print(f"\n  💾 X.npy         → {X_path}")
     print(f"  💾 y.npy         → {y_path}")
     print(f"  💾 file_ids.npy  → {file_ids_path}")
+    print(f"  💾 session_ids.npy → {session_ids_path}  ({len(session_index)} sessions)")
     print(f"  💾 metadata.json → {meta_path}")
     print(f"{'='*62}\n")
 

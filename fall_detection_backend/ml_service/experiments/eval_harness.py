@@ -35,7 +35,7 @@ from sklearn.metrics import (
     accuracy_score, confusion_matrix, f1_score,
     precision_score, recall_score, roc_auc_score
 )
-from sklearn.model_selection import StratifiedGroupKFold
+from sklearn.model_selection import LeaveOneGroupOut, StratifiedGroupKFold
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed_v2")
 
@@ -56,6 +56,41 @@ def load_windows():
         raise ValueError(f"ความยาวไม่ตรงกัน: X={len(X)} y={len(y)} groups={len(groups)}")
 
     return X, y, groups
+
+
+def load_session_ids():
+    """
+    คืน session id ต่อ window — หรือ None ถ้า dataset นี้ preprocess ก่อนมีระบบ session
+
+    session สำคัญกว่า file: ไฟล์ที่เก็บติดกันใน session เดียวอยู่ในสภาพห้องเดียวกัน
+    แบ่ง test ตามไฟล์จึงยังให้โมเดลเห็นสภาพห้องของ test มาก่อนแล้ว
+    ต้องแบ่งตาม session ถึงจะตอบได้ว่าไปบ้านที่ไม่เคยเห็นแล้วยังทำงานไหม
+    """
+    path = os.path.join(DATA_DIR, "session_ids.npy")
+    if not os.path.exists(path):
+        return None
+    return np.load(path)
+
+
+def session_folds(y, sessions, n_splits=N_SPLITS, seed=SEED):
+    """
+    แบ่ง fold โดยให้ทั้ง session อยู่ฝั่งเดียวกันเสมอ
+
+    session น้อยกว่าจำนวน fold → ใช้ leave-one-session-out แทน
+    (test คือ session เดียวที่ถูกกันออกทั้งชุด ซึ่งตรงกับคำถามที่อยากรู้พอดี)
+    """
+    n_sessions = len(np.unique(sessions))
+    if n_sessions < 2:
+        raise ValueError(
+            f"มี session เดียว ({n_sessions}) — แบ่ง test ตาม session ไม่ได้ "
+            "ต้องเก็บข้อมูลเพิ่มอีกอย่างน้อย 1 session"
+        )
+
+    if n_sessions <= n_splits:
+        return list(LeaveOneGroupOut().split(np.zeros(len(y)), y, groups=sessions))
+
+    splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+    return list(splitter.split(np.zeros(len(y)), y, groups=sessions))
 
 
 def windows_per_file(groups):
