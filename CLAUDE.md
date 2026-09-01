@@ -125,7 +125,14 @@ python notebooks/preprocess_v2.py
 #    session_ids มาจาก prefix s<id>_ ที่ collector เขียนไว้ (ไฟล์เก่าไม่มี prefix = "legacy")
 #    จำเป็นสำหรับแบ่ง test set ตาม session — test ต้องเป็น session ที่โมเดลไม่เคยเห็น
 
-# 4. Train → เปิด notebooks/train_v3.ipynb → Restart & Run All
+# 4. ⭐ ตรวจข้อมูลก่อนเทรน — 0 = ผ่าน, 1 = ไม่ผ่าน
+python experiments/check_dataset.py
+#    เช็ค: สลับคลาสจริงไหม · สภาพห้องเลื่อนไหม · โมเดลจับระดับสัญญาณหรือการเคลื่อนไหว
+#    · ข้าม session แล้วยังทำงานไหม · วิธีวัดรั่วไหม
+#    ไม่ผ่าน = อย่าเพิ่งเทรน ตัวเลขที่ได้จะไม่สะท้อนความจริง
+#    อยากรู้รายละเอียดว่าทำไม → python experiments/audit_data.py
+
+# 5. Train → เปิด notebooks/train_v3.ipynb → Restart & Run All
 ```
 
 > หมายเหตุ: `csi_collector.py` (UDP version) เก็บไว้สำหรับโหมด WiFi ในอนาคต — ตอนนี้ใช้ `csi_collector_serial.py` เท่านั้น
