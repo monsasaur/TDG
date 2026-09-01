@@ -14,6 +14,8 @@ ESP32 ต้อง flash firmware version ที่ส่ง CSI ออก seria
 import serial
 import serial.tools.list_ports
 import csv
+import json
+import random
 import time
 import os
 import threading
@@ -22,7 +24,8 @@ from datetime import datetime
 
 # =================== Config ===================
 SERIAL_PORT  = None    # None = auto-detect; หรือ "/dev/cu.usbserial-0001"
-BAUDRATE     = 115200  # ต้องตรงกับ firmware (sdkconfig CONFIG_ESP_CONSOLE_UART_BAUDRATE)
+BAUDRATE     = 921600  # ต้องตรงกับ firmware (sdkconfig CONFIG_ESP_CONSOLE_UART_BAUDRATE)
+                       # active_ap/sdkconfig:1630 = 921600 · esp_checker.py ก็ใช้ค่านี้
 READ_TIMEOUT = 1.0
 
 PACKETS_PER_SAMPLE = 400
@@ -42,9 +45,11 @@ ACTIVITIES = [
 ]
 
 # =================== Path ===================
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RAW_DIR  = os.path.join(BASE_DIR, "data", "raw")
+BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RAW_DIR      = os.path.join(BASE_DIR, "data", "raw")
+SESSION_DIR  = os.path.join(BASE_DIR, "data", "sessions")
 os.makedirs(RAW_DIR, exist_ok=True)
+os.makedirs(SESSION_DIR, exist_ok=True)
 
 
 # =================== Helpers ===================
@@ -98,7 +103,8 @@ def connect_esp32():
 
 
 # =================== Collect One Sample ===================
-def collect_sample(ser, label, activity_name, sample_num):
+def collect_sample(ser, label, activity_name, sample_num, prefix=None):
+    """เก็บ 1 sample — คืนชื่อไฟล์ที่บันทึก หรือ False ถ้าไม่ได้บันทึก"""
     target = PACKETS_PER_SAMPLE
 
     print(f"\n  📍 [{activity_name}]  Sample {sample_num}  (เป้า {target} pkts)")
@@ -155,7 +161,9 @@ def collect_sample(ser, label, activity_name, sample_num):
 
     ts        = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_name = activity_name.replace(" ", "_")
-    filename  = f"{label}_{safe_name}_{ts}_{sample_num:03d}.csv"
+    # prefix มีเฉพาะโหมด session — ทำให้เรียงชื่อไฟล์แล้วได้ลำดับการเก็บจริง
+    head      = f"{prefix}_" if prefix else ""
+    filename  = f"{head}{label}_{safe_name}_{ts}_{sample_num:03d}.csv"
     filepath  = os.path.join(RAW_DIR, filename)
 
     with open(filepath, "w", newline="", encoding="utf-8") as f:
@@ -164,7 +172,7 @@ def collect_sample(ser, label, activity_name, sample_num):
         writer.writerows(packets)
 
     print(f"  ✅ บันทึก → {filename}")
-    return True
+    return filename
 
 
 # =================== Count Existing Samples ===================
@@ -177,7 +185,7 @@ def count_samples(activity_name):
 def show_menu():
     print("\n" + "=" * 60)
     print("  🎯  เลือกท่าที่ต้องการเก็บ (เว้นวรรคคั่น เช่น 1 2 3)")
-    print("  'all' = เก็บทั้งหมด  |  'q' = ออก")
+    print("  's' = โหมด session สลับคลาส ⭐ แนะนำ  |  'all' = ทั้งหมด  |  'q' = ออก")
     print("=" * 60)
 
     print("  ── 🔴 Fall ──")
@@ -194,6 +202,162 @@ def show_menu():
             bar  = "█" * min(have * 20 // default, 20)
             print(f"  {i:2d}. {name:<22} {have:3d}/{default}  [{bar:<20}]")
 
+    print("  ⚠️  เมนูนี้เก็บทีละท่ารวดเดียว ทำให้คลาสกับเวลาผูกกัน — ใช้ 's' แทนถ้าเก็บชุดใหม่")
+    print("=" * 60)
+
+
+# =================== โหมด Session สลับคลาส ===================
+"""
+ทำไมต้องมีโหมดนี้
+-----------------
+เมนูปกติให้เลือกท่าทีละอย่างแล้วเก็บรวดเดียว N ครั้ง — เก็บ "ล้มไปข้างหน้า" 100 ไฟล์ติด
+แล้วค่อยเปลี่ยนไปเก็บ "เดิน" อีก 100 ไฟล์ติด ผลคือได้ข้อมูลที่ fall กับ non_fall
+อยู่คนละช่วงเวลากันสนิท
+
+ปัญหาที่ตามมา (ตรวจพบในชุดข้อมูลแรก — ดู docs/reports/data_quality_audit_2026-09.md):
+ทุกอย่างที่เปลี่ยนไประหว่างสองช่วงเวลานั้น — ตำแหน่ง ESP32 ขยับ เฟอร์นิเจอร์ย้าย
+คนในห้อง gain หลัง reboot — กลายเป็นตัวทำนายคลาสที่แม่นกว่าตัวการล้มเอง
+โมเดลได้ accuracy 95.6% จากการแยก "session ไหน" ไม่ใช่ "ล้มหรือไม่ล้ม"
+และไม่มีวิธีวิเคราะห์ใดแก้ย้อนหลังได้
+
+โหมดนี้บังคับให้สลับคลาสทีละ sample สภาพห้องจึงกระจายเท่า ๆ กันทั้งสองคลาส
+และหักล้างกันเองตอนเทรน — เก็บถูกโดยโครงสร้าง ไม่ต้องอาศัยวินัยคนเก็บ
+"""
+
+
+def build_interleaved_plan(rounds, seed=None):
+    """
+    สร้างลำดับการเก็บที่สลับ fall / non_fall
+
+    1 รอบ = 1 fall + 1 non_fall โดยสุ่มว่ารอบนั้นเริ่มด้วยคลาสไหน
+    (ถ้าสลับตายตัว fall จะตามหลัง non_fall เสมอ ผลข้างเคียงจากท่าก่อนหน้า
+     เช่นยังลุกไม่เสร็จ จะเข้าคลาสเดียวเสมอกลายเป็น confound ตัวใหม่)
+
+    ท่าภายในแต่ละคลาสหมุนจนครบทุกท่าก่อนวนใหม่ — ได้จำนวนเท่ากันทุกท่า
+    """
+    falls    = [a for a in ACTIVITIES if a[0] == "fall"]
+    nonfalls = [a for a in ACTIVITIES if a[0] == "non_fall"]
+    rng = random.Random(seed)
+
+    plan, fall_pool, non_pool = [], [], []
+    for r in range(rounds):
+        if not fall_pool:
+            fall_pool = falls[:]
+            rng.shuffle(fall_pool)
+        if not non_pool:
+            non_pool = nonfalls[:]
+            rng.shuffle(non_pool)
+
+        pair = [fall_pool.pop(), non_pool.pop()]
+        if r % 2:
+            pair.reverse()
+        plan.extend(pair)
+
+    return plan
+
+
+def ask_session_info():
+    """ข้อมูลกำกับ session — ไว้ตรวจย้อนหลังว่าอะไรเปลี่ยนไประหว่างชุดข้อมูล"""
+    print("\n  ── ข้อมูล session (Enter = ข้าม) ──")
+    return {
+        "room":        input("  ห้อง/สถานที่        : ").strip() or None,
+        "esp32_setup": input("  ตำแหน่ง ESP32       : ").strip() or None,
+        "actor":       input("  คนแสดงท่า           : ").strip() or None,
+        "notes":       input("  หมายเหตุ            : ").strip() or None,
+    }
+
+
+def save_manifest(session_id, info, plan, records, started_at):
+    """เขียนทับทุกครั้งที่เก็บได้ 1 sample — กด Ctrl-C แล้วข้อมูลไม่หาย"""
+    path = os.path.join(SESSION_DIR, f"session_{session_id}.json")
+    fall_n = sum(1 for r in records if r["label"] == "fall")
+
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({
+            "session_id":   session_id,
+            "started_at":   started_at,
+            "updated_at":   datetime.now().isoformat(),
+            "collection":   "interleaved",
+            "planned":      len(plan),
+            "collected":    len(records),
+            "fall":         fall_n,
+            "non_fall":     len(records) - fall_n,
+            "info":         info,
+            "samples":      records,
+        }, f, indent=2, ensure_ascii=False)
+    return path
+
+
+def run_session(ser):
+    print("\n" + "=" * 60)
+    print("  🔀  โหมด Session สลับคลาส")
+    print("=" * 60)
+    print("  สคริปต์จะสั่งเองว่าตาต่อไปเก็บท่าอะไร สลับ fall / non_fall ให้อัตโนมัติ")
+    print("  ⚠️  ห้าม reboot ESP32 · ห้ามขยับอุปกรณ์ · ห้ามย้ายของในห้อง ตลอด session")
+
+    try:
+        rounds = int(input("\n  จะเก็บกี่รอบ (1 รอบ = 1 fall + 1 non_fall): ").strip())
+    except ValueError:
+        print("  ❌ กรุณากรอกตัวเลข")
+        return
+    if rounds < 1:
+        return
+
+    info = ask_session_info()
+    plan = build_interleaved_plan(rounds)
+
+    session_id = datetime.now().strftime("%Y%m%d_%H%M")
+    started_at = datetime.now().isoformat()
+
+    print("\n  📋 ลำดับที่จะเก็บ (" + str(len(plan)) + " sample)")
+    preview = "  " + " ".join("🔴" if lbl == "fall" else "🟢" for lbl, _, _ in plan[:40])
+    print(preview + ("  ..." if len(plan) > 40 else ""))
+    print(f"\n  session_id = {session_id}")
+
+    if input("\n  เริ่มเลยไหม? (y/n): ").strip().lower() != "y":
+        return
+
+    records = []
+    try:
+        for idx, (label, name, _) in enumerate(plan, 1):
+            tag = "🔴 FALL" if label == "fall" else "🟢 NON-FALL"
+            print("\n" + "─" * 60)
+            print(f"  [{idx}/{len(plan)}]  {tag}")
+            print(f"  ➡️  ตาต่อไป: {name}")
+            print("─" * 60)
+
+            filename = collect_sample(
+                ser, label, name, idx, prefix=f"s{session_id}_{idx:03d}"
+            )
+            if not filename:
+                print("  ⏭️  ข้าม — จะเก็บท่าเดิมนี้ซ้ำในตาถัดไป")
+                plan.append((label, name, None))   # ต่อท้ายไว้ ไม่ให้คลาสเสียสมดุล
+                continue
+
+            records.append({
+                "seq":      idx,
+                "label":    label,
+                "activity": name,
+                "file":     filename,
+                "at":       datetime.now().isoformat(),
+            })
+            save_manifest(session_id, info, plan, records, started_at)
+
+            fall_n = sum(1 for r in records if r["label"] == "fall")
+            print(f"  📊 เก็บแล้ว {len(records)}/{len(plan)}  "
+                  f"(fall {fall_n} · non_fall {len(records)-fall_n})")
+
+    except KeyboardInterrupt:
+        print("\n  ⛔ หยุดกลางคัน")
+
+    path = save_manifest(session_id, info, plan, records, started_at)
+    fall_n = sum(1 for r in records if r["label"] == "fall")
+    print("\n" + "=" * 60)
+    print(f"  ✅ session {session_id} — เก็บได้ {len(records)} sample "
+          f"(fall {fall_n} · non_fall {len(records)-fall_n})")
+    print(f"  📄 manifest → {os.path.relpath(path, BASE_DIR)}")
+    if fall_n != len(records) - fall_n:
+        print("  ⚠️  จำนวนสองคลาสไม่เท่ากัน — เก็บเพิ่มให้สมดุลใน session ถัดไป")
     print("=" * 60)
 
 
@@ -217,6 +381,9 @@ def main():
 
             if choice in ("q", "quit", "exit"):
                 break
+            elif choice == "s":
+                run_session(ser)
+                continue
             elif choice == "all":
                 selected = list(range(len(ACTIVITIES)))
             else:

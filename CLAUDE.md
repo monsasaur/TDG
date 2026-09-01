@@ -113,9 +113,17 @@ python data_collection/esp_checker.py
 
 # 2. เก็บ data ผ่าน USB serial (ไม่ใช้ UDP แล้ว)
 python data_collection/csi_collector_serial.py
+#    ⭐ ในเมนูให้กด 's' = โหมด session สลับคลาส — สคริปต์สั่งเองว่าตาต่อไปเก็บท่าอะไร
+#    สลับ fall/non_fall ให้อัตโนมัติ กันปัญหา session confound ที่เจอในชุดข้อมูลแรก
+#    เมนูเลือกท่าแบบเดิมยังใช้ได้ แต่จะเก็บทีละท่ารวดเดียว = ทำให้คลาสผูกกับเวลา
+#    ห้าม reboot ESP32 / ห้ามขยับอุปกรณ์ / ห้ามย้ายของในห้อง ตลอด session
+#    manifest บันทึกที่ data/sessions/session_<id>.json
 
 # 3. Preprocess → data/processed_v2/
 python notebooks/preprocess_v2.py
+#    ออก X.npy, y.npy, file_ids.npy, session_ids.npy, metadata.json
+#    session_ids มาจาก prefix s<id>_ ที่ collector เขียนไว้ (ไฟล์เก่าไม่มี prefix = "legacy")
+#    จำเป็นสำหรับแบ่ง test set ตาม session — test ต้องเป็น session ที่โมเดลไม่เคยเห็น
 
 # 4. Train → เปิด notebooks/train_v3.ipynb → Restart & Run All
 ```
@@ -336,7 +344,7 @@ ESP32 #2 (active_sta)
 | `express_api/src/services/escalationService.js` | Acknowledge timer — in-memory Map, auto-escalate → Twilio |
 | `express_api/src/utils/demoLog.js` | Pretty console logger สำหรับ demo |
 | `express_api/scripts/fake_csi_stream.sh` | Shell script จำลอง CSI stream สำหรับทดสอบ |
-| `ml_service/data_collection/csi_collector_serial.py` | USB Serial CSI collector (921600 baud) — แทน UDP version |
+| `ml_service/data_collection/csi_collector_serial.py` | USB Serial CSI collector (921600 baud) — แทน UDP version · มีโหมด session สลับคลาส (กด `s`) |
 
 ## Environment Variables เพิ่มเติม
 
