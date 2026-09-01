@@ -24,5 +24,16 @@ app.get('/health', (req, res) => res.json({
   timestamp: new Date().toISOString()
 }))
 
+const escalationService = require('./services/escalationService')
+
 const PORT = process.env.PORT || 3000
-app.listen(PORT, () => console.log(`API running on port ${PORT}`))
+app.listen(PORT, async () => {
+  console.log(`API running on port ${PORT}`)
+
+  // timer ของ escalation อยู่ใน memory — restart แล้วหาย
+  // สร้างใหม่จากสถานะใน DB แล้วเปิด sweeper ไว้เป็นตาข่ายรองรับ
+  // ไม่งั้นเหตุการณ์ที่กำลังรอ ack ตอน server ล้มจะค้าง pending ตลอดกาล
+  await escalationService.recoverPending()
+  escalationService.startSweeper()
+  console.log(`🔁 escalation sweeper every ${escalationService.SWEEP_SECONDS}s`)
+})

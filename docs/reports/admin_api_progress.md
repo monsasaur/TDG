@@ -1,7 +1,7 @@
 # Admin Client API — บันทึกความคืบหน้า
 
 **อัปเดตล่าสุด:** 2026-09-01
-**ขอบเขตรอบนี้:** เฉพาะฝั่ง API — frontend มีคนทำแล้ว
+**ขอบเขตรอบนี้:** Admin Client API (frontend มีคนทำแล้ว) + escalation timer persistence
 **อ้างอิง:** `TDG_BA.pdf` (Business Analysis) · `docs/reports/admin_client_plan.md` (แผนเดิม)
 **Branch:** `feature/ml-service`
 
@@ -18,7 +18,9 @@
 | `GET /admin/events/:id` | ✅ |
 | `GET /admin/devices` | ✅ |
 | CORS สำหรับเว็บ admin | ✅ |
-| Unit test (39 เคสใหม่ / 79 เคสรวม) | ✅ |
+| Escalation timer persistence | ✅ |
+| แก้ schema ที่ล้าสมัยใน `CLAUDE.md` | ✅ |
+| Unit test (52 เคสใหม่ / 92 เคสรวม) | ✅ |
 | ทดสอบ end-to-end จริง | ✅ |
 | Cost tracking | 🔲 ไม่อยู่ใน MVP |
 | Alert / Twilio log | 🔲 ไม่อยู่ใน MVP |
@@ -123,12 +125,63 @@ node scripts/hash_admin_password.js 'รหัสผ่านที่ต้อ�
 
 ### 5. ทดสอบแล้ว
 
-- **Unit test:** `tests/adminAuthService.test.js` (13 เคส) + `tests/adminService.test.js` (26 เคส) — รวมทั้งโปรเจกต์ 79 เคส ผ่านหมด
+- **Unit test:** `tests/adminAuthService.test.js` (13 เคส) + `tests/adminService.test.js` (26 เคส) + `tests/escalationService.test.js` (+13 เคสกู้คืน) — รวมทั้งโปรเจกต์ 92 เคส ผ่านหมด
 - **End-to-end จริง:** รันเซิร์ฟเวอร์ + ยิง predict จาก 2 อุปกรณ์ → เห็นใน `/admin/devices` เป็น online → ack → timeline ถูกต้อง → logout → token เดิมใช้ไม่ได้
 - ยืนยันแล้วว่า `x-api-key` ของ ESP32 **เรียกเส้น admin ไม่ได้** (401) และเส้นเดิมของระบบยังทำงานปกติ
 
 **บั๊กที่เจอระหว่างทดสอบและแก้แล้ว:** CORS ตอนแรกอนุญาต header `x-api-key` แต่ลืม `Authorization`
 ทำให้เว็บ admin ยิง Bearer token ข้าม origin ไม่ผ่าน preflight
+
+---
+
+### 6. Escalation timer persistence
+
+**ปัญหา:** `setTimeout` อยู่ใน memory — server restart แล้วหาย เหตุการณ์ที่กำลังรอ ack ตอนนั้น
+จะค้างสถานะ `pending` ตลอดกาล ไม่มีวันถูกโทรออกและไม่มีวันถูกนับใน escalation rate
+เห็นชัดขึ้นหลังทำ admin dashboard เสร็จ เพราะเป็นตัวเลขที่ผิดถาวรบนหน้าจอ
+
+**แนวทาง: ไม่เก็บ timer เลย แต่สร้างใหม่จาก DB** — ข้อมูลที่ต้องใช้มีครบอยู่แล้ว
+
+```
+ถึงกำหนด escalate เมื่อ  created_at + ACK_TIMEOUT_SECONDS
+ยังรออยู่เมื่อ           !acknowledged && !escalated   ← คือ queryEvents({ status: 'pending' })
+```
+
+จึงไม่ต้องเพิ่ม Redis/BullMQ ตามที่ backlog เดิมเขียนไว้ ซึ่งจะทำให้มี infra ต้องดูแลเพิ่ม
+และต้อง provision บน Render
+
+| จังหวะ | ทำอะไร |
+|---|---|
+| ตอน boot | `recoverPending()` — สแกนเหตุการณ์ค้างย้อนหลัง 24 ชม. |
+| ทุก 60 วินาที | sweeper เรียก `recoverPending()` ซ้ำเป็นตาข่ายรองรับ |
+
+**การตัดสินใจต่อเหตุการณ์ที่เจอ**
+
+| สถานการณ์ | ทำอะไร |
+|---|---|
+| ยังไม่ถึงกำหนด | ตั้ง timer ใหม่ด้วย**เวลาที่เหลือจริง** ไม่ใช่เริ่มนับ 60 วิใหม่ |
+| เลยกำหนด แต่ไม่เกิน `ESCALATION_MAX_AGE_SECONDS` (1 ชม.) | escalate ทันที ส่ง SMS + โทรจริง |
+| เลยกำหนดเกิน 1 ชม. | **ไม่โทร** — โทรเรื่องการล้มเมื่อ 5 ชม.ที่แล้วไม่ได้ช่วยใคร แต่บันทึกเป็น escalated ที่ `sms_sent`/`call_made` = false เพื่อไม่ให้ค้าง pending และเห็นชัดว่าหลุด |
+| ack ไปแล้วระหว่าง server ล่ม | ไม่แตะ |
+
+**กันโทรซ้ำ:** `escalate()` อ่านสถานะล่าสุดจาก DB ก่อนยิงทุกครั้ง ถ้า acknowledged หรือ escalated
+ไปแล้วจะข้าม — กันกรณี timer กับ sweeper คว้า event เดียวกัน
+
+**แต่ถ้าอ่าน DB ไม่ได้ → ยิงต่อ ไม่บล็อก** นี่คือ path ฉุกเฉิน โทรซ้ำยังดีกว่าไม่มีใครได้รับสาย
+
+**Cooldown นับจากเวลาที่เหตุการณ์เกิด ไม่ใช่เวลาที่กู้คืน** ไม่งั้นเหตุการณ์เก่าที่เพิ่งกู้มา
+จะไปบล็อก alert ใหม่ของอุปกรณ์นั้นเป็นเวลา 5 นาที
+
+**บั๊กที่เจอระหว่างทดสอบและแก้แล้ว:** mock path ของ `dbService.saveEvent` ใช้ id เป็น
+`mock-${Date.now()}` — บันทึกหลาย event ในมิลลิวินาทีเดียวกันจะทับกันเงียบๆ (เจอตอนสร้าง
+ข้อมูลทดสอบ 4 ตัวแล้วเหลือ 2) เพิ่ม counter ต่อท้ายแล้ว กระทบเฉพาะโหมด in-memory
+เพราะของจริง Supabase สร้าง UUID ให้
+
+### 7. แก้ schema ที่ล้าสมัยใน `CLAUDE.md`
+
+อัปเดตหัวข้อ Database Schema ให้ตรงกับ `supabase/schema.sql` (เพิ่ม `is_fall`, กลุ่ม
+acknowledge/escalate, `push_tokens`, `devices`) พร้อมหมายเหตุกำกับว่าแหล่งอ้างอิงจริงคือไฟล์ SQL
+เพื่อไม่ให้เกิดกรณีเดียวกับเอกสาร BA ซ้ำอีก
 
 ---
 
@@ -176,6 +229,11 @@ ADMIN_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 DEVICE_OFFLINE_AFTER_MINUTES=15
 ADMIN_TZ_OFFSET_HOURS=7
 ADMIN_MAX_SCAN=5000
+
+# escalation recovery
+ESCALATION_SWEEP_SECONDS=60
+ESCALATION_RECOVERY_LOOKBACK_HOURS=24
+ESCALATION_MAX_AGE_SECONDS=3600
 ```
 
 ---
@@ -228,3 +286,6 @@ ADMIN_MAX_SCAN=5000
 | `express_api/.env.example` | + ตัวแปรกลุ่ม admin |
 | `express_api/tests/adminService.test.js` | **ใหม่** — 26 เคส |
 | `express_api/tests/adminAuthService.test.js` | **ใหม่** — 13 เคส |
+| `express_api/src/services/escalationService.js` | + `recoverPending`, `startSweeper` · เช็คสถานะก่อน escalate · cooldown นับจากเวลาเหตุการณ์ |
+| `express_api/tests/escalationService.test.js` | + 13 เคสเรื่องการกู้คืน |
+| `CLAUDE.md` | อัปเดต Database Schema ให้ตรงกับ `schema.sql` |
