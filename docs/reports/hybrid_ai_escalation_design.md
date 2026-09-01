@@ -53,6 +53,9 @@ Fall detected → schedule(event)              [เหมือนเดิม �
   → dbService.markEscalated({ call_made, via: "ai" | "fallback" })
 ```
 
+> ✅ **สเปคสำหรับ implement Phase 2a เขียนเสร็จแล้ว** → [`spec_hybrid_ai_escalation_phase2a.md`](spec_hybrid_ai_escalation_phase2a.md)
+> คำถามเปิด 5 ข้อด้านล่างตอบครบแล้วในสเปคนั้น รวมถึงข้อสรุปว่า **ไม่ต้องหา Thai TTS provider ใหม่**
+
 ## ส่วนที่ต้องเพิ่ม/แก้ (เมื่อจะ implement จริง)
 
 | ไฟล์ | การเปลี่ยนแปลง |
