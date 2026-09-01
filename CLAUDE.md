@@ -24,7 +24,7 @@
 | Feature | Priority | หมายเหตุ |
 |---|---|---|
 | Threshold tuning | Med | หาแล้วสำหรับ RandomForest — แนะนำ 0.36 (recall 97.6%, false alarm 9.6%) เหลือแค่ตัดสินใจว่าจะเปลี่ยน production model ไหม |
-| BLE WiFi Provisioning | Med | **ฝั่งแอปเสร็จแล้ว** (library + `lib/provisioning.ts` + ต่อ 3 หน้าจอ) · เหลือ firmware ฝั่ง ESP32 กับการส่ง PoP เข้า flow — ดูหัวข้อ Production WiFi Provisioning |
+| BLE WiFi Provisioning | Med | **โค้ดครบทั้งแอปและ firmware แล้ว** · เหลือ build/flash/ทดสอบกับบอร์ดจริง (เครื่องที่เขียนไม่มี ESP-IDF) และหน้าจอกรอก PoP — ดูหัวข้อ Production WiFi Provisioning |
 | One-class anomaly model | ✅ ตอบแล้ว | ลอง 4 ตัว ROC-AUC ดีสุด 0.70 เทียบ supervised 0.985 — ใช้แทนไม่ได้กับ feature ชุดนี้ |
 | เก็บ dataset ใหม่ (สลับคลาสใน session) | **High** | ข้อมูลชุดเดิมเก็บ fall ทั้งหมดก่อนแล้วค่อย non_fall → สภาพห้องกับคลาสทับกันสนิท แก้ย้อนหลังไม่ได้ · **ต้องสลับคลาสภายใน session เดียวกัน** ดูข้อกำหนดใน `docs/reports/data_quality_audit_2026-09.md` |
 | Unseen test scenario | **High** | test set ต้องเป็น session ที่ไม่เคยเห็น ไม่ใช่แค่ไฟล์ที่ไม่เคยเห็น |
@@ -353,125 +353,88 @@ CONFIG_ESPTOOLPY_MONITOR_BAUD=921600
 
 ใน production ESP32 #1 ต้องส่ง CSI ขึ้น cloud ผ่าน WiFi (ไม่ใช่ USB) — ลูกค้าไม่ต้อง hardcode WiFi → ใช้ BLE provisioning แทน
 
-### สถานะ (2026-09-01)
+### สถานะ (2026-09-02)
 
 | ส่วน | สถานะ |
 |---|:---:|
-| UI ทั้ง flow (`scan-devices` → `connect-device` → `wifi-password` → `device-setup`) | ✅ |
-| Permission ใน `app.json` + ขอตอน runtime (จัดการเคส `NEVER_ASK_AGAIN` ด้วย) | ✅ |
-| BLE library + Expo config plugin | ✅ |
-| `lib/provisioning.ts` — ห่อ library + fallback เป็น mock อัตโนมัติ | ✅ |
-| ต่อ 3 หน้าจอเข้ากับ BLE จริง (สแกน → connect → scan WiFi → provision) | ✅ |
-| **ESP32 firmware `wifi_provisioning` + `scheme_ble`** | ❌ |
-| PoP — ยังไม่มีหน้าจอรับรหัสอุปกรณ์ใน flow (ดูหมายเหตุด้านล่าง) | ❌ |
-| ปุ่ม reset บนอุปกรณ์เพื่อกลับเข้า provisioning mode | ❌ |
+| UI ทั้ง flow + permission (manifest และ runtime) | ✅ |
+| BLE library + Expo config plugin + `lib/provisioning.ts` | ✅ |
+| ต่อ 3 หน้าจอเข้ากับ BLE จริง | ✅ |
+| **ESP32 firmware — `wifi_provisioning` + `scheme_ble`** | ✅ เขียนแล้ว |
+| ปุ่ม reset กลับเข้าโหมดตั้งค่า | ✅ |
+| **ยังไม่เคย build / flash / ทดสอบกับบอร์ดจริง** | ❌ |
+| หน้าจอกรอก PoP ในแอป | ❌ |
 
-### ฝั่งแอป — ทำเสร็จแล้ว
+### สองโหมดใน firmware — เลือกใน menuconfig
 
-Library: `@orbital-systems/react-native-esp-idf-provisioning` (ห่อ ESP-IDF provisioning
-ของ Espressif ทั้ง Android/iOS) + config plugin ใน `app.json`
+`CONFIG_ENABLE_BLE_PROVISIONING` **ค่าเริ่มต้นเป็น `n`**
 
-`lib/provisioning.ts` เป็นชั้นเดียวที่หน้าจอเรียก — เหตุผลที่ไม่ import library ตรง:
-1. `ESPDevice` ที่ connect แล้วต้องส่งข้ามหน้าจอ แต่ router param ส่งได้แค่ string
-   จึงเก็บไว้ที่ระดับ module
-2. native module ไม่มีใน Expo Go และไม่มีบนเว็บ — ถ้า import ตรงแอปจะ crash ทันที
-   ไฟล์นี้จับ error ตอน require แล้วสลับไปโหมด mock ให้เอง (`isMock`)
-3. แปลง error จาก native เป็นข้อความไทยที่ผู้ใช้ทำอะไรต่อได้ (`errorMessage`)
-
-**ตัวระบุอุปกรณ์คือ `devices.code`** เช่น `ESP-0001A` — ค่าเดียวกับที่ ESP32 ส่งมาใน
-`POST /api/v1/predict` และเป็นค่าที่ BLE provisioning ต้องเขียนลง NVS
-
-> ⚠️ **หลังเพิ่ม native module แล้ว Expo Go ใช้ไม่ได้อีก** ต้อง build dev client ใหม่
-> (`eas build --profile development`) โปรเจกต์ใช้ `expo-dev-client` อยู่แล้วจึงไม่กระทบ workflow
-> แต่ **ต้อง rebuild** ก่อนถึงจะทดสอบ BLE จริงได้ · ถ้ายังไม่ rebuild แอปจะรันในโหมด mock
-> และขึ้นป้ายเตือนในหน้า scan
-
-### งานที่เหลือ — ฝั่ง ESP32
-
-แก้ใน `ESP32-CSI-Tool/active_ap/` ได้ตรง ๆ (ไม่ใช่ submodule — ตรวจแล้ว 2026-09-01)
-สิ่งที่ต้องเพิ่ม:
-- `wifi_provisioning` component + `scheme_ble`
-- ประกาศชื่อ BLE ขึ้นต้นด้วย `ESP-` (ตรงกับ `DEVICE_PREFIX` ใน `lib/provisioning.ts`)
-- Security 2 + PoP ที่ตรงกับรหัสบนกล่อง/QR
-- เก็บ SSID/รหัสผ่านลง NVS — reboot แล้วไม่หาย
-- ปุ่ม reset ค้างเพื่อลบ NVS แล้วกลับเข้า provisioning mode
-
-> **PoP ต้องรอ firmware ก่อน** — `lib/provisioning.ts` ตั้ง `ESPSecurity.secure2` ไว้ ซึ่งใช้ SRP6a
-> ต้องมีทั้ง username และ PoP ส่วน `secure1` ใช้ PoP อย่างเดียว เลือกอันไหนเป็นการตัดสินใจฝั่ง firmware
-> และมันกำหนดว่าแอปต้องเก็บข้อมูลอะไรจากผู้ใช้ **จึงยังไม่ควรสร้างหน้าจอ PoP จนกว่าจะเลือก**
->
-> หมายเหตุ: `app/scan-qr.tsx` ที่มีอยู่เป็นของ "เข้าร่วมบ้านด้วย QR เชิญ" (เรียกจาก `houses.tsx`)
-> ไม่ใช่ PoP ของอุปกรณ์ และตอนนี้ยัง reject ทุก QR (`handleBarcode` ตั้ง error เสมอ)
-
-## Demo
-
-วิธีรันสาธิตทั้งระบบ ตั้งค่าที่แนะนำ และตารางแก้ปัญหาเฉพาะหน้า อยู่ที่
-**[`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md)**
-
----
-
-## Deploy (Docker + Render)
-
-### ไฟล์ที่เกี่ยวข้อง
-
-| ไฟล์ | ใช้ทำอะไร |
+| โหมด | ทำอะไร |
 |---|---|
-| `render.yaml` | Render Blueprint — deploy ทั้งสอง service พร้อมกัน (Render → New → Blueprint) |
-| `fall_detection_backend/docker-compose.yml` | รันทั้งสอง service บนเครื่องตัวเองเพื่อทดสอบก่อน deploy |
-| `express_api/Dockerfile` | node:20-alpine · multi-stage · `npm ci --omit=dev` · non-root · tini |
-| `ml_service/Dockerfile` | python:3.11-slim · non-root · tini · เช็คไฟล์โมเดลตั้งแต่ตอน build |
-| `ml_service/requirements-serve.txt` | dependency เฉพาะตอน serve — **ไม่มี tensorflow** |
+| `n` — เก็บข้อมูล (ค่าเริ่มต้น) | AP อย่างเดียว ช่องคงที่ ส่ง CSI ผ่าน USB Serial — **โหมดที่ใช้เก็บ dataset อยู่ตอนนี้** |
+| `y` — production | ครั้งแรกเปิด BLE ให้แอปตั้ง WiFi บ้าน แล้วทำงาน AP+STA พร้อมกัน |
+
+ตั้งค่าเริ่มต้นเป็น `n` โดยตั้งใจ — **การเก็บ dataset ที่กำลังจะทำต้องไม่ถูกรบกวน**
+
+### ⚠️ สามเรื่องที่ต้องรู้ก่อน build
+
+**1. Partition ไม่พอ — ต้องแก้ก่อน**
+```
+firmware ปัจจุบัน   924 KB
+app partition เดิม  1 MB (partitions_singleapp.csv)  → เหลือ 123 KB
+NimBLE + provisioning ต้องการอีก ~250-350 KB       → build ไม่ผ่านแน่นอน
+```
+เพิ่ม `active_ap/partitions.csv` (app 2 MB) และต้องใช้ flash 4 MB
+`sdkconfig` เดิมตั้งไว้ 2MB ซึ่งน่าจะไม่ตรงของจริง — เช็คด้วย `esptool.py flash_id`
+
+**2. Bluetooth ปิดอยู่** — `# CONFIG_BT_ENABLED is not set` ต้องเปิด NimBLE (ไม่ใช่ Bluedroid ซึ่งกินที่กว่ามาก)
+
+**3. ช่องสัญญาณจะไม่ใช่ 6 อีกต่อไปในโหมด production**
+ESP32 มีวิทยุชุดเดียว ในโหมด AP+STA **ช่องของ AP ถูกบังคับให้ตามเราเตอร์บ้าน**
+ตั้ง `WIFI_CHANNEL` ไว้เท่าไรก็ไม่มีผล — CSI ที่เก็บได้ในบ้านลูกค้าจะอยู่คนละช่องกับตอนเทรน
+(ตอนเก็บ dataset ใช้ช่อง 6 คงที่) **ต้องทดสอบว่าโมเดลทำงานข้ามช่องได้ไหม**
+
+### ความปลอดภัย — เลือก Security 1
+
+ESP-IDF ให้เลือกระหว่าง `secure1` (X25519 + AES-CTR ยืนยันด้วย PoP) กับ
+`secure2` (SRP6a ต้องมี username + salt/verifier)
+
+เลือก **secure1** เพราะ secure2 ต้อง generate salt/verifier แยกต่อเครื่องตอนผลิต
+เพิ่มขั้นตอนโดยไม่ได้ประโยชน์เพิ่มในเมื่อ PoP เป็นสตริงสุ่มยาวบนกล่อง
+
+> ⚠️ **PoP ต้องยาว สุ่ม และไม่ซ้ำกันระหว่างเครื่อง** — จุดอ่อนของ secure1 คือถ้า PoP
+> สั้นหรือเดาง่าย คนที่ดักจับ handshake ไว้เอาไป brute force offline ได้
+> ห้ามใช้ PIN 4 หลักหรือค่าเดียวกันทุกเครื่อง (`CONFIG_PROV_POP`)
+
+ค่านี้ต้องตรงกันทั้งสองฝั่ง — `provisioning_component.h` กับ `lib/provisioning.ts`
+ถ้าแก้ข้างเดียวจะจับคู่ไม่ติดโดยไม่มี error ที่บอกสาเหตุชัด
+
+### ไฟล์ที่เพิ่ม/แก้
+
+| ไฟล์ | |
+|---|---|
+| `_components/provisioning_component.h` | **ใหม่** — BLE provisioning + ปุ่ม reset (กด BOOT ค้าง 5 วิ) |
+| `active_ap/main/main.cc` | แยกสองโหมด · เพิ่ม `apsta_start()` |
+| `active_ap/partitions.csv` | **ใหม่** — app 2 MB |
+| `active_ap/sdkconfig.defaults` | **ใหม่** — NimBLE, flash 4MB, baudrate 921600 |
+| `active_ap/main/Kconfig.projbuild` | + เมนู BLE WiFi Provisioning |
+
+### ขั้นตอน build โหมด production
 
 ```bash
-cd fall_detection_backend
-docker compose up --build
-curl localhost:3000/health && curl localhost:8000/health
+cd fall_detection_backend/ESP32-CSI-Tool/active_ap
+rm sdkconfig                    # ให้ sdkconfig.defaults มีผล
+idf.py set-target esp32
+idf.py menuconfig               # → ESP32 CSI Tool Config → BLE WiFi Provisioning
+                                #   เปิด ENABLE_BLE_PROVISIONING
+                                #   ตั้ง PROV_POP เป็นค่าสุ่มยาว
+                                #   ตั้ง DEVICE_CODE เช่น ESP-0001A (ต้องมีใน Supabase ด้วย)
+idf.py fullclean && idf.py build
+idf.py -p /dev/cu.usbserial-XXXX flash monitor
 ```
 
-### ทำไม requirements-serve.txt ไม่มี tensorflow
-
-`app/predict.py` โหลด **RandomForest จาก pickle ผ่าน sklearn** (`models/rf_v1.pkl`)
-ไม่ได้แตะ Keras/TensorFlow เลย — ตรวจแล้วว่า import chain ตอน serve ไม่มี tensorflow
-tensorflow กิน image เป็น GB และจำเป็นเฉพาะตอน train ใน notebooks
-
-> `requirements.txt` (ตัวเต็ม) ยังมี tensorflow ไว้สำหรับ dev/train
-> ถ้าจะกลับไปใช้โมเดล `.h5` ต้องเพิ่ม tensorflow กลับเข้า `requirements-serve.txt`
-
-### ⚠️ ไฟล์โมเดลถูก gitignore — ต้องแก้ก่อน deploy ครั้งแรก
-
-`ml_service/.gitignore` มี `models/*.pkl` → Render build จาก git จะไม่มีไฟล์
-Dockerfile เช็คตั้งแต่ตอน build จะได้ fail พร้อมข้อความบอกสาเหตุ ไม่ใช่ไป crash ตอน boot
-
-เลือกทางใดทางหนึ่ง:
-1. **commit ไฟล์โมเดลเข้า git** — `rf_v1.pkl` 2.5 MB + `scaler_rf_v1.pkl` 10 KB
-   รวม 2.6 MB เล็กพอที่จะ commit ได้ ทำให้ deploy ทำซ้ำได้ (แก้ `.gitignore` ให้ยกเว้นสองไฟล์นี้)
-2. อัปโหลดขึ้น object storage แล้วให้ Dockerfile `curl` ลงมาตอน build
-3. build image บนเครื่องตัวเองแล้ว push ขึ้น registry แทนที่จะให้ Render build
-
-### ตัวแปรที่ต้องกรอกเองใน Render dashboard
-
-`API_KEY` · `SUPABASE_URL` · `SUPABASE_KEY` · `TWILIO_ACCOUNT_SID` · `TWILIO_AUTH_TOKEN` ·
-`TWILIO_PHONE` · `ALERT_PHONES` · `ADMIN_USERNAME` · `ADMIN_PASSWORD_HASH` · `ADMIN_ORIGINS`
-
-`ML_SERVICE_URL` ต่อให้อัตโนมัติจาก `render.yaml` ไม่ต้องกรอก
-
-### ฝั่งแอปมือถือ
-
-URL และคีย์ย้ายออกจากซอร์สแล้ว — อ่านจาก `app.config.js` → `Constants.expoConfig.extra`
-
-```bash
-# dev บนเครื่องตัวเอง — .env.local
-EXPO_PUBLIC_API_BASE_URL=http://192.168.1.42:3000
-EXPO_PUBLIC_API_KEY=dev-secret-key-123
-```
-
-ตอน build ผ่าน EAS ตั้งเป็น environment variable ต่อ profile (ดู `eas.json`)
-
-> ⚠️ **ยังไม่ได้แก้:** คีย์นี้เป็นตัวเดียวกับที่ ESP32 ใช้ และแอปที่ build แล้วมีคีย์อยู่ในตัวเสมอ
-> ใครแกะ APK ได้ก็เรียก `POST /api/v1/demo/fire` สั่งให้ระบบโทรออกจริงได้
-> ทางแก้จริงคือแยก auth ของแอปออกจาก `x-api-key` ของอุปกรณ์ แบบเดียวกับที่ทำแล้วฝั่งเว็บ admin
-
----
+**ยังไม่เคย build จริง** — เครื่องที่เขียนโค้ดไม่มี ESP-IDF ติดตั้ง
+ต้องมีคนรัน `idf.py build` ยืนยันก่อน แล้วแก้ error ที่อาจมี
 
 ## Alert Flow (Production)
 

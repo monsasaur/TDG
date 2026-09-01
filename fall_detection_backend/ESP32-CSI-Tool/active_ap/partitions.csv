@@ -1,0 +1,18 @@
+# Partition table สำหรับ active_ap ที่เปิด BLE provisioning
+#
+# ทำไมต้องมีไฟล์นี้
+# ----------------
+# ตารางเริ่มต้น (partitions_singleapp.csv) ให้ app partition แค่ 1 MB
+# firmware เดิมที่มีแค่ WiFi + CSI ใหญ่ 924 KB อยู่แล้ว — เหลือที่ว่าง 123 KB
+# พอเพิ่ม NimBLE + wifi_provisioning (~250-350 KB) จะ build ไม่ผ่านทันที
+#
+# ⚠️ ต้องตั้ง flash size เป็น 4MB ด้วย (CONFIG_ESPTOOLPY_FLASHSIZE="4MB")
+#    ESP32 DevKit ส่วนใหญ่มี 4MB อยู่แล้ว — sdkconfig เดิมตั้งไว้ 2MB ซึ่งน่าจะไม่ตรงของจริง
+#    เช็คของจริงด้วย: esptool.py flash_id
+#
+# ไม่ใส่ OTA เพราะยังไม่ได้ใช้ — ถ้าจะทำ OTA ทีหลังต้องแบ่ง ota_0/ota_1 คนละ ~1.5MB
+#
+# Name,     Type, SubType, Offset,   Size,      Flags
+nvs,        data, nvs,     0x9000,   0x6000,
+phy_init,   data, phy,     0xf000,   0x1000,
+factory,    app,  factory, 0x10000,  0x200000,
