@@ -11,7 +11,7 @@
 
 | ส่วน | สถานะ |
 |---|:---:|
-| ตาราง `devices` + schema | ✅ |
+| ตาราง `csi_devices` + schema | ✅ |
 | Admin authentication (login/logout/session) | ✅ |
 | `GET /admin/summary` | ✅ |
 | `GET /admin/events` | ✅ |
@@ -35,7 +35,7 @@
 | ข้อ 12.2 | เอกสาร BA บอกว่า | ของจริงในโค้ด | ต้องทำไหม |
 |---|---|---|:---:|
 | จุดที่ 1 — ไม่มีที่เก็บสถานะเหตุการณ์ | มีแค่ `alerted` ต้องเพิ่ม `acknowledged_at`, `escalated_at` | มี `acknowledged`, `acknowledged_at`, `acknowledged_by`, `escalated`, `escalated_at` ครบ | ❌ ไม่ต้อง |
-| จุดที่ 2 — ไม่มีตารางอุปกรณ์ | ต้องเพิ่มตาราง `devices` | ไม่มีจริง | ✅ **ทำแล้วรอบนี้** |
+| จุดที่ 2 — ไม่มีตารางอุปกรณ์ | ต้องเพิ่มตาราง `devices` | ไม่มีสำหรับ CSI pipeline (แต่แอปมี `devices` ของตัวเองอยู่แล้ว คนละโครงสร้าง) | ✅ **ทำแล้ว — ตั้งชื่อ `csi_devices` เลี่ยงการชนกัน** |
 | จุดที่ 3 — ไม่มี `sms_sent` / `call_made` | ต้องเพิ่ม | มีทั้งคู่ และ `markEscalated()` เขียนค่าลงจริง (`escalationService.js:79`) | ❌ ไม่ต้อง |
 
 **สาเหตุ:** ตาราง `fall_events` ในหัวข้อ "Database Schema" ของ `CLAUDE.md` เป็นเวอร์ชันเก่า (มี `alerted`,
@@ -47,7 +47,7 @@
 
 ## สิ่งที่ทำไปแล้ว
 
-### 1. ตาราง `devices` — BA ข้อ 12.2 จุดที่ 2
+### 1. ตาราง `csi_devices` — BA ข้อ 12.2 จุดที่ 2
 
 เพิ่มใน `fall_detection_backend/supabase/schema.sql`
 
@@ -180,7 +180,7 @@ node scripts/hash_admin_password.js 'รหัสผ่านที่ต้อ�
 ### 7. แก้ schema ที่ล้าสมัยใน `CLAUDE.md`
 
 อัปเดตหัวข้อ Database Schema ให้ตรงกับ `supabase/schema.sql` (เพิ่ม `is_fall`, กลุ่ม
-acknowledge/escalate, `push_tokens`, `devices`) พร้อมหมายเหตุกำกับว่าแหล่งอ้างอิงจริงคือไฟล์ SQL
+acknowledge/escalate, `push_tokens`, `csi_devices`) พร้อมหมายเหตุกำกับว่าแหล่งอ้างอิงจริงคือไฟล์ SQL
 เพื่อไม่ให้เกิดกรณีเดียวกับเอกสาร BA ซ้ำอีก
 
 ---
@@ -241,7 +241,8 @@ ESCALATION_MAX_AGE_SECONDS=3600
 ## 🔲 ยังไม่ได้ทำ / ต้องตัดสินใจ
 
 ### ต้องทำก่อนต่อ frontend
-1. **รัน SQL สร้างตาราง `devices` ใน Supabase** — โค้ดพร้อมแล้วแต่ตารางจริงยังไม่มี
+1. **รัน SQL สร้างตาราง `csi_devices` ใน Supabase** — โค้ดพร้อมแล้วแต่ตารางจริงยังไม่มี
+   > ⚠️ เดิมตั้งชื่อ `devices` ซึ่งชนกับตารางของแอปมือถือที่มีอยู่แล้ว (`id`/`house_id`/`code`/`wifi_ssid`/`status`) — `CREATE TABLE IF NOT EXISTS` จะเงียบไปแล้ว `touchDevice()` พังตอน runtime · เปลี่ยนชื่อแล้ว 2026-09-01
 2. **ตั้ง `ADMIN_USERNAME` + `ADMIN_PASSWORD_HASH` ใน `.env`** — ไม่ตั้งแล้วทุกเส้น admin ตอบ 503
 3. **ยืนยัน `ADMIN_ORIGINS`** ให้ตรงกับ origin จริงที่เว็บ admin รันอยู่
 4. **ถามคนทำ frontend ว่า response shape ตรงกับที่เขียนไว้ไหม** — ยังไม่ได้เทียบกับโค้ดฝั่งเว็บ
@@ -251,7 +252,7 @@ ESCALATION_MAX_AGE_SECONDS=3600
 |---|---|---|
 | OI-01 | เกณฑ์เวลา offline ควรเป็นเท่าไร | ตั้ง 15 นาทีไว้ก่อน ปรับผ่าน env ได้ **ยังต้องวัดจริงว่า ESP32 ส่งข้อมูลถี่แค่ไหน** |
 | OI-02 | จะทำ admin auth แบบใด | เอกสารเสนอ Supabase Auth · **ทำเป็น username เดียว + scrypt + session in-memory ไปก่อน** เพราะไม่ต้องเพิ่ม dependency และทำงานได้แม้ยังไม่ต่อ Supabase — เปลี่ยนไป Supabase Auth ทีหลังแก้แค่ `adminAuthService.js` |
-| OI-03 | จะแก้ schema ตาม 12.2 ไหม | **แก้แล้ว** — เพิ่มแค่ตาราง `devices` (อีก 2 จุดมีอยู่แล้ว) |
+| OI-03 | จะแก้ schema ตาม 12.2 ไหม | **แก้แล้ว** — เพิ่มแค่ตาราง `csi_devices` (อีก 2 จุดมีอยู่แล้ว) · เหลือตัดสินใจว่าจะรวมกับ `devices` ของแอปไหม |
 | OI-04 | นโยบายเก็บข้อมูลนานเท่าไร (PDPA) | ยังไม่ตัดสินใจ ไม่กระทบรอบนี้ |
 | OI-05 | "สัปดาห์นี้" นับอย่างไร | **ตัดสินใจแล้ว** — ย้อนหลัง 7 วันเต็ม ตามที่เอกสารเสนอ |
 
@@ -273,7 +274,7 @@ ESCALATION_MAX_AGE_SECONDS=3600
 
 | ไฟล์ | การเปลี่ยนแปลง |
 |---|---|
-| `supabase/schema.sql` | + ตาราง `devices` + index |
+| `supabase/schema.sql` | + ตาราง `csi_devices` + index |
 | `express_api/src/services/adminService.js` | **ใหม่** — ตรรกะ summary / events / devices |
 | `express_api/src/services/adminAuthService.js` | **ใหม่** — login / logout / session / scrypt |
 | `express_api/src/middleware/adminAuth.js` | **ใหม่** — ตรวจ Bearer token |

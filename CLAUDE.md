@@ -1,6 +1,6 @@
 # Fall Detection System — CLAUDE.md
 
-## Current Status (2026-05-07)
+## Current Status (2026-09-01)
 
 ### ✅ ทำเสร็จแล้ว
 
@@ -12,7 +12,7 @@
 | Escalation / Acknowledge flow | ✅ | escalationService.js — timer in-memory, Twilio fallback |
 | Push token registration | ✅ | `POST /api/v1/push/register` |
 | Demo trigger endpoint | ✅ | `POST /api/v1/demo/fire` — ข้าม ML ไปยิง push ตรงๆ |
-| Mobile app (Expo) | ✅ | รับ push notification, Event log, Acknowledge |
+| Mobile app (Expo) | ✅ | 29 หน้า — บ้าน/สมาชิก/ผู้ติดต่อฉุกเฉิน/อุปกรณ์/แจ้งเตือน · รับ push, Acknowledge, poll fall event ทุก 4 วิ |
 | Supabase schema | ✅ | fall_events + push_tokens tables |
 | ESP32 USB Serial mode | ✅ | csi_collector_serial.py @ 921600 baud |
 | End-to-end demo flow | ✅ | ESP32 → API → Push → App → Acknowledge → Twilio |
@@ -24,7 +24,7 @@
 | Feature | Priority | หมายเหตุ |
 |---|---|---|
 | Threshold tuning | Med | หาแล้วสำหรับ RandomForest — แนะนำ 0.36 (recall 97.6%, false alarm 9.6%) เหลือแค่ตัดสินใจว่าจะเปลี่ยน production model ไหม |
-| BLE WiFi Provisioning | Med | ลูกค้าตั้งค่า WiFi ผ่านแอปได้โดยไม่ต้อง hardcode |
+| BLE WiFi Provisioning | Med | **UI ครบทั้ง flow + permission ครบแล้ว** เหลือของจริง: ยังไม่มี BLE library ใน package.json (`scan-devices.tsx:21` เป็น array คงที่ + setTimeout) และ firmware ฝั่ง ESP32 ยังไม่เริ่ม — ดูหัวข้อ Production WiFi Provisioning |
 | One-class anomaly model | ✅ ตอบแล้ว | ลอง 4 ตัว ROC-AUC ดีสุด 0.70 เทียบ supervised 0.985 — ใช้แทนไม่ได้กับ feature ชุดนี้ |
 | เก็บ dataset ใหม่ (สลับคลาสใน session) | **High** | ข้อมูลชุดเดิมเก็บ fall ทั้งหมดก่อนแล้วค่อย non_fall → สภาพห้องกับคลาสทับกันสนิท แก้ย้อนหลังไม่ได้ · **ต้องสลับคลาสภายใน session เดียวกัน** ดูข้อกำหนดใน `docs/reports/data_quality_audit_2026-09.md` |
 | Unseen test scenario | **High** | test set ต้องเป็น session ที่ไม่เคยเห็น ไม่ใช่แค่ไฟล์ที่ไม่เคยเห็น |
@@ -41,27 +41,47 @@ Hybrid AI-driven fall detection system using WiFi CSI (Channel State Information
 
 ```
 TDG/
-├── app/                          # React Native + Expo mobile app (expo-router)
-│   ├── _layout.tsx               # Root layout
-│   └── index.tsx                 # Home screen (device status & event log)
+├── app/                          # React Native + Expo (expo-router) — 29 หน้า
+│   ├── _layout.tsx  index.tsx  welcome.tsx  home.tsx  settings.tsx
+│   ├── houses.tsx  add-house.tsx  select-house.tsx  manage-home.tsx
+│   ├── devices.tsx  device-details.tsx
+│   ├── scan-devices.tsx  connect-device.tsx  add-network.tsx      # ← BLE provisioning flow
+│   ├── wifi-password.tsx  device-setup.tsx                        #   (UI เสร็จ ยังเป็น mock)
+│   ├── scan-qr.tsx  enter-code.tsx  invite-*.tsx                  # PoP / เชิญสมาชิก
+│   ├── members.tsx  member-detail.tsx
+│   ├── emergency-contacts.tsx  add-external-contact.tsx  edit-contact.tsx
+│   └── notifications.tsx  clear-alerts.tsx
+├── components/                   # 31 component (การ์ด alert, ปุ่ม, ฟอร์ม, dropdown)
+├── contexts/                     # AlertsContext, DevicesContext
+├── data/                         # ⚠️ hooks ที่คุยกับ Supabase ตรง ไม่ผ่าน Express API
+│   ├── supabaseClient.ts
+│   └── useAlerts · useDevices · useHouses · useContacts · useSystemAlerts
+├── hooks/useLiveAlerts.ts        # poll Express API ทุก 4 วิ แล้ว merge เข้า AlertsContext
+├── lib/                          # api.ts (Express API), notifications.ts, pushNotifications.ts
+├── types/alert.ts
 ├── fall_detection_backend/
 │   ├── express_api/              # Node.js + Express cloud API
-│   │   └── src/
-│   │       ├── index.js          # Entry point (port 3000)
-│   │       ├── routes/           # predict.js, alert.js, events.js
-│   │       ├── services/         # mlService.js, alertService.js, dbService.js
-│   │       └── middleware/       # auth.js (API key), validate.js
-│   ├── ml_service/               # Python + FastAPI ML inference service
+│   │   ├── src/
+│   │   │   ├── index.js          # Entry point (port 3000)
+│   │   │   ├── routes/           # predict, alert, events, push, demo, admin
+│   │   │   ├── services/         # mlService, alertService, dbService,
+│   │   │   │                     # escalationService, pushService,
+│   │   │   │                     # adminService, adminAuthService
+│   │   │   └── middleware/       # auth (x-api-key), adminAuth (Bearer), cors, validate
+│   │   ├── scripts/              # hash_admin_password.js, fake_csi_stream.sh
+│   │   └── tests/                # 92 เคส (jest)
+│   ├── ml_service/               # Python + FastAPI ML inference
 │   │   ├── app/                  # main.py, predict.py, preprocess.py, schemas.py
-│   │   ├── models/               # lstm_v3.h5, scaler_v3.pkl (NOT in git)
-│   │   ├── notebooks/            # Training notebooks (train_v3.ipynb, preprocess_v2.py)
-│   │   └── data_collection/      # CSI collector scripts for ESP32
+│   │   ├── experiments/          # ⭐ eval_harness · check_dataset · audit_data
+│   │   │                         #    run_baselines · run_oneclass · run_threshold
+│   │   ├── notebooks/            # train_v3.ipynb, preprocess_v2.py
+│   │   ├── data_collection/      # csi_collector_serial.py (มีโหมด session สลับคลาส)
+│   │   ├── data/sessions/        # manifest ของแต่ละรอบเก็บข้อมูล
+│   │   └── models/               # lstm_v3.h5, scaler_v3.pkl (NOT in git)
 │   ├── ESP32-CSI-Tool/           # ESP32 firmware submodule
-│   └── supabase/schema.sql       # Database schema
-├── backend/                      # Simple Node.js backend (legacy/separate)
-├── package.json                  # Mobile app dependencies (Expo 54, React 19)
-└── app.json                      # Expo configuration
-```
+│   └── supabase/                 # schema.sql (backend) + seed.sql (mock ของแอป)
+├── docs/reports/                 # สเปค · รายงานผลโมเดล · audit ข้อมูล
+└── backend/                      # legacy server แยกต่างหาก ไม่เกี่ยวกับ express_api
 
 ## Tech Stack
 
@@ -305,6 +325,27 @@ CONFIG_ESPTOOLPY_MONITOR_BAUD=921600
 
 ใน production ESP32 #1 ต้องส่ง CSI ขึ้น cloud ผ่าน WiFi (ไม่ใช่ USB) — ลูกค้าไม่ต้อง hardcode WiFi → ใช้ BLE provisioning แทน
 
+### สถานะจริง (ตรวจ 2026-09-01)
+
+| ส่วน | สถานะ |
+|---|:---:|
+| UI ทั้ง flow (`scan-devices` → `connect-device` → `add-network` → `wifi-password` → `device-setup`) | ✅ |
+| Permission ใน `app.json` (`BLUETOOTH_SCAN/CONNECT/ADVERTISE`, `ACCESS_FINE_LOCATION`) | ✅ |
+| ขอ permission ตอน runtime + จัดการเคส `NEVER_ASK_AGAIN` (`scan-devices.tsx:69`) | ✅ |
+| หน้า PoP — `scan-qr.tsx`, `enter-code.tsx` | ✅ (UI) |
+| **BLE library** — ยังไม่มีใน `package.json` | ❌ |
+| ESP32 firmware `wifi_provisioning` + `scheme_ble` | ❌ |
+| เก็บ WiFi ลง NVS + ปุ่ม reset เข้า provisioning mode | ❌ |
+
+จุดที่ต้องแทน mock ด้วยของจริง:
+- `app/scan-devices.tsx:21` — `const FOUND_DEVICES = ["ESP-BT001", "ESP-BT002"]` + `setTimeout` แกล้งสแกน
+- `app/connect-device.tsx:24` — `setNetworks(mockAvailableNetworks)` จาก `data/useDevices.ts:15`
+- `app/wifi-password.tsx:38` และ `app/add-network.tsx:38` — `setTimeout` แกล้งเชื่อมต่อ
+
+> งานฝั่งแอปเหลือแค่เปลี่ยน mock เป็นของจริง ไม่ต้องออกแบบ UI ใหม่
+> ฝั่ง ESP32 ยังไม่มีอะไรเลย และ `ESP32-CSI-Tool/` เป็น submodule ที่ห้ามแก้ตรง ๆ —
+> ต้องตัดสินใจก่อนว่าจะ fork, patch ทับ หรือแยก component ออกมา
+
 ### Flow
 ```
 ลูกค้าเปิดแอป → แอปค้นหา ESP32 ผ่าน BLE → กรอก SSID + รหัส WiFi
@@ -342,17 +383,6 @@ ESP32 #2 (active_sta)
   → ไม่มีใครกดยืนยัน → โทรฉุกเฉินทันทีผ่าน Twilio
 ```
 
-## New Files (ยังไม่ commit)
-
-| ไฟล์ | คำอธิบาย |
-|---|---|
-| `express_api/src/routes/demo.js` | Demo trigger — `POST /api/v1/demo/fire` ข้าม ML ไปยิง push ตรงๆ |
-| `express_api/src/services/pushService.js` | Expo Push SDK (useFcmV1=true), รองรับ fake mode (`PUSH_MODE=fake`) |
-| `express_api/src/services/escalationService.js` | Acknowledge timer — in-memory Map, auto-escalate → Twilio |
-| `express_api/src/utils/demoLog.js` | Pretty console logger สำหรับ demo |
-| `express_api/scripts/fake_csi_stream.sh` | Shell script จำลอง CSI stream สำหรับทดสอบ |
-| `ml_service/data_collection/csi_collector_serial.py` | USB Serial CSI collector (921600 baud) — แทน UDP version · มีโหมด session สลับคลาส (กด `s`) |
-
 ## Environment Variables เพิ่มเติม
 
 ```
@@ -369,6 +399,9 @@ PUSH_MODE=real              # real = ยิง FCM จริง | fake = log con
 - `lstm_v3.h5`, `lstm_v3_best.h5`, `scaler_v3.pkl` are NOT committed to git — must be obtained separately
 - `fall_detection_backend/ESP32-CSI-Tool/` is a git submodule — do not edit directly
 - **`lib/api.ts`** — API_BASE_URL ยังเป็น `http://10.0.2.2:3000` (Android emulator) ต้องเปลี่ยนเป็น Render URL สำหรับ production
+- **`lib/api.ts:12`** — `API_KEY = "dev-secret-key-123"` hardcode อยู่ในซอร์สแอป เป็นคีย์ตัวเดียวกับที่ ESP32 ใช้ ใครแกะ APK ได้ก็ยิง `POST /api/v1/demo/fire` สั่งให้ระบบโทรออกจริงได้ (ปัญหาคลาสเดียวกับ SEC-02 ที่แก้ไปแล้วฝั่งเว็บ admin)
+- **`express_api/Dockerfile` และ `ml_service/Dockerfile` เป็นไฟล์เปล่า** (0 bytes) ทั้งคู่ — ยัง deploy ไม่ได้
+- ตาราง `devices` ของแอปกับ `csi_devices` ของ backend ยังแยกกันอยู่ ดูหัวข้อ Database Schema
 - escalationService เก็บ timer ใน memory แต่กู้คืนได้ — ตอน boot อ่านเหตุการณ์ที่ยัง pending จาก DB มาตั้ง timer ใหม่ด้วยเวลาที่เหลือจริง และมี sweeper เช็คซ้ำทุก 60 วิ (เหตุการณ์ที่เลยกำหนดเกิน 1 ชม. จะไม่โทร แต่ปิดสถานะไว้ไม่ให้ค้าง pending)
 - Twilio Trial accounts can only send to verified numbers — verify caregiver numbers first
 - `backend/` ที่ root เป็น legacy server แยกต่างหาก ไม่เกี่ยวกับ `fall_detection_backend/express_api/`
@@ -383,29 +416,57 @@ PUSH_MODE=real              # real = ยิง FCM จริง | fake = log con
 > **แหล่งอ้างอิงจริงคือ `fall_detection_backend/supabase/schema.sql` เสมอ**
 > หัวข้อนี้เคยล้าสมัยจนทำให้เอกสาร BA (`TDG_BA.pdf`) สั่งให้เพิ่มฟิลด์ที่มีอยู่แล้ว — ถ้าแก้ schema ต้องอัปเดตที่นี่ด้วย
 
-Table: `fall_events`
-- `id` UUID PK
-- `device_id` TEXT
-- `timestamp` BIGINT
-- `location` TEXT
+### ⚠️ มีตารางสองชุดที่ยังไม่เชื่อมกัน
+
+Supabase โปรเจกต์เดียวมีตารางสองกลุ่มที่ออกแบบแยกกันคนละที และ**ยังไม่มีอะไรผูกถึงกัน**
+
+**กลุ่ม A — CSI pipeline** (มี `CREATE TABLE` ใน `schema.sql`)
+
+Table: `fall_events` — Express API เขียนเมื่อ ESP32 ตรวจพบการล้ม
+- `id` UUID PK · `device_id` TEXT · `timestamp` BIGINT · `location` TEXT
 - `is_fall` BOOLEAN — binary ไม่ใช่ `prediction` TEXT แล้ว
 - `confidence` FLOAT
-- `acknowledged` BOOLEAN / `acknowledged_at` TIMESTAMPTZ / `acknowledged_by` TEXT
-- `escalated` BOOLEAN / `escalated_at` TIMESTAMPTZ
-- `sms_sent` BOOLEAN / `call_made` BOOLEAN — ผลการยิง Twilio ตอน escalate
+- `acknowledged` / `acknowledged_at` / `acknowledged_by`
+- `escalated` / `escalated_at` · `sms_sent` / `call_made`
 - `created_at` TIMESTAMPTZ
 
-Table: `push_tokens`
-- `token` TEXT PK
-- `device_id` TEXT
-- `platform` TEXT
-- `created_at` / `updated_at` TIMESTAMPTZ
+Table: `push_tokens` — `token` PK · `device_id` · `platform` · `created_at` / `updated_at`
 
-Table: `devices` — สำหรับหน้า Admin Client
-- `device_id` TEXT PK
-- `label` TEXT — ชื่อที่คนอ่านเข้าใจ
-- `owner_name` TEXT
-- `location` TEXT
-- `last_seen_at` TIMESTAMPTZ — อัปเดตทุก packet ที่ ESP32 ส่งเข้ามา ไม่ใช่เฉพาะตอนล้ม
-- `is_active` BOOLEAN — ปลดการติดตั้งแล้วตั้ง false
-- `installed_at` / `created_at` TIMESTAMPTZ
+Table: `csi_devices` — สำหรับ Admin Client (FR-16 ถึง FR-21)
+- `device_id` TEXT PK — ค่าที่ ESP32 ส่งมาใน `POST /api/v1/predict`
+- `label` · `owner_name` · `location`
+- `last_seen_at` — อัปเดตทุก packet ที่เข้ามา ไม่ใช่เฉพาะตอนล้ม
+- `is_active` · `installed_at` · `created_at`
+
+**กลุ่ม B — แอปมือถือ** (❗ **ไม่มี `CREATE TABLE` ในรีโปเลย** รู้โครงสร้างได้จาก `seed.sql` กับโค้ดใน `data/` เท่านั้น)
+
+| ตาราง | คอลัมน์ที่ใช้จริง |
+|---|---|
+| `houses` | `id` · `name` · `created_at` |
+| `devices` | `id` (PK เช่น `'d1'`) · `house_id` → houses · `name` · `code` (`'ESP-0001A'`) · `wifi_ssid` · `status` |
+| `emergency_contacts` | ผู้ติดต่อฉุกเฉิน (self / member / external) |
+| `house_contacts` | เชื่อม contact กับบ้าน (many-to-many) |
+| `alerts` | `id` · `house_id` · `title` · `description` · `location` · `status` · `answered_by` · `countdown` · `timeline` (JSON) |
+
+### 🔲 สองเรื่องที่ต้องตัดสินใจ
+
+1. **`devices` กับ `csi_devices` คือของสิ่งเดียวกันในโลกจริง** แต่คนละโครงสร้างสนิท
+   ตอนแรกตั้งชื่อ `devices` เหมือนกันแล้วเกือบพัง — `CREATE TABLE IF NOT EXISTS` จะเงียบไป
+   แล้ว `dbService.touchDevice()` พังตอน runtime จึงแยกชื่อไว้ก่อน
+   **ต้องรู้ก่อนว่า `device_id` ที่ ESP32 ส่งมา ตรงกับ `devices.code` หรือ `devices.id`** ถึงจะรวมได้
+
+2. **`alerts` ไม่ได้ผูกกับ `fall_events` เลย** — ไม่มี `device_id` ไม่มี FK
+   `alerts` ที่เห็นในแอปตอนนี้มาจาก `seed.sql` ล้วน ส่วนการล้มจริงอยู่ใน `fall_events`
+   แอปเห็นของจริงได้ทางเดียวคือ `hooks/useLiveAlerts.ts` ที่ poll Express API มา merge
+
+### เส้นทางข้อมูลของแอป — มีสองทางขนานกัน
+
+```
+data/*.ts hooks  ──Supabase client ตรง──►  houses · devices · alerts · contacts
+                                            (ส่วนใหญ่เป็น seed data)
+
+hooks/useLiveAlerts ──poll ทุก 4 วิ──► Express API /api/v1/events/falls
+lib/api.ts                             ──► /alert/ack/:id · /push/register · /health
+```
+
+`app/home.tsx` ใช้ทั้งสองทาง · หน้าอื่นเกือบทั้งหมดใช้ `data/` อย่างเดียว
