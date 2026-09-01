@@ -31,6 +31,7 @@ const PUBLIC_PATHS = new Set(['/health'])
 const SCOPE_RULES = [
   [/^\/api\/v1\/demo(\/|$)/,       'demo'],
   [/^\/api\/v1\/alert\/test(\/|$)/, 'demo'],
+  [/^\/api\/v1\/push\/test(\/|$)/,  'demo'],
   [/^\/api\/v1\/predict(\/|$)/,    'device'],
   [/^\/api\/v1\/alert(\/|$)/,      'app'],
   [/^\/api\/v1\/events(\/|$)/,     'app'],

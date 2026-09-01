@@ -159,6 +159,30 @@ python experiments/check_dataset.py
 
 ## API Endpoints (Express API — Render Cloud)
 
+เอกสาร API มี 2 รูปแบบ ใช้ spec เดียวกัน:
+
+| แบบ | ที่ไหน | เหมาะกับ |
+|---|---|---|
+| **คู่มือ API** | [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) | อ่าน/รีวิวใน PR/ส่งให้คนอื่น ไม่ต้องรันอะไร |
+| **กดยิงได้** | `http://localhost:3000/docs` | ลองยิงจริง กด Authorize ใส่คีย์ได้เลย |
+| **วิธีใช้หน้า Swagger** | [`docs/SWAGGER_GUIDE.md`](docs/SWAGGER_GUIDE.md) | คนที่ไม่เคยใช้ Swagger — ใส่คีย์ยังไง, login admin 2 ขั้น, ปัญหาที่เจอบ่อย |
+
+```bash
+npm run docs          # สร้าง docs/API_REFERENCE.md ใหม่จาก spec
+npm run docs:check    # เช็คว่าคู่มือตรงกับ spec ไหม
+```
+
+**แหล่งความจริงเดียวคือ `src/docs/openapi.js`** — ห้ามแก้ `API_REFERENCE.md` ด้วยมือ
+
+ห่วงโซ่ที่กันเอกสารล้าสมัย (`tests/openapi.test.js` เช็คให้ทุกครั้งที่รันเทสต์):
+```
+route จริงใน Express  →  openapi.js  →  API_REFERENCE.md
+       เพิ่ม route ไม่เขียน spec = fail
+                    แก้ spec ไม่ regen คู่มือ = fail
+```
+
+ปิดหน้า `/docs` ด้วย `ENABLE_API_DOCS=false` · ML service มี `/docs` ของ FastAPI อยู่แล้วที่ `http://localhost:8000/docs`
+
 All endpoints require `x-api-key` header.
 
 > **`x-api-key` แยกตาม scope แล้ว** — `DEVICE_API_KEY` (predict) · `APP_API_KEY` (events/ack/push) ·

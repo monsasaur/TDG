@@ -121,14 +121,27 @@ curl -X POST http://localhost:3000/api/v1/demo/fire \
   -d '{"device_id":"ESP-0001A","location":"ห้องนอนผู้สูงอายุ"}'
 ```
 
-### วิธีที่ 2 — iOS Shortcut (กดจากมือถือบนเวที)
+### วิธีที่ 2 — หน้า Swagger UI (ดีสุดตอนสาธิต)
+
+เปิด `http://localhost:3000/docs` → กด **Authorize** มุมขวาบน → ใส่ `DEMO_API_KEY`
+→ เลือก `POST /api/v1/demo/fire` → **Try it out** → Execute
+
+ข้อดีตอนอยู่ต่อหน้าคน: ไม่ต้องพิมพ์ curl ให้ผิด เห็น request/response เต็ม ๆ บนจอ
+และเลื่อนให้ดู endpoint อื่นได้เลยถ้ามีคนถาม
+
+> ML service มีหน้าเดียวกันที่ `http://localhost:8000/docs` (FastAPI สร้างให้เอง)
+>
+> ไม่เคยใช้ Swagger มาก่อน → [`SWAGGER_GUIDE.md`](SWAGGER_GUIDE.md)
+> อยากอ่านเป็นเอกสารเฉย ๆ ไม่ต้องรันเซิร์ฟเวอร์ → [`API_REFERENCE.md`](API_REFERENCE.md)
+
+### วิธีที่ 3 — iOS Shortcut (กดจากมือถือบนเวที)
 
 สร้าง Shortcut → Get Contents of URL
 - URL: `http://<IP เครื่อง>:3000/api/v1/demo/fire`
 - Method: `POST` · Headers: `x-api-key` = **`DEMO_API_KEY`** (ไม่ใช่คีย์ของแอป)
 - Body (JSON): `{"device_id":"ESP-0001A","location":"ห้องนอน"}`
 
-### วิธีที่ 3 — จาก ESP32 จริง
+### วิธีที่ 4 — จาก ESP32 จริง
 
 ต่อ ESP32 แล้วรัน collector — ระบบจะยิง `/predict` ให้เอง ใช้ `DEVICE_API_KEY`
 
