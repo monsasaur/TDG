@@ -4,7 +4,7 @@
 
 ## Slide 1: สรุปสถานะปัจจุบัน
 
-- LSTM v3 → accuracy 97.9% บน test set แต่ real-time ใช้ไม่ได้
+- LSTM v3 → accuracy 99.7% บน test set (`models/report_v3.json`) แต่ real-time ใช้ไม่ได้
 - ปัญหาหลัก:
   - Training data ไม่ตรงกับ real-time (sequence mismatch, trimmed fall data)
   - ไม่มี class "ห้องว่าง"

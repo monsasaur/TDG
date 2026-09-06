@@ -48,6 +48,27 @@ menu "ESP32 CSI Tool Config"
             Sending data through serial (to a computer) can take time and buffer space.
             If you are storing to an SD card, it may be useful to deselect this option.
 
+    config SEND_CSI_TO_UDP
+        depends on SHOULD_COLLECT_CSI
+        bool "Send CSI data over UDP (แทนสาย USB)"
+        default "n"
+        help
+            ส่ง CSI ออกทาง UDP port 5500 แทน/เพิ่มจากสาย USB
+            ใช้ตอนวาง ESP32 ไกลจากคอม — คอมเกาะ WiFi "myssid" ที่ ESP32 ปล่อยเอง
+            ช่องสัญญาณจึงยังคงที่ตาม WIFI_CHANNEL เหมือนโหมดสาย
+
+            ⚠️ คอมจะเสียการเชื่อมต่ออินเทอร์เน็ตระหว่างเก็บข้อมูล
+            ⚠️ คอมที่เกาะ AP จะกลายเป็นแหล่งสัญญาณเพิ่มบนช่องเดียวกัน
+               วางให้ห่างจากบริเวณที่ทำท่า และห้ามขยับตลอด session
+
+    config CSI_UDP_TARGET_IP
+        string "ปลายทาง UDP"
+        depends on SEND_CSI_TO_UDP
+        default "192.168.4.255"
+        help
+            ค่าเริ่มต้นคือ broadcast ของซับเน็ต softAP — ไม่ต้องรู้ IP ของคอม
+            ใส่ IP ตรง ๆ ได้ถ้าเราเตอร์/ระบบบล็อก broadcast
+
     config SEND_CSI_TO_SD
         depends on SHOULD_COLLECT_CSI
         bool "Send CSI data to SD"

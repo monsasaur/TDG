@@ -6,7 +6,7 @@
 
 | Feature | สถานะ | หมายเหตุ |
 |---|---|---|
-| LSTM v3 model | ⚠️ | 97.9% วัดด้วย split ที่ข้อมูลรั่ว · ไม่รั่วได้ 95.6% · **แต่ 95.6% นั้นมาจากการแยก session ไม่ใช่การจับการล้ม** — ความสามารถจริงราว 72.6% · ดู `docs/reports/data_quality_audit_2026-09.md` |
+| LSTM v3 model | ⚠️ | 99.7% วัดด้วย split ที่ข้อมูลรั่ว · ไม่รั่วได้ 95.6% · **แต่ 95.6% นั้นมาจากการแยก session ไม่ใช่การจับการล้ม** — ความสามารถจริงราว 72.6% · ดู `docs/reports/data_quality_audit_2026-09.md` |
 | Express API (core) | ✅ | predict, events, alert endpoints |
 | Push Notification (FCM V1) | ✅ | pushService.js + Expo SDK + useFcmV1 |
 | Escalation / Acknowledge flow | ✅ | escalationService.js — timer in-memory, Twilio fallback |
@@ -78,7 +78,7 @@ TDG/
 │   │   ├── notebooks/            # train_v3.ipynb, preprocess_v2.py
 │   │   ├── data_collection/      # csi_collector_serial.py (มีโหมด session สลับคลาส)
 │   │   ├── data/sessions/        # manifest ของแต่ละรอบเก็บข้อมูล
-│   │   └── models/               # lstm_v3.h5, scaler_v3.pkl (NOT in git)
+│   │   └── models/               # rf_v1.pkl (ใช้จริง), lstm_v3_binary_99acc.h5 (NOT in git)
 │   ├── ESP32-CSI-Tool/           # ESP32 firmware submodule
 │   └── supabase/                 # schema.sql (backend) + seed.sql (mock ของแอป)
 ├── docs/reports/                 # สเปค · รายงานผลโมเดล · audit ข้อมูล
@@ -240,6 +240,7 @@ ALERT_NUMBERS=+66812345678,+66898765432
 
 ### ML Service (`fall_detection_backend/ml_service/.env`)
 ```
+# ⚠️ สองบรรทัดนี้ไม่มีผล — app/predict.py hardcode models/rf_v1.pkl ไว้
 MODEL_PATH=models/lstm_v3.h5
 SCALER_PATH=models/scaler_v3.pkl
 PORT=8000
@@ -255,20 +256,34 @@ CSI_SEQUENCE_LEN=10
 |---|---|---|---|
 | Legacy | `lstm_model.h5`, `lstm_best.h5`, `lstm_binary.h5`, `scaler.pkl` | — | เก่า |
 | v2 | `lstm_v2.h5`, `lstm_v2_best.h5`, `scaler_v2.pkl` | — | เก่า |
-| **v3** ✅ | `lstm_v3.h5`, `lstm_v3_best.h5`, `scaler_v3.pkl` | 97.9% | **ใช้งานอยู่** |
+| v3 (LSTM) | `lstm_v3_binary_99acc.h5`, `lstm_v3_binary_best.h5`, `scaler_v3.pkl` | 99.7% (split รั่ว) | เทรนแล้วแต่ **ไม่ได้ใช้ serving** |
+| **rf_v1** ✅ | `rf_v1.pkl`, `scaler_rf_v1.pkl` | 95.6% (grouped 5-fold) | **ตัวที่ ML service โหลดจริง** |
 
-### v3 Config
+### v3 Config (LSTM — เทรนไว้ ไม่ได้ใช้ serving)
 - Architecture: LSTM 128→64→32
 - WINDOW_SIZE: 200, STRIDE: 50, SEQUENCE_LEN: 10
 - Features: 8 stats × 52 subcarriers = 416
-- Fall recall: 98.5% — **ตัวเลขนี้วัดด้วย split ที่ข้อมูลรั่ว อย่าใช้รายงาน**
-- Train/Val/Test: 868 / 187 / 187 (`train_test_split` สุ่ม ไม่ได้แบ่งตามไฟล์บันทึก)
+- Test accuracy 99.7% · Fall recall 100% — **ตัวเลขนี้วัดด้วย split ที่ข้อมูลรั่ว อย่าใช้รายงาน**
+  (ที่มา `models/report_v3.json`)
+- Train/Val/Test: **1,675 / 359 / 360** = 70/15/15 ของ 2,394 sequence
+  (`train_test_split` สุ่ม stratify seed 42 · ไม่ได้แบ่งตามไฟล์บันทึก)
+
+### rf_v1 Config (ตัวที่ ML service ใช้จริง)
+- `app/predict.py` hardcode `models/rf_v1.pkl` + `models/scaler_rf_v1.pkl` —
+  **ไม่ได้อ่าน `MODEL_PATH` / `SCALER_PATH` จาก .env**
+- RandomForest 200 trees · per-window (416 features) ไม่ใช้ sequence
+- `FALL_THRESHOLD = 0.55` ใน `predict.py` — ไม่ใช่ 0.5 และไม่ใช่ 0.36 ที่ tuning แนะนำ
+- เทรนด้วย `data/processed_v2` 2,412 window · random split test_size=0.15 →
+  **train 2,050 / test 362** (ยืนยันจาก `scaler_rf_v1.pkl.n_samples_seen_ = 2050`)
+- สคริปต์ที่สร้างไฟล์นี้ไม่อยู่ในรีโป — `data_collection/retrain_rf.py` ใช้ test_size=0.2
+  และอ่าน `data/realtime/` ซึ่งสร้างทีหลัง (rf_v1 ลงวันที่ 2026-03-23 · realtime 2026-04-22)
 
 > ⚠️ **ปัญหาที่พบ 2026-09-01** — `train_v3.ipynb` ไม่ได้โหลด `file_ids.npy` ที่ preprocess เซฟไว้
 > ทำให้ window จากการล้มครั้งเดียวกัน (ซ้อนกัน 75%) กระจายไปทั้ง train และ test
 > และ SEQUENCE_LEN=10 ก็เกินกว่าที่ข้อมูลรองรับ (3 window ต่อไฟล์) → 100% ของ sequence
 > ประกอบจากคนละไฟล์ · ฝั่ง serving workaround ด้วยการซ้ำ window เดียว 10 ครั้ง
-> **ตัวเลขที่ควรใช้: accuracy 95.6% / fall recall 96.6% (RandomForest per-window, grouped 5-fold)**
+> **ตัวเลขที่ควรใช้: accuracy 95.6% ±0.5 / fall recall 96.6% ±0.9**
+> (RandomForest per-window · StratifiedGroupKFold 5-fold แบ่งตามไฟล์บันทึก · train 80% / test 20% ต่อ fold)
 > รายละเอียด: `docs/reports/model_evaluation_2026-09.md` · โค้ด: `ml_service/experiments/`
 
 ## Data Pipeline
@@ -284,7 +299,7 @@ ESP32 #2 (STA) ──WiFi packet──► ESP32 #1 (AP) ──USB Serial──�
                                                        ▼
                               csi_collector_serial.py → raw CSV (400 pkts/file) → data/raw/
                               → preprocess_v2.py → X.npy (N, 416), y.npy → data/processed_v2/
-                              → train_v3.ipynb   → lstm_v3.h5, scaler_v3.pkl → models/
+                              → train_v3.ipynb   → lstm_v3_binary_99acc.h5, scaler_v3.pkl → models/
 ```
 
 ### Data ปัจจุบัน (data/raw/)
@@ -294,13 +309,27 @@ ESP32 #2 (STA) ──WiFi packet──► ESP32 #1 (AP) ──USB Serial──�
 > ตรวจซ้ำได้ด้วย `python experiments/audit_data.py` · รายละเอียด `docs/reports/data_quality_audit_2026-09.md`
 
 
-| Class | ไฟล์ | Windows |
-|---|---|---|
-| fall_A | 100 | 300 |
-| fall_B | 100 | 300 |
-| fall_C | 100 | 300 |
-| non_fall | 120 | 360 |
-| **รวม** | **420** | **1,260** |
+> ไฟล์ดิบอยู่ใน `data/raw/Data_2.zip` (804 ไฟล์ ยังไม่ได้แตก) · 3 window ต่อไฟล์คงที่
+
+| Class | ท่า | ไฟล์ | Windows |
+|---|---|---:|---:|
+| fall | ล้มไปข้างหน้า | 100 | 300 |
+| fall | ล้มไปข้างหลัง | 100 | 300 |
+| fall | ล้มไปข้างๆ | 100 | 300 |
+| fall | สดุดล้ม | 100 | 300 |
+| non_fall | สะดุดแต่ไม่ล้ม | 82 | 246 |
+| non_fall | เดิน | 81 | 243 |
+| non_fall | นอนลงบนพื้น | 81 | 243 |
+| non_fall | ก้มเก็บของ | 80 | 240 |
+| non_fall | ยืนนิ่ง | 80 | 240 |
+| **fall รวม** | | **400** | **1,200** (49.8%) |
+| **non_fall รวม** | | **404** | **1,212** (50.2%) |
+| **รวมทั้งหมด** | | **804** | **2,412** |
+
+สัดส่วนคลาสสมดุลเกือบเป๊ะ 1:1.01 — `class_weight="balanced"` ใน `train_v3.ipynb`
+จึงได้น้ำหนัก ~1.0 ทั้งสองคลาส เท่ากับไม่ได้ทำอะไร · `rf_v1` ตั้ง `class_weight=None`
+
+มีคู่ท่าที่ตั้งใจให้แยกยาก: **"สดุดล้ม" (fall) กับ "สะดุดแต่ไม่ล้ม" (non_fall)**
 
 ## ESP32 Hardware Setup & Network Topology (Data Collection Mode)
 
@@ -463,7 +492,7 @@ PUSH_MODE=real              # real = ยิง FCM จริง | fake = log con
 
 ## Important Notes
 
-- `lstm_v3.h5`, `lstm_v3_best.h5`, `scaler_v3.pkl` are NOT committed to git — must be obtained separately
+- ไฟล์โมเดล (`rf_v1.pkl`, `scaler_rf_v1.pkl`, `lstm_v3_binary_99acc.h5`, `scaler_v3.pkl`) NOT committed to git — must be obtained separately · git ติดตามเฉพาะ `report_*.json` กับรูป `.png` ใน `models/`
 - `fall_detection_backend/ESP32-CSI-Tool/` **ไม่ใช่ submodule** — เป็นโฟลเดอร์ธรรมดาในรีโปหลัก (ไม่มี `.gitmodules` ไม่มี `.git` ข้างใน · git ติดตามไฟล์ในนั้น 50 ไฟล์) แก้ตรงได้เลย
 - **`lib/api.ts`** — URL/คีย์ย้ายไป `app.config.js` แล้ว ตั้งผ่าน `EXPO_PUBLIC_API_BASE_URL` / `EXPO_PUBLIC_API_KEY` · แต่คีย์ยังเป็นตัวเดียวกับ ESP32 อยู่ ดูหัวข้อ Deploy
 - ต้องรัน `ALTER TABLE devices` ใน `schema.sql` ก่อนใช้หน้า Admin — คอลัมน์ `last_seen_at`/`is_active`/`installed_at` ยังไม่มีใน Supabase จริง

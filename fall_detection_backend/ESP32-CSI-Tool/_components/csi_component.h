@@ -10,8 +10,15 @@
 #include "lwip/netdb.h"
 #include "esp_netif.h"
 
-#define UDP_TARGET_IP   "172.20.10.7"  // ← IP ของ PC
-#define UDP_TARGET_PORT 5500    
+// ปลายทาง UDP — ค่าเริ่มต้นเป็น broadcast ของซับเน็ต softAP (192.168.4.0/24)
+// ใช้ broadcast เพื่อไม่ต้อง hardcode IP ของเครื่องรับ: คอมเกาะ "myssid" แล้วฟัง
+// port 5500 ได้เลย ไม่ว่า DHCP จะแจก IP อะไรให้
+#ifdef CONFIG_CSI_UDP_TARGET_IP
+#define UDP_TARGET_IP   CONFIG_CSI_UDP_TARGET_IP
+#else
+#define UDP_TARGET_IP   "192.168.4.255"
+#endif
+#define UDP_TARGET_PORT 5500
 
 #define CSI_RAW 1
 #define CSI_AMPLITUDE 0
@@ -25,16 +32,27 @@ SemaphoreHandle_t mutex = xSemaphoreCreateMutex();
 
 void udp_init() {
     udp_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (udp_sock < 0) return;
+
+    int on = 1;
+    setsockopt(udp_sock, SOL_SOCKET, SO_BROADCAST, &on, sizeof(on));
+
     memset(&udp_dest, 0, sizeof(udp_dest));
     udp_dest.sin_family = AF_INET;
     udp_dest.sin_port = htons(UDP_TARGET_PORT);
     inet_aton(UDP_TARGET_IP, &udp_dest.sin_addr);
 
-    // bind ให้ส่งผ่าน STA interface (View WiFi) ไม่ใช่ AP interface (CSI-Net)
-    esp_netif_t *sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-    if (sta_netif) {
+    // ผูกกับ interface ที่มีอยู่จริง
+    //   โหมดเก็บข้อมูล (AP อย่างเดียว)  → ส่งออก AP interface  ← ปกติใช้อันนี้
+    //   โหมด production (AP+STA)        → ส่งออก STA เพื่อไป cloud
+    // เดิม bind กับ STA อย่างเดียว ซึ่งในโหมด AP-only ไม่มี netif นั้น → ส่งไม่ออก
+    esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (netif == NULL) {
+        netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+    }
+    if (netif) {
         esp_netif_ip_info_t ip_info;
-        if (esp_netif_get_ip_info(sta_netif, &ip_info) == ESP_OK) {
+        if (esp_netif_get_ip_info(netif, &ip_info) == ESP_OK && ip_info.ip.addr) {
             struct sockaddr_in src_addr;
             memset(&src_addr, 0, sizeof(src_addr));
             src_addr.sin_family = AF_INET;
@@ -100,12 +118,18 @@ void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
 #endif
     ss << "]\n";
 
+#if CONFIG_SEND_CSI_TO_SERIAL
     outprintf("%s", ss.str().c_str());
+#endif
+#ifdef CONFIG_SEND_CSI_TO_UDP
+    send_udp(ss.str().c_str());
+#endif
     vTaskDelay(0);
     xSemaphoreGive(mutex);
 }
 
 void _print_csi_csv_header() {
+    // header ส่งทาง serial เท่านั้น — ฝั่ง UDP กรองด้วย "CSI_DATA" อยู่แล้ว
     char *header_str = (char *) "type,role,mac,rssi,rate,sig_mode,mcs,bandwidth,smoothing,not_sounding,aggregation,stbc,fec_coding,sgi,noise_floor,ampdu_cnt,channel,secondary_channel,local_timestamp,ant,sig_len,rx_state,real_time_set,real_timestamp,len,CSI_DATA\n";
     outprintf(header_str);
 }
