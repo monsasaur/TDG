@@ -431,5 +431,114 @@ module.exports = {
   },
 
   // 'supabase' = ต่อจริง | 'memory' = fallback in-memory (restart แล้วหาย)
-  mode: () => (getClient() ? 'supabase' : 'memory')
+  mode: () => (getClient() ? 'supabase' : 'memory'),
+
+  // ============================================================
+  // ml_models — ทะเบียนเวอร์ชันโมเดล (หน้า Admin → Models)
+  //
+  // ⚠️ เมทาดาทาอย่างเดียว — การตั้ง active ที่นี่ไม่ได้ทำให้ ML service
+  //    เปลี่ยนไปใช้โมเดลนั้นจริง (app/predict.py ยัง hardcode path)
+  // ============================================================
+
+  listModels: async () => {
+    const client = getClient()
+    if (!client) {
+      return Array.from(mockStore.entries())
+        .filter(([k]) => k.startsWith('model:'))
+        .map(([, v]) => v)
+        .sort((a, b) => (a.uploaded_at < b.uploaded_at ? 1 : -1))
+    }
+
+    const { data, error } = await client
+      .from('ml_models')
+      .select('*')
+      .order('uploaded_at', { ascending: false })
+
+    if (error) throw new Error(`DB error: ${error.message}`)
+    return data || []
+  },
+
+  getModel: async (version) => {
+    const client = getClient()
+    if (!client) return mockStore.get(`model:${version}`) || null
+
+    const { data, error } = await client
+      .from('ml_models').select('*').eq('version', version).maybeSingle()
+
+    if (error) throw new Error(`DB error: ${error.message}`)
+    return data || null
+  },
+
+  createModel: async ({ version, notes }) => {
+    const client = getClient()
+    const now = new Date().toISOString()
+    const row = {
+      version, notes,
+      status: 'testing', tested: false,
+      uploaded_at: now, updated_at: now
+    }
+
+    if (!client) {
+      if (mockStore.has(`model:${version}`)) {
+        throw new Error('duplicate version')
+      }
+      mockStore.set(`model:${version}`, row)
+      return row
+    }
+
+    const { data, error } = await client
+      .from('ml_models').insert([row]).select().single()
+
+    // 23505 = unique violation — เวอร์ชันซ้ำ ไม่ใช่ระบบพัง
+    if (error) {
+      if (error.code === '23505') throw new Error('duplicate version')
+      throw new Error(`DB error: ${error.message}`)
+    }
+    return data
+  },
+
+  updateModel: async (version, patch) => {
+    const client = getClient()
+    const now = new Date().toISOString()
+
+    if (!client) {
+      const prev = mockStore.get(`model:${version}`)
+      if (!prev) return null
+      const updated = { ...prev, ...patch, updated_at: now }
+      mockStore.set(`model:${version}`, updated)
+      return updated
+    }
+
+    const { data, error } = await client
+      .from('ml_models')
+      .update({ ...patch, updated_at: now })
+      .eq('version', version)
+      .select()
+      .single()
+
+    if (error) throw new Error(`DB error: ${error.message}`)
+    return data
+  },
+
+  /**
+   * ตั้ง active ให้เวอร์ชันเดียว — ตัวอื่นที่เคย active กลายเป็น inactive
+   *
+   * ปลด active เก่าก่อนแล้วค่อยตั้งใหม่ เพราะ unique index กันไม่ให้มี
+   * active สองตัวพร้อมกัน ถ้าตั้งใหม่ก่อนจะชน constraint
+   *
+   * คืน previous_active มาด้วยเพื่อให้หน้า Admin ทำ rollback ได้
+   * โดยไม่ต้องจำสถานะเองฝั่งเบราว์เซอร์ (รีเฟรชแล้วหาย)
+   */
+  activateModel: async (version) => {
+    const models = await module.exports.listModels()
+    const previous = models.find(m => m.status === 'active') || null
+
+    for (const m of models) {
+      if (m.status === 'active' && m.version !== version) {
+        await module.exports.updateModel(m.version, { status: 'inactive' })
+      }
+    }
+    const updated = await module.exports.updateModel(version, { status: 'active' })
+    return { model: updated, previous_active: previous ? previous.version : null }
+  }
 }

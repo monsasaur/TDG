@@ -29,6 +29,12 @@ LABEL_NAMES    = ["non_fall", "fall"]
 N_FEATURES     = 416
 FALL_THRESHOLD  = 0.55
 
+# ── ที่มาของการทำนาย — ส่งกลับไปให้ Express บันทึกลง fall_events ──────────
+# เพื่อให้ย้อนตรวจได้ว่าเหตุการณ์ไหนตัดสินด้วยโมเดลตัวไหน
+# **ต้องแก้ MODEL_VERSION ทุกครั้งที่เปลี่ยนไฟล์โมเดล** ไม่งั้นบันทึกจะโกหก
+MODEL_NAME     = "RandomForest"
+MODEL_VERSION  = os.path.splitext(os.path.basename(MODEL_PATH))[0]   # "rf_v1"
+
 # =================== Load model ===================
 print(f"🔄 กำลังโหลด RF model จาก {MODEL_PATH}")
 with open(MODEL_PATH, "rb") as f:
@@ -67,4 +73,12 @@ def run_model(features: list) -> dict:
         "prediction": "fall" if is_fall else "no_fall",
         "confidence": round(fall_prob if is_fall else nf_prob, 4),
         "is_fall":    is_fall,
+        # ── ข้อมูลกำกับ ────────────────────────────────────────────────
+        "model_name":    MODEL_NAME,
+        "model_version": MODEL_VERSION,
+        # risk_score = ความน่าจะเป็นว่าล้ม เป็นเปอร์เซ็นต์เต็มจำนวน
+        # ⚠️ ไม่ใช่ข้อมูลใหม่ — เป็น fall_prob ตัวเดิม ไม่ใช่ตัวชี้วัดอิสระ
+        #    (ต่างจาก confidence ตรงที่ confidence คือความมั่นใจของ "คำตอบที่เลือก"
+        #     เวลาไม่ล้มจะเป็นความมั่นใจว่าไม่ล้ม — risk_score ชี้ไปทาง fall เสมอ)
+        "risk_score":    int(round(fall_prob * 100)),
     }

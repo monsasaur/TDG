@@ -55,6 +55,21 @@ CREATE INDEX IF NOT EXISTS idx_push_device_id ON push_tokens(device_id);
 -- ส่วน `code` คือรหัสที่พิมพ์อยู่บนตัวเครื่อง ซึ่ง BLE provisioning เขียนลง NVS
 -- และผู้ใช้สแกน QR ได้อยู่แล้ว — log กับหน้า admin ก็อ่านรู้เรื่องด้วย
 
+-- ── ที่มาของการทำนาย (เพิ่ม 2026-09-09 สำหรับหน้า Admin) ────────────────
+-- บันทึกว่าเหตุการณ์นี้ตัดสินด้วยโมเดลตัวไหน เพื่อให้ย้อนตรวจได้ว่า
+-- ตอนเปลี่ยนโมเดลแล้วผลเปลี่ยนไปยังไง
+ALTER TABLE fall_events ADD COLUMN IF NOT EXISTS model_name    TEXT;
+ALTER TABLE fall_events ADD COLUMN IF NOT EXISTS model_version TEXT;
+
+-- risk_score = confidence × 100 ปัดเป็นจำนวนเต็ม 0-100
+--
+-- ⚠️ ไม่ใช่ข้อมูลใหม่ — เป็น confidence ตัวเดิมในหน่วยเปอร์เซ็นต์
+--    ระบบยังไม่มีโมเดลประเมินความเสี่ยงแยกต่างหาก
+--    เก็บเป็นคอลัมน์เพราะหน้า Admin ต้องใช้ และถ้าวันหลังมีโมเดลจริง
+--    จะเปลี่ยนที่มาได้โดยไม่ต้องแก้ทั้ง UI
+--    **ห้ามนำเสนอว่าเป็นตัวชี้วัดอิสระจาก confidence**
+ALTER TABLE fall_events ADD COLUMN IF NOT EXISTS risk_score    SMALLINT;
+
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_active    BOOLEAN DEFAULT TRUE;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS installed_at TIMESTAMPTZ DEFAULT NOW();
@@ -82,3 +97,32 @@ ALTER TABLE alerts ADD COLUMN IF NOT EXISTS fall_event_id TEXT;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_fall_event_id
   ON alerts(fall_event_id) WHERE fall_event_id IS NOT NULL;
+
+
+-- ============================================================
+-- ml_models — ทะเบียนเวอร์ชันโมเดล (เพิ่ม 2026-09-09)
+--
+-- หน้า Admin → Models ใช้ตารางนี้
+--
+-- ⚠️ เก็บ **เมทาดาทาอย่างเดียว** ไม่ได้เก็บไฟล์โมเดลและไม่ได้ deploy อะไร
+--    การกด "active" ที่นี่ไม่ได้ทำให้ ML service เปลี่ยนไปใช้โมเดลนั้นจริง
+--    (app/predict.py ยัง hardcode path ของไฟล์อยู่)
+--    เป็นทะเบียนไว้บันทึกว่าเวอร์ชันไหนควรเป็นตัวใช้งาน — คนต้องไปเปลี่ยนไฟล์เอง
+--    ถ้าวันหลังทำ deploy อัตโนมัติ ค่อยต่อจากตารางนี้
+-- ============================================================
+CREATE TABLE IF NOT EXISTS ml_models (
+  version     TEXT PRIMARY KEY,                 -- "x.y.z" — ตรงกับ fall_events.model_version
+  status      TEXT NOT NULL DEFAULT 'testing'
+              CHECK (status IN ('active', 'testing', 'inactive')),
+  tested      BOOLEAN NOT NULL DEFAULT FALSE,
+  notes       TEXT NOT NULL,
+  uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- มี active ได้ทีละเวอร์ชันเดียวเท่านั้น — บังคับที่ฐานข้อมูล ไม่ใช่แค่ใน service
+-- ถ้าปล่อยให้ service คุมอย่างเดียว มี request พร้อมกันสองอันจะได้ active สองตัว
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ml_models_single_active
+  ON ml_models ((status)) WHERE status = 'active';
+
+CREATE INDEX IF NOT EXISTS idx_ml_models_uploaded ON ml_models(uploaded_at DESC);

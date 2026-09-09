@@ -18,7 +18,9 @@ router.post('/', predictBody, async (req, res) => {
     )
 
     // 1. ML inference (binary)
-    const { is_fall, confidence } = await mlService.predict(features)
+    const {
+      is_fall, confidence, model_name, model_version, risk_score
+    } = await mlService.predict(features)
 
     // 2. Not a fall → แค่ log (ไม่บันทึก DB เพื่อไม่ให้ table บวม)
     if (!is_fall) {
@@ -47,7 +49,11 @@ router.post('/', predictBody, async (req, res) => {
       timestamp: timestamp || Date.now(),
       location:  location  || 'unknown',
       is_fall:   true,
-      confidence
+      confidence,
+      // ที่มาของการทำนาย — ไว้ย้อนตรวจว่าเหตุการณ์ไหนตัดสินด้วยโมเดลตัวไหน
+      model_name,
+      model_version,
+      risk_score
     })
 
     // 5. เริ่ม timer — รอ caregiver กด ack ในแอป

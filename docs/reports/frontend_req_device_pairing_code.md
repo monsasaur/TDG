@@ -1,7 +1,10 @@
 # ใบงานฝั่ง Frontend — หน้าจอกรอกรหัสจับคู่อุปกรณ์ (PoP)
 
-**สถานะ:** พร้อมให้เริ่ม · ฝั่ง firmware และ service layer ทำเสร็จแล้ว รออันนี้อย่างเดียว
-**วันที่:** 2026-09-02
+**สถานะ:** พร้อมให้เริ่ม
+**วันที่:** 2026-09-02 · **เพิ่มงานส่วนที่ 2 เมื่อ 2026-09-06**
+
+> ⚠️ **อ่านหัวข้อ "ส่วนที่ 2" ท้ายไฟล์ก่อนเริ่ม** — ตรวจโค้ดใหม่เมื่อ 2026-09-06 พบว่า
+> ทำแค่หน้า PoP อย่างเดียว **flow ยังใช้งานไม่ได้** เพราะอุปกรณ์ไม่ถูกบันทึกลงฐานข้อมูล
 **ผู้รับงาน:** _(กรอกชื่อ)_
 
 ---
@@ -213,3 +216,104 @@ import { connect, disconnect, errorMessage, isMock } from "../lib/provisioning";
 | แก้ `scan-qr.tsx` / `enter-code.tsx` ที่ยัง mock | ❌ **ใบงานแยก** ไม่ใช่งานนี้ |
 
 รายละเอียดฝั่ง firmware อยู่ใน `CLAUDE.md` หัวข้อ **Production WiFi Provisioning**
+
+
+---
+
+# ส่วนที่ 2 — บันทึกอุปกรณ์ลงฐานข้อมูล (เพิ่ม 2026-09-06)
+
+## ปัญหาที่พบ
+
+`app/device-setup.tsx` (หน้าสุดท้ายของ flow) **ไม่บันทึกอุปกรณ์ใหม่ลง Supabase เลย**
+
+```js
+const handleSave = () => {
+  if (deviceId) {
+    updateDevice(deviceId, { name, status: "connected" });   // อุปกรณ์ที่มีอยู่แล้ว
+    router.dismiss(3);
+    return;
+  }
+  // New device flow: pop select-house + scan-devices + connect-device + current
+  router.dismiss(4);        // ← 🔴 ปิดหน้าจอเฉย ๆ
+};
+```
+
+ตรวจแล้ว `grep '\.insert'` ในทั้ง `data/` `app/` `lib/` `contexts/` และ `express_api/src/`
+**ไม่เจอการ insert เข้าตาราง `devices` ที่ไหนเลย**
+
+### ผลที่ตามมา — ต่อให้ BLE สำเร็จ 100% อุปกรณ์จะล่องหนทั้งระบบ
+
+| | |
+|---|---|
+| หน้า Devices ในแอป | ไม่เห็นอุปกรณ์ |
+| `dbService.touchDevice()` | หาไม่เจอ และ **สร้างให้ไม่ได้** เพราะ `devices.house_id` เป็น FK บังคับ |
+| `appAlertService` | แปลง `device_id → house_id` ไม่ได้ → **ไม่มี alert ในแอป** แม้ตรวจพบการล้มจริง |
+| หน้า Admin | ไม่เห็นอุปกรณ์ |
+
+## ต้องแก้ 3 จุด
+
+### 2.1 `app/select-house.tsx` — ตอนนี้เป็น mock ทั้งหน้า
+
+```js
+const INITIAL_HOUSES = ["บ้านแม่", "บ้านพ่อ"];      // hardcode ไม่ได้ดึงจาก Supabase
+const [selected, setSelected] = useState(INITIAL_HOUSES[0]);
+...
+onPress={() => router.push("/scan-devices" as never)}   // ไม่ส่ง selected ไปด้วย
+```
+
+ต้องเปลี่ยนเป็นดึงจาก `useHouses()` (มีอยู่แล้วใน `data/useHouses.ts`) แล้วส่ง **id ของบ้าน**
+ไม่ใช่ชื่อ:
+
+```js
+router.push(`/scan-devices?houseId=${selectedHouse.id}` as never)
+```
+
+> `app/invite-select-house.tsx` hardcode แบบเดียวกัน — น่าจะมีปัญหาเดียวกัน แต่ยังไม่ได้ตรวจละเอียด
+
+### 2.2 ส่ง `houseId` ผ่าน 4 หน้าจอ
+
+```
+select-house → scan-devices → [หน้า PoP ใหม่] → connect-device → wifi-password → device-setup
+                 ────────────────── houseId ต้องไปถึงปลายทาง ──────────────────►
+```
+
+ทุกหน้าใช้ `useLocalSearchParams` อยู่แล้ว แค่เพิ่ม `houseId` เข้าไปในแต่ละ `router.push`
+เหมือนที่ทำกับ `deviceId` และ `device` อยู่แล้ว
+
+### 2.3 `data/useDevices.ts` — เพิ่มฟังก์ชัน insert
+
+ตอนนี้มีแต่ `select` ต้องเพิ่ม:
+
+```ts
+export async function addDevice(input: {
+  code: string;        // "ESP-0001A" — ค่าเดียวกับชื่อ BLE และ device_id ที่ ESP32 ส่งมา
+  name: string;
+  house_id: string;
+  wifi_ssid: string;
+}): Promise<Device>
+```
+
+แล้วเรียกใน `device-setup.tsx`:
+
+```js
+if (!deviceId) {
+  await addDevice({ code: deviceCode, name: name.trim(), house_id: houseId, wifi_ssid: network });
+}
+router.dismiss(4);
+```
+
+**ระวัง:** `code` ต้องตรงกับที่ firmware ประกาศเป็นชื่อ BLE เป๊ะ ๆ (`device` param ที่ส่งมาถึง
+หน้านี้แล้ว) — ห้ามใช้ค่า fallback `"ESP-BT001"` ที่ hardcode อยู่ในหน้านี้ตอนนี้
+ถ้า `device` ว่างให้ error ไม่ใช่บันทึกค่าปลอม
+
+## ทดสอบได้โดยไม่ต้องมีบอร์ด
+
+`lib/provisioning.ts` มีโหมด mock อัตโนมัติเมื่อไม่มี native module (เปิดใน Expo Go ได้เลย)
+เดินทั้ง flow แล้วเช็คว่าแถวเข้าตาราง `devices` จริงไหม
+
+## เวลาโดยประมาณ
+
+| | |
+|---|---|
+| ส่วนที่ 1 (หน้า PoP) | ครึ่งวัน |
+| ส่วนที่ 2 (3 จุดข้างบน) | ครึ่งวัน–1 วัน |

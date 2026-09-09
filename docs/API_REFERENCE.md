@@ -59,6 +59,10 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
 - [`GET /api/v1/admin/summary`](#get-api-v1-admin-summary) — ตัวเลขสรุปของ Dashboard
 - [`GET /api/v1/admin/events`](#get-api-v1-admin-events) — event ทุกอุปกรณ์ พร้อมตัวกรองและแบ่งหน้า
 - [`GET /api/v1/admin/events/{id}`](#get-api-v1-admin-events-id) — รายละเอียด event พร้อมไทม์ไลน์
+- [`GET /api/v1/admin/models`](#get-api-v1-admin-models) — รายการเวอร์ชันโมเดล
+- [`POST /api/v1/admin/models`](#post-api-v1-admin-models) — ลงทะเบียนเวอร์ชันใหม่
+- [`POST /api/v1/admin/models/{version}/test`](#post-api-v1-admin-models-version-test) — ทำเครื่องหมายว่าทดสอบแล้ว
+- [`POST /api/v1/admin/models/{version}/activate`](#post-api-v1-admin-models-version-activate) — ตั้งเป็นเวอร์ชันใช้งาน (rollback ใช้เส้นนี้เหมือนกัน)
 - [`GET /api/v1/admin/devices`](#get-api-v1-admin-devices) — รายการอุปกรณ์พร้อมสถานะ online/offline
 
 **System**
@@ -551,6 +555,146 @@ _หน้าเว็บ admin (ใช้ Bearer token คนละชั้น
 
 ---
 
+### `GET /api/v1/admin/models`
+
+**รายการเวอร์ชันโมเดล**
+
+ทะเบียนเวอร์ชันโมเดล — **เมทาดาทาอย่างเดียว** ไม่ได้อัปโหลดไฟล์ ไม่ได้ deploy และไม่ได้ทดสอบคุณภาพโมเดลจริง ตั้ง active ที่นี่แล้วยังต้องมีคนไปเปลี่ยนไฟล์ใน ml_service เอง
+
+**สิทธิ์:** `Authorization: Bearer` — token จาก `POST /api/v1/admin/login`
+
+**Responses**
+
+| รหัส | ความหมาย |
+|---|---|
+| `200` | รายการเวอร์ชัน เรียงตามเวลาอัปโหลดใหม่ไปเก่า |
+| `401` | token ไม่ถูกต้องหรือหมดอายุ |
+
+<details><summary>ตัวอย่าง response</summary>
+
+```json
+{
+  "models": [
+    {
+      "version": "2.4.0",
+      "status": "active",
+      "tested": true,
+      "notes": "ปรับปรุงการตรวจจับในห้องสัญญาณอ่อน",
+      "uploaded_at": "2026-09-06T04:00:00.000Z",
+      "updated_at": "2026-09-06T04:00:00.000Z"
+    },
+    {
+      "version": "2.5.0",
+      "status": "testing",
+      "tested": false,
+      "notes": "รุ่นทดสอบที่ปรับการกรองสัญญาณรบกวน",
+      "uploaded_at": "2026-09-08T04:00:00.000Z",
+      "updated_at": "2026-09-08T04:00:00.000Z"
+    }
+  ],
+  "active_version": "2.4.0",
+  "has_data": true,
+  "calculated_at": "2026-09-09T04:00:00.000Z"
+}
+```
+
+</details>
+
+---
+
+### `POST /api/v1/admin/models`
+
+**ลงทะเบียนเวอร์ชันใหม่**
+
+เวอร์ชันใหม่เริ่มที่ status=testing, tested=false เสมอ · ไม่ได้รับไฟล์โมเดล
+
+**สิทธิ์:** `Authorization: Bearer` — token จาก `POST /api/v1/admin/login`
+
+**Request body** (JSON) — จำเป็น
+
+| field | ชนิด | จำเป็น | คำอธิบาย |
+|---|---|:---:|---|
+| `version` | `string` | ✔ | เช่น `2.5.0` |
+| `notes` | `string` | ✔ |  |
+
+**Responses**
+
+| รหัส | ความหมาย |
+|---|---|
+| `201` | ลงทะเบียนแล้ว |
+| `400` | versionError = รูปแบบเวอร์ชันผิด · notesError = notes ว่างหรือเกิน 240 ตัว |
+| `401` | token ไม่ถูกต้องหรือหมดอายุ |
+| `409` | versionError — เวอร์ชันนี้มีอยู่แล้ว |
+
+---
+
+### `POST /api/v1/admin/models/{version}/test`
+
+**ทำเครื่องหมายว่าทดสอบแล้ว**
+
+⚠️ ไม่ได้รันการทดสอบใด ๆ — บันทึกว่ามีคนทดสอบแล้วเท่านั้น · ต้อง tested=true ก่อนถึงจะ activate ได้
+
+**สิทธิ์:** `Authorization: Bearer` — token จาก `POST /api/v1/admin/login`
+
+**Query / Path parameters**
+
+| ชื่อ | อยู่ที่ | ชนิด | จำเป็น | คำอธิบาย |
+|---|---|---|:---:|---|
+| `version` | path | `string` | ✔ |  |
+
+**Responses**
+
+| รหัส | ความหมาย |
+|---|---|
+| `200` | อัปเดตแล้ว |
+| `401` | token ไม่ถูกต้องหรือหมดอายุ |
+| `404` | notFound — ไม่พบเวอร์ชันนี้ |
+
+---
+
+### `POST /api/v1/admin/models/{version}/activate`
+
+**ตั้งเป็นเวอร์ชันใช้งาน (rollback ใช้เส้นนี้เหมือนกัน)**
+
+active ได้ทีละเวอร์ชันเดียว ตัวเดิมกลายเป็น inactive · response คืน previous_active มาให้ ไม่ต้องจำสถานะไว้ในเบราว์เซอร์
+
+**สิทธิ์:** `Authorization: Bearer` — token จาก `POST /api/v1/admin/login`
+
+**Query / Path parameters**
+
+| ชื่อ | อยู่ที่ | ชนิด | จำเป็น | คำอธิบาย |
+|---|---|---|:---:|---|
+| `version` | path | `string` | ✔ |  |
+
+**Responses**
+
+| รหัส | ความหมาย |
+|---|---|
+| `200` | เปลี่ยนแล้ว |
+| `401` | token ไม่ถูกต้องหรือหมดอายุ |
+| `404` | notFound — ไม่พบเวอร์ชันนี้ |
+| `409` | testedRequired — ต้องกดทดสอบก่อนถึงจะตั้งเป็นเวอร์ชันใช้งานได้ |
+
+<details><summary>ตัวอย่าง response</summary>
+
+```json
+{
+  "model": {
+    "version": "2.5.0",
+    "status": "active",
+    "tested": true,
+    "notes": "...",
+    "uploaded_at": "2026-09-08T04:00:00.000Z",
+    "updated_at": "2026-09-09T04:00:00.000Z"
+  },
+  "previous_active": "2.4.0"
+}
+```
+
+</details>
+
+---
+
 ### `GET /api/v1/admin/devices`
 
 **รายการอุปกรณ์พร้อมสถานะ online/offline**
@@ -596,7 +740,7 @@ online/offline คำนวณจาก last_seen_at ฝั่งเซิร์
       }
     }
   ],
-  "offline_after_minutes": 15,
+  "offline_after_minutes": 5,
   "has_data": true,
   "calculated_at": "2026-09-02T04:00:00.000Z"
 }

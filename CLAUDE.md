@@ -24,7 +24,7 @@
 | Feature | Priority | หมายเหตุ |
 |---|---|---|
 | Threshold tuning | Med | หาแล้วสำหรับ RandomForest — แนะนำ 0.36 (recall 97.6%, false alarm 9.6%) เหลือแค่ตัดสินใจว่าจะเปลี่ยน production model ไหม |
-| BLE WiFi Provisioning | Med | **โค้ดครบทั้งแอปและ firmware แล้ว** · เหลือ 1) build/flash/ทดสอบกับบอร์ดจริง (เครื่องที่เขียนไม่มี ESP-IDF) 2) หน้าจอกรอก PoP → **ใบงานทีมฟรอนต์** `docs/reports/frontend_req_device_pairing_code.md` |
+| BLE WiFi Provisioning | Med | เหลือ 4 อย่าง (ตรวจ 2026-09-06): 1) build/flash กับบอร์ดจริง — `sdkconfig` ปัจจุบันยังเป็น flash 2MB + single-app partition + ไม่มี BT ต้อง `rm sdkconfig` ก่อน 2) หน้าจอกรอก PoP 3) **บันทึกอุปกรณ์ลง Supabase — ยังไม่มีการ insert ที่ไหนเลย** 4) ขั้นตอนผลิต device code + PoP (default เป็นค่าเดียวกันทุกเครื่อง) · ใบงาน `docs/reports/frontend_req_device_pairing_code.md` |
 | One-class anomaly model | ✅ ตอบแล้ว | ลอง 4 ตัว ROC-AUC ดีสุด 0.70 เทียบ supervised 0.985 — ใช้แทนไม่ได้กับ feature ชุดนี้ |
 | เก็บ dataset ใหม่ (สลับคลาสใน session) | **High** | ข้อมูลชุดเดิมเก็บ fall ทั้งหมดก่อนแล้วค่อย non_fall → สภาพห้องกับคลาสทับกันสนิท แก้ย้อนหลังไม่ได้ · **ต้องสลับคลาสภายใน session เดียวกัน** ดูข้อกำหนดใน `docs/reports/data_quality_audit_2026-09.md` |
 | Unseen test scenario | **High** | test set ต้องเป็น session ที่ไม่เคยเห็น ไม่ใช่แค่ไฟล์ที่ไม่เคยเห็น |
@@ -392,6 +392,8 @@ CONFIG_ESPTOOLPY_MONITOR_BAUD=921600
 | ส่วน | สถานะ |
 |---|:---:|
 | UI ทั้ง flow + permission (manifest และ runtime) | ✅ |
+| **บันทึกอุปกรณ์ลง Supabase หลังตั้งค่าเสร็จ** | ❌ **ไม่มีการ insert เข้า `devices` ที่ไหนเลย** |
+| **`select-house` ดึงบ้านจริง + ส่ง `house_id` ผ่าน flow** | ❌ ยัง hardcode `["บ้านแม่","บ้านพ่อ"]` |
 | BLE library + Expo config plugin + `lib/provisioning.ts` | ✅ |
 | ต่อ 3 หน้าจอเข้ากับ BLE จริง | ✅ |
 | **ESP32 firmware — `wifi_provisioning` + `scheme_ble`** | ✅ เขียนแล้ว |

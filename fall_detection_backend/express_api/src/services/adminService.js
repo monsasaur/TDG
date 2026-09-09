@@ -15,7 +15,15 @@ const dbService = require('./dbService')
 
 // OI-01 ยังไม่ปิด — เกณฑ์ offline จริงต้องดูว่า ESP32 ส่งข้อมูลถี่แค่ไหนในสภาพใช้งานจริง
 // ตั้งเป็น env ไว้ก่อนเพื่อให้ปรับได้โดยไม่ต้องแก้โค้ด (BR-02)
-const OFFLINE_AFTER_MINUTES = Number(process.env.DEVICE_OFFLINE_AFTER_MINUTES || 15)
+// เกณฑ์ offline — ปรับจาก 15 เป็น 5 นาที เมื่อ 2026-09-09 ให้ตรงกับสเปคหน้า Admin
+//
+// ⚠️ 5 นาทีเหมาะกับโหมดที่อุปกรณ์ส่งข้อมูลต่อเนื่อง (~73 pkt/s ตอนเก็บข้อมูล)
+//    แต่โหมด production ที่วางแผนไว้จะ **ส่งเฉพาะตอนมีการเคลื่อนไหว**
+//    (ดู docs/reports/production_csi_uplink_decision.md ทางเลือก A2)
+//    บ้านที่ไม่มีใครขยับเกิน 5 นาทีจะถูกแสดงว่า offline ทั้งที่อุปกรณ์ปกติดี
+//    → ต้องทบทวนเลขนี้อีกครั้งเมื่อ firmware production เสร็จ
+//    หรือให้ ESP32 ส่ง heartbeat แยกจากข้อมูล CSI
+const OFFLINE_AFTER_MINUTES = Number(process.env.DEVICE_OFFLINE_AFTER_MINUTES || 5)
 
 // NFR-08 — เวลาไทย UTC+7
 const TZ_OFFSET_HOURS = Number(process.env.ADMIN_TZ_OFFSET_HOURS || 7)
