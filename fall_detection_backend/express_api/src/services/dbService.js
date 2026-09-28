@@ -110,7 +110,8 @@ module.exports = {
       escalated:    true,
       escalated_at: new Date().toISOString(),
       sms_sent:     Boolean(sms_sent),
-      call_made:    Boolean(call_made)
+      call_made:    Boolean(call_made),
+      escalation_method: escalation_method || null
     }
 
     if (!client) {
@@ -119,7 +120,7 @@ module.exports = {
       const updated = { ...prev, ...patch }
       mockStore.set(event_id, updated)
       if (process.env.DEMO_LOG !== 'true') {
-        console.log(`📝 [DB mock] escalate event ${event_id}`)
+        console.log(`📝 [DB mock] escalate event ${event_id} (via: ${escalation_method || 'unknown'})`) // 👈 (ถ้าอยากแก้ log ให้เห็นชัดขึ้น)
       }
       return updated
     }
