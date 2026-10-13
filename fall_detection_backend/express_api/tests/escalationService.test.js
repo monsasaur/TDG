@@ -64,7 +64,22 @@ describe('escalationService.schedule', () => {
     )
     expect(dbService.markEscalated).toHaveBeenCalledWith(
       'evt-1',
-      { sms_sent: true, call_made: true }
+      { sms_sent: true, call_made: true, escalation_method: 'fallback' }
+    )
+  })
+
+  // บันทึกว่าสายนั้นใช้บทพูดจาก AI หรือข้อความคงที่ — เป็นเหตุผลที่ฟีเจอร์นี้มีอยู่
+  // ถ้าไม่มีเทสต์นี้ ต่อให้ AI ไม่เคยทำงานเลยก็ไม่มีอะไรฟ้อง
+  test('records escalation_method=ai when makeCall used the AI draft', async () => {
+    escalation = loadService({ ackTimeout: 1 })
+    alertService.makeCall.mockResolvedValueOnce({ made: 1, failed: 0, method: 'ai' })
+
+    escalation.schedule(makeEvent())
+    await jest.runAllTimersAsync()
+
+    expect(dbService.markEscalated).toHaveBeenCalledWith(
+      'evt-1',
+      { sms_sent: true, call_made: true, escalation_method: 'ai' }
     )
   })
 
@@ -77,7 +92,7 @@ describe('escalationService.schedule', () => {
 
     expect(dbService.markEscalated).toHaveBeenCalledWith(
       'evt-1',
-      { sms_sent: false, call_made: true }
+      { sms_sent: false, call_made: true, escalation_method: 'fallback' }
     )
   })
 
@@ -188,7 +203,7 @@ describe('escalationService.recoverPending — กู้คืนหลัง re
       expect.objectContaining({ event_id: 'evt-stuck' })
     )
     expect(dbService.markEscalated).toHaveBeenCalledWith(
-      'evt-stuck', { sms_sent: true, call_made: true }
+      'evt-stuck', { sms_sent: true, call_made: true, escalation_method: 'fallback' }
     )
   })
 
@@ -202,7 +217,7 @@ describe('escalationService.recoverPending — กู้คืนหลัง re
     expect(alertService.sendSms).not.toHaveBeenCalled()
     // ปิดสถานะไว้ ไม่ปล่อยค้าง pending — และเห็นชัดว่าไม่ได้ส่งอะไรออกไป
     expect(dbService.markEscalated).toHaveBeenCalledWith(
-      'evt-stuck', { sms_sent: false, call_made: false }
+      'evt-stuck', { sms_sent: false, call_made: false, escalation_method: 'dropped' }
     )
   })
 

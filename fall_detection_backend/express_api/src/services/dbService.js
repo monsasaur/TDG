@@ -104,7 +104,7 @@ module.exports = {
   },
 
   // ระบบ escalate (หมดเวลา ack)
-  markEscalated: async (event_id, { sms_sent, call_made }) => {
+  markEscalated: async (event_id, { sms_sent, call_made, escalation_method }) => {
     const client = getClient()
     const patch = {
       escalated:    true,

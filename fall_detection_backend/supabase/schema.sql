@@ -22,6 +22,12 @@ CREATE TABLE IF NOT EXISTS fall_events (
   sms_sent          BOOLEAN DEFAULT FALSE,
   call_made         BOOLEAN DEFAULT FALSE,
 
+  -- บทพูดในสายมาจากไหน: 'ai' = Typhoon ร่างให้ · 'fallback' = ข้อความคงที่
+  -- · 'dropped' = เลยกำหนดนานเกินไป ไม่ได้โทร
+  -- ต้องมีคอลัมน์นี้ ไม่งั้น markEscalated จะ UPDATE ไม่ผ่าน แล้ว event ค้าง pending
+  -- → sweeper กวาดเจอทุก 60 วิ แล้วโทรซ้ำไปเรื่อย ๆ
+  escalation_method TEXT,
+
   created_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -29,6 +35,9 @@ CREATE INDEX IF NOT EXISTS idx_device_id    ON fall_events(device_id);
 CREATE INDEX IF NOT EXISTS idx_is_fall      ON fall_events(is_fall);
 CREATE INDEX IF NOT EXISTS idx_acknowledged ON fall_events(acknowledged);
 CREATE INDEX IF NOT EXISTS idx_created_at   ON fall_events(created_at DESC);
+
+-- สำหรับ Supabase ที่สร้างตารางไปแล้วก่อนมีฟีเจอร์ AI ร่างบทพูด (ต้องรันเพิ่ม)
+ALTER TABLE fall_events ADD COLUMN IF NOT EXISTS escalation_method TEXT;
 
 -- Expo Push tokens (ลงทะเบียนจากแอปตอนเปิดครั้งแรก/อัพเดต)
 CREATE TABLE IF NOT EXISTS push_tokens (

@@ -25,9 +25,26 @@ function validateMessage(msg) {
   return true;
 }
 
+/** เปิดใช้ AI อยู่ไหม — ต้องตั้ง AI_VOICE_ENABLED=true ชัดเจนเท่านั้น */
+function isEnabled() {
+  return process.env.AI_VOICE_ENABLED === "true";
+}
+
 async function generateCallMessage(event) {
-  // สวิตช์ปิด/เปิด AI ตามสเปค ถ้าเป็น false จะข้ามไปใช้ข้อความเดิมทันที
-  if (process.env.AI_VOICE_ENABLED === "false") return null;
+  // ปิดเป็นค่าเริ่มต้นโดยตั้งใจ — ต้องตั้ง AI_VOICE_ENABLED=true ชัดเจนถึงจะทำงาน
+  //
+  // เดิมเขียนว่า `=== "false"` ซึ่งปิดเฉพาะเมื่อตั้งค่าเป็นสตริง "false" เป๊ะ
+  // ถ้าไม่ได้ตั้งตัวแปรนี้เลย (สภาพของ production ตอน deploy ใหม่) จะกลายเป็นเปิด
+  // = AI ทำงานทันทีโดยไม่มีใครตัดสินใจ ผิดเจตนาของสเปคที่ต้องการให้ deploy ได้
+  // โดยพฤติกรรมไม่เปลี่ยน แล้วค่อยเปิดเมื่อทดสอบผ่าน
+  if (!isEnabled()) return null;
+
+  // ไม่มีคีย์ = ไม่ต้องเสียเวลายิง ถ้าไม่เช็คจะส่ง "Bearer undefined" ออกไป
+  // แล้วรอ 401 กลับมา กินเวลาถึง 3 วินาทีของหน้าต่าง escalation ทุกสายเปล่า ๆ
+  if (!process.env.TYPHOON_API_KEY) {
+    console.warn("[AI Service] ไม่ได้ตั้ง TYPHOON_API_KEY — ใช้ข้อความคงที่");
+    return null;
+  }
 
   // เตรียมข้อมูลจาก Event (ดึงจาก location หรือ device_name ที่ได้จากฐานข้อมูล)
   let locationName = event.location || event.device_name || "ไม่ระบุตำแหน่ง";
@@ -90,4 +107,5 @@ async function generateCallMessage(event) {
 
 module.exports = {
   generateCallMessage,
+  isEnabled,
 };

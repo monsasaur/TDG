@@ -101,7 +101,7 @@ describe('alertService.makeCall', () => {
       TWILIO_MODE:  'fake'
     })
     const res = await svc.makeCall({ location: 'L', event_id: 'e1' })
-    expect(res).toEqual({ made: 1, failed: 0, mode: 'fake' })
+    expect(res).toEqual({ made: 1, failed: 0, mode: 'fake', method: 'fallback' })
     expect(mockCallsCreate).not.toHaveBeenCalled()
   })
 
@@ -122,6 +122,6 @@ describe('alertService.makeCall', () => {
     expect(arg.from).toBe('+1999')
     expect(arg.to).toBe('+6611111')
     expect(arg.twiml).toMatch(/<Response>/)
-    expect(res).toEqual({ made: 1, failed: 0 })
+    expect(res).toEqual({ made: 1, failed: 0, method: 'fallback' })
   })
 })
