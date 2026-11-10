@@ -9,6 +9,10 @@
 #include "lwip/sockets.h"
 #include "lwip/netdb.h"
 #include "esp_netif.h"
+#include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
 
 // ปลายทาง UDP — ค่าเริ่มต้นเป็น broadcast ของซับเน็ต softAP (192.168.4.0/24)
 // ใช้ broadcast เพื่อไม่ต้อง hardcode IP ของเครื่องรับ: คอมเกาะ "myssid" แล้วฟัง
@@ -63,69 +67,216 @@ void udp_init() {
     }
 }
 
-void send_udp(const char* message) {
-    if (udp_sock < 0) udp_init();
-    sendto(udp_sock, message, strlen(message), 0,
-           (struct sockaddr*)&udp_dest, sizeof(udp_dest));
-}
+// ─────────────────────────────────────────────────────────────
+// CSI 1 ตัว ที่ copy ออกมาจาก callback — ข้อมูลพอสร้างบรรทัด CSI_DATA ได้ครบเหมือนเดิม
+// ─────────────────────────────────────────────────────────────
+#define CSI_BUF_MAX 384
+typedef struct {
+    wifi_pkt_rx_ctrl_t rx_ctrl;
+    uint8_t  mac[6];
+    uint16_t len;        // data->len จริง (พิมพ์ลงคอลัมน์ len เหมือนเดิม)
+    uint16_t n;          // จำนวนค่าที่ copy มา (LLTF = 128)
+    bool     rts;        // real_time_set ณ ตอนรับ
+    double   steady_ts;  // get_steady_clock_timestamp() ณ ตอนรับ
+    int8_t   buf[CSI_BUF_MAX];
+} csi_item_t;
 
-void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
-    xSemaphoreTake(mutex, portMAX_DELAY);
+// สร้างบรรทัด CSI_DATA — รูปแบบตรงกับของเดิมทุกตัวอักษร (preprocess อ่านแบบเดิมได้)
+static std::string format_csi_line(const csi_item_t *it) {
     std::stringstream ss;
-
-    wifi_csi_info_t d = data[0];
     char mac[20] = {0};
-    sprintf(mac, "%02X:%02X:%02X:%02X:%02X:%02X", d.mac[0], d.mac[1], d.mac[2], d.mac[3], d.mac[4], d.mac[5]);
-
+    sprintf(mac, "%02X:%02X:%02X:%02X:%02X:%02X",
+            it->mac[0], it->mac[1], it->mac[2], it->mac[3], it->mac[4], it->mac[5]);
+    const wifi_pkt_rx_ctrl_t &r = it->rx_ctrl;
     ss << "CSI_DATA,"
        << project_type << ","
        << mac << ","
-       << d.rx_ctrl.rssi << ","
-       << d.rx_ctrl.rate << ","
-       << d.rx_ctrl.sig_mode << ","
-       << d.rx_ctrl.mcs << ","
-       << d.rx_ctrl.cwb << ","
-       << d.rx_ctrl.smoothing << ","
-       << d.rx_ctrl.not_sounding << ","
-       << d.rx_ctrl.aggregation << ","
-       << d.rx_ctrl.stbc << ","
-       << d.rx_ctrl.fec_coding << ","
-       << d.rx_ctrl.sgi << ","
-       << d.rx_ctrl.noise_floor << ","
-       << d.rx_ctrl.ampdu_cnt << ","
-       << d.rx_ctrl.channel << ","
-       << d.rx_ctrl.secondary_channel << ","
-       << d.rx_ctrl.timestamp << ","
-       << d.rx_ctrl.ant << ","
-       << d.rx_ctrl.sig_len << ","
-       << d.rx_ctrl.rx_state << ","
-       << real_time_set << ","
-       << get_steady_clock_timestamp() << ","
-       << data->len << ",[";
-
-#if CONFIG_SHOULD_COLLECT_ONLY_LLTF
-    int data_len = 128;
-#else
-    int data_len = data->len;
-#endif
-
-    int8_t *my_ptr;
+       << r.rssi << ","
+       << r.rate << ","
+       << r.sig_mode << ","
+       << r.mcs << ","
+       << r.cwb << ","
+       << r.smoothing << ","
+       << r.not_sounding << ","
+       << r.aggregation << ","
+       << r.stbc << ","
+       << r.fec_coding << ","
+       << r.sgi << ","
+       << r.noise_floor << ","
+       << r.ampdu_cnt << ","
+       << r.channel << ","
+       << r.secondary_channel << ","
+       << r.timestamp << ","
+       << r.ant << ","
+       << r.sig_len << ","
+       << r.rx_state << ","
+       << it->rts << ","
+       << it->steady_ts << ","
+       << it->len << ",[";
 #if CSI_RAW
-    my_ptr = data->buf;
-    for (int i = 0; i < data_len; i++) {
-        ss << (int) my_ptr[i] << " ";
+    for (int i = 0; i < it->n; i++) {
+        ss << (int) it->buf[i] << " ";
     }
 #endif
     ss << "]\n";
+    return ss.str();
+}
 
-#if CONFIG_SEND_CSI_TO_SERIAL
-    outprintf("%s", ss.str().c_str());
+static void fill_item(csi_item_t *it, wifi_csi_info_t *data) {
+    it->rx_ctrl   = data->rx_ctrl;
+    memcpy(it->mac, data->mac, 6);
+    it->len       = data->len;
+#if CONFIG_SHOULD_COLLECT_ONLY_LLTF
+    int want = 128;
+#else
+    int want = data->len;
 #endif
+    if (want > CSI_BUF_MAX) want = CSI_BUF_MAX;
+    it->n         = want;
+    it->rts       = real_time_set;
+    it->steady_ts = get_steady_clock_timestamp();
+    memcpy(it->buf, data->buf, want);
+}
+
 #ifdef CONFIG_SEND_CSI_TO_UDP
-    send_udp(ss.str().c_str());
+// ─────────────────────────────────────────────────────────────
+// ทาง UDP — callback แค่ copy ลงคิว · task แยกเป็นคน format + sendto
+//
+// เดิม format string + sendto ทำใน callback ซึ่งรันอยู่ใน **WiFi task**
+// ระหว่างที่ sendto ค้าง (lwIP/คิวส่งเต็ม) WiFi task รับ packet ถัดไปไม่ได้ → CSI หาย
+// และค่าที่ sendto คืนมาไม่เคยถูกเช็ค → packet ที่ส่งไม่ออกหายเงียบ ไม่มีใครรู้
+//
+// ตัวนับ (พิมพ์ทุก 1 วิ เป็นบรรทัด STAT ทั้งทาง UDP และ serial — collector กรองทิ้งเพราะไม่ใช่ CSI_DATA):
+//   cb    = callback ที่ WiFi ส่งมา (CSI ที่ #1 วัดได้จริง ทุก MAC)
+//   skip  = ทิ้งเพราะ MAC ไม่ตรง CONFIG_CSI_UDP_SOURCE_MAC
+//   qdrop = คิวเต็ม ทิ้ง
+//   sent  = sendto สำเร็จ
+//   fail  = sendto ล้มเหลว (ENOMEM ฯลฯ)
+// เทียบกับจำนวนที่คอมรับได้ → รู้ว่าหายที่ #2, ที่ #1, หรือกลางอากาศ
+//
+// unicast: คอมส่ง "HELLO" มาที่ port 5501 → ส่งตรงไป IP นั้นแทน broadcast
+//   (unicast มี ACK + ส่งซ้ำ + ใช้ rate สูง · broadcast ส่งที่ 1 Mbps ไม่มีส่งซ้ำ)
+//   ไม่มี HELLO เกิน 10 วิ → กลับเป็น broadcast เอง
+// ─────────────────────────────────────────────────────────────
+#define CSI_QUEUE_LEN     64
+#define UDP_CTRL_PORT     5501
+#define HELLO_TIMEOUT_US  (10 * 1000000LL)
+
+static QueueHandle_t   csi_queue = NULL;
+static volatile uint32_t st_cb = 0, st_skip = 0, st_qdrop = 0, st_sent = 0, st_fail = 0;
+static uint8_t  src_mac[6];
+static bool     src_filter = false;   // true = ส่งเฉพาะเฟรมจาก src_mac (CONFIG_CSI_UDP_SOURCE_MAC)
+
+static void src_filter_init() {
+#ifdef CONFIG_CSI_UDP_SOURCE_MAC
+    unsigned int m[6];
+    if (sscanf(CONFIG_CSI_UDP_SOURCE_MAC, "%x:%x:%x:%x:%x:%x",
+               &m[0], &m[1], &m[2], &m[3], &m[4], &m[5]) == 6) {
+        for (int i = 0; i < 6; i++) src_mac[i] = (uint8_t) m[i];
+        src_filter = true;
+        printf("CSI_SRC_MAC      : %s (ส่งเฉพาะ MAC นี้)\n", CONFIG_CSI_UDP_SOURCE_MAC);
+    } else {
+        printf("CSI_SRC_MAC      : ทุก MAC\n");
+    }
 #endif
+}
+static int      ctrl_sock = -1;
+static uint32_t peer_ip = 0;          // network order · 0 = ใช้ broadcast
+static int64_t  peer_seen_us = 0;
+static csi_item_t cb_item;            // ใช้ใน callback เท่านั้น (WiFi task ตัวเดียว)
+
+static void ctrl_init() {
+    ctrl_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (ctrl_sock < 0) return;
+    struct sockaddr_in a;
+    memset(&a, 0, sizeof(a));
+    a.sin_family = AF_INET;
+    a.sin_port = htons(UDP_CTRL_PORT);
+    a.sin_addr.s_addr = htonl(INADDR_ANY);
+    if (bind(ctrl_sock, (struct sockaddr*)&a, sizeof(a)) != 0) {
+        close(ctrl_sock);
+        ctrl_sock = -1;
+    }
+}
+
+static void ctrl_poll() {
+    if (ctrl_sock < 0) return;
+    char buf[16];
+    struct sockaddr_in from;
+    socklen_t fl = sizeof(from);
+    int n;
+    while ((n = recvfrom(ctrl_sock, buf, sizeof(buf), MSG_DONTWAIT,
+                         (struct sockaddr*)&from, &fl)) > 0) {
+        if (n >= 5 && memcmp(buf, "HELLO", 5) == 0) {
+            if (peer_ip != from.sin_addr.s_addr) {
+                printf("UDP peer → unicast %s\n", inet_ntoa(from.sin_addr));
+            }
+            peer_ip = from.sin_addr.s_addr;
+            peer_seen_us = esp_timer_get_time();
+        }
+        fl = sizeof(from);
+    }
+    if (peer_ip && esp_timer_get_time() - peer_seen_us > HELLO_TIMEOUT_US) {
+        printf("UDP peer หาย → กลับเป็น broadcast\n");
+        peer_ip = 0;
+    }
+}
+
+static void udp_send_str(const char *msg) {
+    if (udp_sock < 0) udp_init();
+    if (udp_sock < 0) { st_fail++; return; }
+    struct sockaddr_in dst = udp_dest;
+    if (peer_ip) dst.sin_addr.s_addr = peer_ip;
+    int r = sendto(udp_sock, msg, strlen(msg), 0, (struct sockaddr*)&dst, sizeof(dst));
+    if (r < 0) st_fail++; else st_sent++;
+}
+
+static void csi_udp_task(void *arg) {
+    static csi_item_t it;
+    int64_t next_stat = esp_timer_get_time() + 1000000;
+    ctrl_init();
+    while (true) {
+        if (xQueueReceive(csi_queue, &it, pdMS_TO_TICKS(100)) == pdTRUE) {
+            std::string line = format_csi_line(&it);
+            udp_send_str(line.c_str());
+        }
+        int64_t now = esp_timer_get_time();
+        if (now >= next_stat) {
+            next_stat += 1000000;
+            ctrl_poll();
+            char stat[160];
+            snprintf(stat, sizeof(stat),
+                     "STAT,%s,%lld,cb=%lu,skip=%lu,qdrop=%lu,sent=%lu,fail=%lu,dest=%s\n",
+                     project_type, (long long)(now / 1000),
+                     (unsigned long)st_cb, (unsigned long)st_skip, (unsigned long)st_qdrop,
+                     (unsigned long)st_sent, (unsigned long)st_fail,
+                     peer_ip ? "unicast" : "broadcast");
+            printf("%s", stat);
+            udp_send_str(stat);
+        }
+    }
+}
+#endif
+
+void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
+#ifdef CONFIG_SEND_CSI_TO_UDP
+    st_cb++;
+    if (src_filter && memcmp(data->mac, src_mac, 6) != 0) {
+        st_skip++;
+    } else if (csi_queue) {
+        fill_item(&cb_item, data);
+        if (xQueueSend(csi_queue, &cb_item, 0) != pdTRUE) st_qdrop++;
+    }
+#endif
+#if CONFIG_SEND_CSI_TO_SERIAL
+    // ทาง serial คงพฤติกรรมเดิม (format + พิมพ์ใน callback) — dataset ชุดแรกเก็บแบบนี้
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    static csi_item_t it;             // static — ไม่กิน stack ของ WiFi task (~430 ไบต์)
+    fill_item(&it, data);
+    outprintf("%s", format_csi_line(&it).c_str());
     vTaskDelay(0);
     xSemaphoreGive(mutex);
+#endif
 }
 
 void _print_csi_csv_header() {
@@ -149,6 +300,12 @@ void csi_init(char *type) {
     configuration_csi.manu_scale = 0;
 
     ESP_ERROR_CHECK(esp_wifi_set_csi_config(&configuration_csi));
+#ifdef CONFIG_SEND_CSI_TO_UDP
+    src_filter_init();
+    csi_queue = xQueueCreate(CSI_QUEUE_LEN, sizeof(csi_item_t));
+    // priority ต่ำกว่า WiFi (23) และ lwIP (18) · pin core 1 — WiFi อยู่ core 0
+    xTaskCreatePinnedToCore(&csi_udp_task, "csi_udp", 8192, NULL, 5, NULL, 1);
+#endif
     ESP_ERROR_CHECK(esp_wifi_set_csi_rx_cb(&_wifi_csi_cb, NULL));
 
     _print_csi_csv_header();

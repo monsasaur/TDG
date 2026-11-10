@@ -1,0 +1,9 @@
+# ESP32 #2 (active_sta) — เหมือน sdkconfig.datacollect.keep ทุกอย่าง ยกเว้นไม่วัด CSI ฝั่ง #2
+#
+# ใช้ซ้อนทับ:  -D SDKCONFIG_DEFAULTS="sdkconfig.datacollect.keep;sdkconfig.datacollect_nocsi.defaults"
+#
+# ทำไม (สมมติฐาน 2026-11-11 — ยังพิสูจน์อยู่): #2 วัด CSI ของตัวเองแล้วพ่นออก UART 115200
+# ซึ่งรับได้แค่ ~16 บรรทัด/วิ เมื่อ buffer เต็ม callback ใน wifi task จะบล็อก
+# อาจทำให้ #2 ส่ง packet ได้ไม่ถึง 100/วิ → อัตราที่ #1 วัดได้เหลือ ~73 และแกว่ง
+# ข้อมูล CSI ฝั่ง #2 ไม่ได้ถูกใช้ที่ไหนเลย
+# CONFIG_SHOULD_COLLECT_CSI is not set

@@ -40,10 +40,21 @@ void socket_transmitter_sta_loop(bool (*is_wifi_connected)()) {
 
         printf("sending frames to AP 192.168.4.1:5500\n");
 
-        double lag = 0.0;
+        // ส่งตามจังหวะคงที่ด้วย vTaskDelayUntil
+        //
+        // เดิมคำนวณ lag = end - start โดยวัด *รวมเวลา vTaskDelay ของรอบเดียวกันไปด้วย*
+        // ผลคือรอบถัดไป wait_ms ≤ 0 เลยไม่หน่วงเลย → ส่งเป็นคู่ ๆ ติดกันแล้วเว้น 10 ms
+        // อัตราจริงจึงไม่ได้คุมที่ PACKET_RATE: ถูกกดด้วยอะไรก็ตามที่ทำให้ sendto ช้า
+        // (เช่น CSI ฝั่ง #2 พ่น UART 115200) วัดจริง 2026-11-11: ปิด CSI ที่ #2 แล้ว
+        // #1 ได้เฟรมจาก #2 ถึง 150-310/วิ ทั้งที่ตั้งไว้ 100 · ชุดข้อมูลแรกได้ 73 แบบแกว่ง
+#if defined CONFIG_PACKET_RATE && (CONFIG_PACKET_RATE > 0)
+        TickType_t period = pdMS_TO_TICKS(1000 / CONFIG_PACKET_RATE);
+#else
+        TickType_t period = pdMS_TO_TICKS(10);
+#endif
+        if (period < 1) period = 1;
+        TickType_t last_wake = xTaskGetTickCount();
         while (1) {
-            double start_time = get_steady_clock_timestamp();
-
             if (!is_wifi_connected()) {
                 printf("ERROR: wifi is not connected\n");
                 break;
@@ -53,15 +64,11 @@ void socket_transmitter_sta_loop(bool (*is_wifi_connected)()) {
             sendto(socket_fd, data, strlen(data), 0,
                    (const struct sockaddr *) &caddr, sizeof(caddr));
 
-#if defined CONFIG_PACKET_RATE && (CONFIG_PACKET_RATE > 0)
-            double wait_ms = (1000.0 / CONFIG_PACKET_RATE) - (lag * 1000.0);
-            int w = (int) floor(wait_ms);
-            if (w > 0) vTaskDelay(pdMS_TO_TICKS(w));
-#else
-            vTaskDelay(pdMS_TO_TICKS(10));
-#endif
-            double end_time = get_steady_clock_timestamp();
-            lag = end_time - start_time;
+            // ถ้าช้ากว่ากำหนด (sendto ค้าง) จะไม่ส่งชดเชยรัว ๆ — ข้ามไปจังหวะถัดไปเลย
+            if (xTaskGetTickCount() - last_wake >= period) {
+                last_wake = xTaskGetTickCount();
+            }
+            vTaskDelayUntil(&last_wake, period);
         }
 
         close(socket_fd);

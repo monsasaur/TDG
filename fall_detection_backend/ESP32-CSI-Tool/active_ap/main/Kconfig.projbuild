@@ -69,6 +69,17 @@ menu "ESP32 CSI Tool Config"
             ค่าเริ่มต้นคือ broadcast ของซับเน็ต softAP — ไม่ต้องรู้ IP ของคอม
             ใส่ IP ตรง ๆ ได้ถ้าเราเตอร์/ระบบบล็อก broadcast
 
+    config CSI_UDP_SOURCE_MAC
+        string "ส่งเฉพาะ CSI จาก MAC นี้ (ว่าง = ทุก MAC)"
+        depends on SEND_CSI_TO_UDP
+        default ""
+        help
+            ใส่ MAC ของ ESP32 #2 เช่น "1c:c3:ab:b9:78:cc" (ตัวเล็ก/ใหญ่ได้)
+            #1 วัด CSI จากทุกเฟรมที่ได้ยิน (#2 + คอม + มือถือแถวนั้น) ราว 200-470 ครั้ง/วิ
+            แต่ส่ง UDP ออกได้ราว 70-100 ครั้ง/วิ — ถ้าไม่กรอง เฟรมที่ไม่ใช้จะแย่งคิวส่ง
+            จน CSI ของ #2 หลุดไปด้วย (วัดจริง 2026-11-11: qdrop 300/วิ ตอน unicast)
+            collector กรอง MAC ซ้ำอีกชั้นอยู่แล้ว ข้อมูลที่ได้จึงเหมือนเดิม
+
     config SEND_CSI_TO_SD
         depends on SHOULD_COLLECT_CSI
         bool "Send CSI data to SD"

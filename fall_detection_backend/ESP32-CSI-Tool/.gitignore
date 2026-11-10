@@ -5,3 +5,6 @@ sdkconfig.bak
 .cache/
 .idea
 venv
+
+# build แยกตามโหมด (build_udp · build_nocsi · build_orig ฯลฯ)
+build_*/

@@ -4,6 +4,12 @@
 # ⚠️ ค่าเหล่านี้ไม่จำเป็นสำหรับโหมดเก็บข้อมูล — ถ้ายังเก็บ dataset อยู่ ไม่ต้องแตะ
 
 # --- serial baudrate ต้องตรงกับ csi_collector_serial.py ---
+# ⚠️ ต้องมี _CUSTOM=y ก่อน ไม่งั้น BAUDRATE ไม่มีผลเลย
+#    Kconfig เขียนไว้ว่า prompt "..." if ESP_CONSOLE_UART_CUSTOM
+#    ถ้าไม่เปิด custom ค่าจะถูกบังคับเป็น default 115200 แบบเงียบ ๆ ไม่มี warning
+#    แล้ว csi_collector_serial.py ที่เปิดพอร์ตที่ 921600 จะอ่านได้แต่ขยะ
+CONFIG_ESP_CONSOLE_UART_CUSTOM=y
+CONFIG_ESP_CONSOLE_UART_CUSTOM_NUM_0=y
 CONFIG_ESP_CONSOLE_UART_BAUDRATE=921600
 CONFIG_ESPTOOLPY_MONITOR_BAUD=921600
 
@@ -24,6 +30,13 @@ CONFIG_BT_ENABLED=y
 CONFIG_BT_NIMBLE_ENABLED=y
 CONFIG_BT_CONTROLLER_ENABLED=y
 CONFIG_BTDM_CTRL_MODE_BLE_ONLY=y
+
+# --- CSI (หัวใจของโปรเจกต์) ---
+# ⚠️ ขาดบรรทัดนี้ = esp_wifi_set_csi(1) คืน ESP_FAIL แล้ว ESP_ERROR_CHECK เรียก abort()
+#    บอร์ดจะ reboot วนไม่จบ ที่ csi_component.h บรรทัด 141
+#    ระวังสับสน: CONFIG_SHOULD_COLLECT_CSI เป็นออปชันของโปรเจกต์เราเอง คนละตัวกับอันนี้
+#    ซึ่งเป็นออปชันของไดรเวอร์ WiFi ใน ESP-IDF — ตั้งตัวเดียวไม่พอ ต้องมีทั้งสอง
+CONFIG_ESP_WIFI_CSI_ENABLED=y
 
 # --- WiFi provisioning ---
 CONFIG_ESP_WIFI_NVS_ENABLED=y

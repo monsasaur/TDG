@@ -1,0 +1,33 @@
+# ค่าสำหรับ active_sta (ESP32 #2) — ตัวที่เกาะ AP แล้วยิง packet ให้ ESP32 #1 วัด CSI
+#
+# วิธีใช้
+#   rm sdkconfig && idf.py set-target esp32 && idf.py build
+#   idf.py -p /dev/cu.usbserial-XXXX flash
+#
+# ไฟล์นี้สร้าง 2026-09-29 เพราะ sdkconfig ของโปรเจกต์นี้ git ไม่ได้ติดตาม
+# ค่าทุกตัวคัดมาจาก sdkconfig ที่ใช้เก็บ dataset จริง (สร้างด้วย IDF 6.1.0) ตรวจเทียบแล้ว
+
+# --- CSI ---
+# ⚠️ จำเป็นแม้ตัวนี้จะไม่ได้ส่ง CSI ออก serial
+#    main.cc:176 เรียก csi_init("STA") ซึ่งข้างในเรียก esp_wifi_set_csi(1)
+#    ขาดบรรทัดนี้ = ESP_FAIL → ESP_ERROR_CHECK เรียก abort() → reboot วนไม่จบ
+#    (เป็นบั๊กเดียวกับที่ active_ap เจอเมื่อ 2026-09-29)
+CONFIG_ESP_WIFI_CSI_ENABLED=y
+CONFIG_SHOULD_COLLECT_CSI=y
+
+# --- เกาะ AP ของ ESP32 #1 ---
+# สาม ค่านี้ต้องตรงกับ active_ap เป๊ะ ไม่งั้นเกาะไม่ติด
+CONFIG_WIFI_CHANNEL=6
+CONFIG_ESP_WIFI_SSID="myssid"
+CONFIG_ESP_WIFI_PASSWORD="mypassword"
+
+# --- อัตราการยิง packet ---
+# ตั้ง 100 แต่อัตราจริงที่วัดได้คือ ~73 packet/วินาที (วัดจาก field[18] ของ ESP32)
+CONFIG_PACKET_RATE=100
+
+# --- console ---
+# 115200 พอ — ตัวนี้ไม่ได้ส่ง CSI ออก serial ใช้ดู boot log ตัวเองเท่านั้น
+# (คนละค่ากับ active_ap ที่ต้องเป็น 921600 เพื่อให้ csi_collector_serial.py อ่านได้)
+
+# --- ไม่ใช้ Bluetooth ---
+CONFIG_BT_ENABLED=n
