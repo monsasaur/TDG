@@ -22,8 +22,8 @@ preprocess_v2 ตัด `amplitudes[:300]` = เอา 300 packet แรกข�
 อัตรา packet
 ------------
 วัดจาก field[18] (local_timestamp µs) ของ ESP32 เอง cross-check กับ field[23]
-ได้ **73 pkt/s** ไม่ใช่ 100 ตามที่คอมเมนต์ทั่วโปรเจกต์เขียนไว้
-ค่าคงที่ด้านล่างจึงคิดจาก 73 ทั้งหมด
+ชุดแรกได้ 73 pkt/s (บั๊ก firmware) · ชุดใหม่ 100 pkt/s
+ค่าคงที่ด้านล่างกำหนดเป็นวินาที แล้วแปลงด้วย PKT_PER_SEC
 """
 
 import csv
@@ -45,24 +45,48 @@ OUT_FRAMED = os.path.join(BASE_DIR, "data", "processed_v3_framed")
 OUT_CONT   = os.path.join(BASE_DIR, "data", "processed_v3_continuous")
 
 # =================== Config ===================
-PKT_PER_SEC   = 73.2          # วัดจริงจาก ESP32 timestamp
+# อัตรา CSI — ชุดข้อมูลใหม่ 100 pkt/s (firmware 2026-11-11 วัดจริง 99.9 · SD 0.9)
+# ชุดแรกได้ 73.2 แบบแกว่งเพราะบั๊ก firmware — ไม่ใช่ขีดจำกัดฮาร์ดแวร์
+#
+# ค่าทุกตัวข้างล่างกำหนดเป็น "วินาที" แล้วแปลงเป็นจำนวน packet ตามอัตรานี้
+# ตัดสินใจ 2026-11-11: คงระยะเวลาเท่าชุดแรก (window 2.73 วิ) ไม่ใช่คงจำนวน packet
+# → ความหมายของทุกโซนเหมือนเดิม · feature ใช้กับ rf_v1 ไม่ได้แล้ว ต้องเทรน rf_v2
+# ⚠️ ฝั่ง serving (CSI_WINDOW_SIZE / CSI_STRIDE ใน ml_service .env) ต้องเปลี่ยนตามตอนใช้โมเดลใหม่
+PKT_PER_SEC   = 100.0
+
+
+def sec(x):
+    """วินาที → จำนวน packet"""
+    return int(round(x * PKT_PER_SEC))
+
 
 N_SUBCARRIERS = 52
 N_FEATURES    = N_SUBCARRIERS * 8      # 416
-WINDOW_SIZE   = 200                    # 2.7 วิ — คงไว้ให้ feature เข้ากับ rf_v1 ได้
-STRIDE        = 50                     # 0.68 วิ
+WINDOW_SIZE   = sec(2.73)              # 273 pkt — เท่ากับ 200 pkt @ 73.2 ของชุดแรก
+STRIDE        = sec(0.68)              # 68 pkt
 
 LABEL_MAP     = {"fall": 0, "non_fall": 1}
 
 # --- dataset A: กรอบรอบจุดล้ม ---
 # การล้มเกิด "ก่อน" จุดมาร์ค (mark = ตอนถึงพื้น) จึงกินช่วงซ้ายมากกว่าขวา
-FRAMED_BEFORE = 250           # 3.4 วิ ก่อนถึงพื้น
-FRAMED_AFTER  =  50           # 0.7 วิ หลังถึงพื้น
-# รวม 300 pkt → (300-200)/50+1 = 3 window ต่อไฟล์ เท่ากับ processed_v2 เป๊ะ
+FRAMED_BEFORE = sec(3.42)     # 342 pkt ก่อนถึงพื้น
+FRAMED_AFTER  = sec(0.68)     #  68 pkt หลังถึงพื้น
+# รวม 410 pkt → (410-273)//68+1 = 3 window ต่อไฟล์ เท่ากับ processed_v2
+
+# non_fall ใช้กรอบเดียวกับ fall — ทั้งสองคลาสต้องมาจากช่วงเดียวกันของคลิป
+#   ท่าที่มีจังหวะ (ก้มเก็บของ · นอนลงบนพื้น · สะดุดแต่ไม่ล้ม) → มาร์คตอนเกิดเหตุ ตัดรอบมาร์ค
+#   ท่าต่อเนื่อง (ยืนนิ่ง · เดิน · ห้องว่าง) → ไม่มีจังหวะ ใช้ตำแหน่งสมมติ NO_EVENT_MARK
+#
+# เดิม non_fall ตัด pkt 0-300 (4 วิแรกของคลิป) ซึ่งพังสองแบบ:
+#   - ห้องว่าง: 4 วิแรกคือคนกำลังเดินออกจากห้อง
+#   - ก้มเก็บของ/นอนลง: ถ้าทำท่าหลังวิที่ 4 ตัวท่าจะหลุดออกนอก window ทั้งหมด
+# NO_EVENT_MARK = 5.47 วิ ≈ ตำแหน่งที่ท่ามาร์คเกิดตามโปรโตคอล "ยืน ≥ 5 วิก่อน"
+EVENT_NON_FALL = ("ก้มเก็บของ", "นอนลงบนพื้น", "สะดุดแต่ไม่ล้ม")
+NO_EVENT_MARK  = sec(5.47)    # 547 pkt
 
 # --- dataset B: label ต่อเนื่องตามโซน (วัดที่ "จุดกึ่งกลาง window") ---
-FALL_BEFORE   = 110           # 1.5 วิ ก่อนถึงพื้น = ช่วงกำลังล้ม
-FALL_AFTER    =  22           # 0.3 วิ หลังถึงพื้น
+FALL_BEFORE   = sec(1.5)      # 150 pkt ก่อนถึงพื้น = ช่วงกำลังล้ม
+FALL_AFTER    = sec(0.3)      #  30 pkt หลังถึงพื้น
 DROP_AFTER    = FALL_AFTER    # เลยจากนี้ = นอนอยู่บนพื้น → ทิ้ง ไม่ label
 
 # ทำไมทิ้งช่วงหลังล้ม: "นอนนิ่งบนพื้นหลังล้ม" กับท่า "นอนลงบนพื้น" (non_fall)
@@ -156,14 +180,22 @@ def windows_from(amp_seq, lo, hi):
 
 
 # =================== Dataset A — framed ===================
+def needs_mark(label, fname):
+    """ท่านี้ต้องมีจุดมาร์คไหม — fall ทุกท่า + non_fall ที่มีจังหวะเกิดเหตุ"""
+    return label == "fall" or any(a in fname for a in EVENT_NON_FALL)
+
+
 def build_framed(amp_seq, label, mark):
-    """3 window รอบจุดล้ม — เทียบเท่า processed_v2 แต่หาตำแหน่งจาก mark"""
-    if label == "fall":
-        if mark < 0:
+    """3 window รอบจุดเกิดเหตุ — ใช้กรอบเดียวกันทั้ง fall และ non_fall
+
+    mark < 0 กับท่าต่อเนื่อง (ยืนนิ่ง/เดิน/ห้องว่าง) → ใช้ NO_EVENT_MARK
+    ท่าที่ต้องมาร์คแต่ไม่มี main() กรองทิ้งก่อนถึงตรงนี้แล้ว
+    """
+    if mark < 0:
+        if label == "fall":
             return []                       # ไม่มีมาร์ค = ไม่รู้ว่าล้มตอนไหน → ข้าม
-        lo, hi = mark - FRAMED_BEFORE, mark + FRAMED_AFTER
-    else:
-        lo, hi = 0, FRAMED_BEFORE + FRAMED_AFTER
+        mark = NO_EVENT_MARK
+    lo, hi = mark - FRAMED_BEFORE, mark + FRAMED_AFTER
     return [f for f, _ in windows_from(amp_seq, lo, hi)]
 
 
@@ -243,8 +275,8 @@ def main():
             continue
         amp, label, mark = clip
 
-        if label == "fall" and mark < 0:
-            print(f"  ⚠️  ข้าม {fname} — ไฟล์ fall ที่ไม่มีจุดมาร์ค")
+        if needs_mark(label, fname) and mark < 0:
+            print(f"  ⚠️  ข้าม {fname} — ท่านี้ต้องมีจุดมาร์คแต่ไม่มี")
             unmarked += 1
             continue
 
@@ -253,12 +285,15 @@ def main():
         lab   = LABEL_MAP[label]
 
         fa = build_framed(amp, label, mark)
-        if label == "fall":
+        if mark >= 0:
             mark_pos.append(mark)
-            if len(fa) < 3:
-                print(f"  ⚠️  {fname[:52]:54s} มาร์คที่ pkt {mark} "
-                      f"({mark/PKT_PER_SEC:.1f} วิ) เร็วไป → ได้แค่ {len(fa)} window "
-                      f"(ต้องการมาร์ค ≥ {FRAMED_BEFORE})")
+        if len(fa) < 3:
+            if mark >= 0 and mark < FRAMED_BEFORE:
+                why = (f"มาร์คที่ pkt {mark} ({mark/PKT_PER_SEC:.1f} วิ) เร็วไป "
+                       f"(ต้องการ ≥ {FRAMED_BEFORE})")
+            else:
+                why = f"คลิปสั้นไป ({len(amp)} pkt)"
+            print(f"  ⚠️  {fname[:52]:54s} {why} → ได้แค่ {len(fa)} window")
         A["X"].extend(fa); A["y"].extend([lab] * len(fa))
         A["fid"].extend([fid] * len(fa)); A["sid"].extend([sid] * len(fa))
 
@@ -277,7 +312,8 @@ def main():
               "sessions": list(sess_index)}
     mA = save(OUT_FRAMED, A["X"], A["y"], A["fid"], A["sid"],
               {"variant": "framed", "framed_before": FRAMED_BEFORE,
-               "framed_after": FRAMED_AFTER, **common})
+               "framed_after": FRAMED_AFTER, "no_event_mark": NO_EVENT_MARK,
+               "event_non_fall": list(EVENT_NON_FALL), **common})
     mB = save(OUT_CONT, B["X"], B["y"], B["fid"], B["sid"],
               {"variant": "continuous", "fall_before": FALL_BEFORE,
                "fall_after": FALL_AFTER, **common})
@@ -289,7 +325,7 @@ def main():
         pct = (c["fall"] / tot * 100) if tot else 0
         print(f"  {name:14s} {tot:6d} window  ·  fall {c['fall']:5d} ({pct:.1f}%) "
               f"· non_fall {c['non_fall']:5d}  →  {os.path.relpath(d, BASE_DIR)}")
-    print(f"  session {len(sess_index)} · ข้าม {skipped} ไฟล์ · fall ไม่มีมาร์ค {unmarked} ไฟล์")
+    print(f"  session {len(sess_index)} · ข้าม {skipped} ไฟล์ · ไม่มีมาร์ค {unmarked} ไฟล์")
     if mark_pos:
         mp = sorted(mark_pos)
         early = sum(1 for x in mp if x < FRAMED_BEFORE)
