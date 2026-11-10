@@ -23,9 +23,11 @@ collect_web.py — หน้าเว็บเก็บ dataset (แทน CLI �
 """
 
 import collections
+import glob
 import json
 import os
 import random
+import re
 import sys
 import threading
 import time
@@ -37,6 +39,13 @@ import csi_collector_serial as C  # noqa: E402
 
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("COLLECT_WEB_PORT", "8765"))
+# เป้าทั้ง dataset — คนแสดง 5 คน คนละ session คนละ 80 รอบ = 400 รอบ / 800 ไฟล์ (ตัดสินใจ 2026-11-11)
+# แยก session ตามคน → ทดสอบแบบ "คนที่โมเดลไม่เคยเห็น" ได้ (เทรน 4 คน ทดสอบ 1 คน)
+N_ACTORS         = 5
+ROUNDS_PER_ACTOR = int(os.environ.get("ROUNDS_PER_ACTOR", "80"))
+DATASET_ROUNDS   = N_ACTORS * ROUNDS_PER_ACTOR
+ACTORS_FILE      = "actors.json"       # อยู่ใน data/sessions — ชื่อคนแสดง ไม่ใส่ในโค้ด
+RAW_NAME_RE = re.compile(r"^s(\d{8}_\d{4})_\d+_(fall|non_fall)_(.+)_\d{8}_\d{6}_\d+\.csv$")
 HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "collect_web.html")
 DEMO = "--demo" in sys.argv
 
@@ -156,9 +165,16 @@ def reader_loop():
         try:
             raw = reader.readline()
         except Exception as e:  # สายหลุด ฯลฯ
+            # ไม่เปลี่ยน phase — เดิมตั้งเป็น "error" ถาวร หน้าเก็บข้อมูลหายไปทั้งที่ session ยังอยู่
+            # และไม่มีทางกลับ · ตอนนี้: ขึ้นแถบเตือน แล้วเชื่อมต่อใหม่ในพื้นหลัง session ไม่หาย
             with lock:
-                S["phase"], S["error"] = "error", f"อ่านข้อมูลไม่ได้: {e}"
-            time.sleep(1)
+                S["error"] = f"อ่านข้อมูลจาก ESP32 ไม่ได้ ({e}) — กำลังเชื่อมต่อใหม่ · ตาที่กำลังบันทึกจะถูกเตือนให้เก็บซ้ำ"
+                reader_ref[0] = None
+            try:
+                reader.close()
+            except Exception:
+                pass
+            threading.Thread(target=connect, daemon=True).start()
             continue
         now = time.time()
         if raw:
@@ -223,8 +239,10 @@ def tick(now):
 
 # =================== การเก็บแต่ละตา ===================
 def start_session(rounds, info, activities, action_cue=True):
-    plan = C.build_interleaved_plan(rounds, activities=activities)
-    sid = datetime.now().strftime("%Y%m%d_%H%M")
+    # คนเดิมกลับมาเก็บ session ที่สอง → เก็บเฉพาะท่าที่ยังขาด รวมสอง session แล้วได้ตามเป้าพอดี
+    quota = actor_quota(info.get("actor_id"))
+    plan = C.build_interleaved_plan(rounds, activities=activities, quota=quota)
+    sid = C.new_session_id()             # ไม่ซ้ำแม้เริ่ม session ใหม่ในนาทีเดียวกัน
     planned = collections.Counter(n for _, n, _ in plan)
     # เก็บท่าที่เลือกลง manifest ด้วย — ตรวจย้อนหลังได้ว่า session นี้ตั้งใจเก็บท่าไหน
     # บันทึกด้วยว่าใช้จังหวะบอกหรือไม่ — จังหวะที่คงที่อาจทำให้ท่าดูไม่เป็นธรรมชาติ ต้องตรวจย้อนหลังได้
@@ -259,14 +277,10 @@ def finish_recording():
     if mark >= n:                      # กดมาร์คแล้วหยุดทันทีจน packet ถัดไปยังไม่มา
         mark = n - 1
     cur["mark"] = mark
-    rate = None
-    if n >= 50:
-        t0 = C.csi_timestamp(packets[0]["raw"])
-        t1 = C.csi_timestamp(packets[-1]["raw"])
-        if t0 is not None and t1 is not None and t1 > t0:
-            rate = (n - 1) / (t1 - t0)
-    issues = C.assess_sample(cur["mode"], n, mark, rate)
+    rate, max_gap = C.esp_rate_gap(packets)
+    issues = C.assess_sample(cur["mode"], n, mark, rate, max_gap)
     S["review"] = {"n": n, "mark": mark, "rate": round(rate, 1) if rate else None,
+                   "max_gap_ms": round(max_gap * 1000) if max_gap is not None else None,
                    "dropped": cur["dropped"],
                    "mark_sec": round(mark / C.PKT_PER_SEC, 2) if mark >= 0 else None,
                    "after_sec": round((n - mark) / C.PKT_PER_SEC, 2) if mark >= 0 else None,
@@ -336,7 +350,8 @@ def live_rate():
     if len(live_ts) < 10:
         return None
     (_, a), (_, b) = live_ts[0], live_ts[-1]
-    return round((len(live_ts) - 1) / (b - a), 1) if b > a else None
+    span = (b - a) % C.TS_WRAP_SEC          # timestamp ของ ESP32 วนกลับทุก 71.6 นาที
+    return round((len(live_ts) - 1) / span, 1) if span > 0 else None
 
 
 def stat_summary():
@@ -351,6 +366,115 @@ def stat_summary():
     out["dest"] = b.get("dest")
     out["age"] = round(time.time() - stat_hist[-1][0], 1)
     return out
+
+
+# =================== คนแสดง ===================
+def actors_path():
+    return os.path.join(C.SESSION_DIR, ACTORS_FILE)
+
+
+def load_actors():
+    """[{id, name}] 5 ช่อง — ผูกข้อมูลกับ id (1-5) ไม่ใช่ชื่อ จะแก้ชื่อทีหลังได้โดยตัวเลขไม่หาย"""
+    names = {}
+    try:
+        with open(actors_path(), encoding="utf-8") as f:
+            for a in json.load(f).get("actors", []):
+                names[int(a["id"])] = str(a["name"])
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return [{"id": i, "name": names.get(i) or f"คนที่ {i}"} for i in range(1, N_ACTORS + 1)]
+
+
+def save_actors(names):
+    acts = [{"id": i + 1, "name": (str(n).strip() or f"คนที่ {i+1}")[:40]}
+            for i, n in enumerate(list(names)[:N_ACTORS])]
+    with open(actors_path(), "w", encoding="utf-8") as f:
+        json.dump({"actors": acts}, f, ensure_ascii=False, indent=2)
+
+
+def session_actor_map():
+    """session_id → actor_id จาก manifest (info.actor_id) — session ที่ไม่มี = None"""
+    out = {}
+    for p in glob.glob(os.path.join(C.SESSION_DIR, "session_*.json")):
+        try:
+            with open(p, encoding="utf-8") as f:
+                m = json.load(f)
+            out[m["session_id"]] = (m.get("info") or {}).get("actor_id")
+        except (OSError, ValueError, KeyError):
+            continue
+    return out
+
+
+_totals_cache = {"at": 0.0, "val": None}
+
+
+def dataset_totals(raw_files):
+    """อ่านไฟล์ + manifest ทุก 2 วิพอ — snapshot ถูกเรียก ~7 ครั้ง/วิ"""
+    now = time.time()
+    if _totals_cache["val"] is None or now - _totals_cache["at"] > 2.0:
+        _totals_cache["val"] = _dataset_totals(raw_files)
+        _totals_cache["at"] = now
+    return _totals_cache["val"]
+
+
+def actor_goals():
+    """เป้าต่อท่าของคนแสดง 1 คน — ตามน้ำหนัก ACTIVITY_WEIGHT (ไม่ใช่แบ่งเท่ากัน)"""
+    return C.planned_counts(ROUNDS_PER_ACTOR)
+
+
+def actor_quota(actor_id):
+    """จำนวนที่คนนี้ยังขาดต่อท่า — session ที่สองของคนเดิมเก็บเฉพาะส่วนที่ขาด"""
+    raw = [f for f in os.listdir(C.RAW_DIR) if f.endswith(".csv")]
+    tot = _dataset_totals(raw)
+    a = next((x for x in tot["actors"] if x["id"] == actor_id), None)
+    if a is None:
+        return None
+    return {r["name"]: max(0, r["goal"] - r["done"]) for r in a["activities"]}
+
+
+def _dataset_totals(raw_files):
+    """นับไฟล์ใน data/raw ทุก session รวมกัน เทียบกับเป้าทั้ง dataset
+
+    นับเฉพาะไฟล์ที่มี prefix session (s<id>_<seq>_) — ไฟล์ legacy / ชื่อแปลกไม่นับ
+    """
+    per, sessions = collections.Counter(), set()
+    smap = session_actor_map()
+    by_actor = collections.defaultdict(collections.Counter)    # actor_id → Counter(ชื่อท่า)
+    for f in raw_files:
+        m = RAW_NAME_RE.match(f)
+        if m:
+            sessions.add(m.group(1))
+            per[m.group(3)] += 1
+            by_actor[smap.get(m.group(1))][m.group(3)] += 1
+    goals = actor_goals()
+    rows = []
+    for l, n, _ in C.ACTIVITIES:
+        rows.append({"label": l, "name": n, "done": per.get(n, 0), "goal": N_ACTORS * goals[n],
+                     "weight": C.ACTIVITY_WEIGHT.get(n, 1)})
+    fall_done = sum(min(r["done"], r["goal"]) for r in rows if r["label"] == "fall")
+    non_done = sum(min(r["done"], r["goal"]) for r in rows if r["label"] == "non_fall")
+    labels = {n: l for l, n, _ in C.ACTIVITIES}
+    actors = []
+    for a in load_actors():
+        cnt = by_actor.get(a["id"], collections.Counter())
+        rows_a = [{"label": l, "name": n, "done": cnt.get(n, 0), "goal": goals[n]}
+                  for l, n, _ in C.ACTIVITIES]
+        f_done = sum(v for k, v in cnt.items() if labels.get(k) == "fall")
+        n_done = sum(v for k, v in cnt.items() if labels.get(k) == "non_fall")
+        sess = sorted({s for s, aid in smap.items() if aid == a["id"]})
+        actors.append({**a, "fall": f_done, "non_fall": n_done, "files": f_done + n_done,
+                       "goal_files": 2 * ROUNDS_PER_ACTOR,
+                       # 1 รอบ = 1 fall + 1 non_fall → รอบที่ต้องเก็บเพิ่ม = คลาสที่ขาดมากกว่า
+                       "need_rounds": max(ROUNDS_PER_ACTOR - f_done, ROUNDS_PER_ACTOR - n_done, 0),
+                       "sessions": len(sess), "activities": rows_a})
+    unknown = sum(by_actor.get(None, collections.Counter()).values())
+    goal_each = DATASET_ROUNDS
+    return {"rounds": DATASET_ROUNDS, "rounds_per_actor": ROUNDS_PER_ACTOR,
+            "actors": actors, "unassigned_files": unknown, "target": 2 * goal_each,
+            "fall": fall_done, "non_fall": non_done,
+            "fall_goal": sum(r["goal"] for r in rows if r["label"] == "fall"),
+            "non_goal": sum(r["goal"] for r in rows if r["label"] == "non_fall"),
+            "files": sum(per.values()), "sessions": len(sessions), "activities": rows}
 
 
 def snapshot():
@@ -402,6 +526,7 @@ def snapshot():
         "activities": [{"label": l, "name": n, "mode": mode_of(n, l)} for l, n, _ in C.ACTIVITIES],
         "upcoming": upcoming,
         "raw_files_existing": len(raw_files),
+        "dataset": dataset_totals(raw_files),
         "events": S["events"],
     }
 
@@ -447,7 +572,16 @@ class Handler(BaseHTTPRequestHandler):
                 if rounds < 1:
                     return self._send(400, {"error": "จำนวนรอบต้อง ≥ 1"})
                 info = {k: (str(body.get(k) or "").strip() or None)
-                        for k in ("room", "esp32_setup", "actor", "notes")}
+                        for k in ("room", "esp32_setup", "notes")}
+                try:
+                    aid = int(body.get("actor_id"))
+                except (TypeError, ValueError):
+                    aid = 0
+                actor = next((a for a in load_actors() if a["id"] == aid), None)
+                if actor is None:
+                    return self._send(400, {"error": "เลือกคนแสดงก่อน"})
+                # เก็บทั้ง id และชื่อ — preprocess ใช้ id แยก "คนที่ไม่เคยเห็น" ตอนทดสอบ
+                info["actor_id"], info["actor"] = actor["id"], actor["name"]
                 known = {n for _, n, _ in C.ACTIVITIES}
                 acts = body.get("activities")
                 acts = [a for a in acts if a in known] if isinstance(acts, list) else None
@@ -465,6 +599,28 @@ class Handler(BaseHTTPRequestHandler):
                 action_discard()
             elif self.path == "/api/end":
                 action_end()
+            elif self.path == "/api/preview":
+                # จำนวนต่อท่าที่จะได้ถ้ากดเริ่มตอนนี้ — ตัวเลขเดียวกับ plan จริง (ไม่สุ่ม)
+                try:
+                    rounds = max(0, int(body.get("rounds", 0)))
+                except (TypeError, ValueError):
+                    rounds = 0
+                known = {n for _, n, _ in C.ACTIVITIES}
+                acts = body.get("activities")
+                acts = [a for a in acts if a in known] if isinstance(acts, list) else None
+                try:
+                    aid = int(body.get("actor_id") or 0)
+                except (TypeError, ValueError):
+                    aid = 0
+                quota = actor_quota(aid) if aid else None
+                return self._send(200, {"counts": C.planned_counts(rounds, acts, quota),
+                                        "from_quota": bool(quota and any(quota.values()))})
+            elif self.path == "/api/actors":
+                names = body.get("names")
+                if not isinstance(names, list) or len(names) != N_ACTORS:
+                    return self._send(400, {"error": f"ต้องส่งชื่อ {N_ACTORS} คน"})
+                save_actors(names)
+                _totals_cache["val"] = None
             elif self.path == "/api/new":
                 if ph != "done":
                     return self._send(409, {"error": "ต้องจบ session ก่อน"})
@@ -480,16 +636,31 @@ def connect():
         reader = DemoReader()
         S["transport"] = "demo"
     else:
-        reader = C.connect_esp32()       # พิมพ์ขั้นตอนเชื่อมต่อลง terminal เหมือน CLI
-        if reader is None:
+        # ลองซ้ำเรื่อย ๆ — แมคอาจยังไม่ได้เกาะ myssid ตอนเปิดโปรแกรม ไม่ต้องปิดเปิดใหม่
+        tries = 0
+        while True:
+            reader = C.connect_esp32()   # พิมพ์ขั้นตอนเชื่อมต่อลง terminal เหมือน CLI
+            if reader is not None:
+                break
+            tries += 1
+            hint = ("แมคเกาะ WiFi myssid หรือยัง · ESP32 #1/#2 มีไฟไหม"
+                    if C.TRANSPORT == "udp" else "เสียบสาย USB ของ #1 หรือยัง · ปิด idf.py monitor")
             with lock:
-                S["phase"], S["error"] = "error", "เชื่อมต่อ ESP32 ไม่ได้ — ดูข้อความใน terminal"
-            return
+                if S["session"] is None:        # ระหว่าง session ห้ามทับ phase — ตาที่ค้างอยู่ต้องไม่หาย
+                    S["phase"] = "connecting"
+                S["error"] = f"ยังไม่ได้รับข้อมูลจาก ESP32 (ลองครั้งที่ {tries}) — {hint} · ระบบลองใหม่เองทุก 3 วิ"
+            time.sleep(3)
+        with lock:
+            S["error"] = None
         S["transport"] = reader.kind
     with lock:
+        S["error"] = None                      # เชื่อมต่อได้แล้ว — ล้างแถบเตือนเดิม (ทั้งโหมดจริงและ demo)
+        if S["mac"] and reader.mac and reader.mac != S["mac"]:
+            S["error"] = f"⚠️ MAC ต้นทางเปลี่ยนจาก {S['mac']} เป็น {reader.mac} — เปลี่ยนบอร์ด #2 หรือเปล่า?"
         S["mac"] = reader.mac
         reader_ref[0] = reader
-        S["phase"] = "setup"
+        if S["phase"] == "connecting":
+            S["phase"] = "setup" if S["session"] is None else S["phase"]
 
 
 def main():

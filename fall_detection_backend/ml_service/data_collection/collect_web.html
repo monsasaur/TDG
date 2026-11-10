@@ -111,6 +111,32 @@ header h1{font-size:18px;margin:0 8px 0 0;font-weight:700}
 .check.ok .ic{color:var(--ok)} .check.bad .ic{color:var(--bad)} .check.warn .ic{color:var(--warn)}
 code{font-family:ui-monospace,Menlo,monospace;font-size:.92em;background:var(--bg);padding:1px 6px;border-radius:5px}
 .toggle{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--muted)}
+.overall{margin-bottom:16px;padding:16px 18px}
+.ov-top{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+.ov-done{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums}
+.ov-done small{font-size:16px;color:var(--muted);font-weight:600}
+.ov-left{margin-left:auto;text-align:right;font-variant-numeric:tabular-nums}
+.ov-left b{font-size:22px}
+.ov-bar{display:flex;height:22px;border-radius:8px;background:var(--bg);border:1px solid var(--line);overflow:hidden}
+.ov-bar > div{height:100%;transition:width .4s}
+.ov-bar .f{background:var(--fall)} .ov-bar .n{background:var(--non)}
+.ov-sub{display:flex;gap:18px;flex-wrap:wrap;margin-top:8px;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ov-sub span{display:inline-flex;align-items:center;gap:6px}
+.actorgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.actor{border:2px solid var(--line);border-radius:12px;padding:12px;background:var(--panel);text-align:left;color:var(--ink)}
+.actor.sel{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 20%,transparent)}
+.actor.full{opacity:.7}
+.actor .nm{font-size:18px;font-weight:800;display:flex;align-items:center;gap:6px}
+.actor .nm .id{font-size:12px;color:var(--muted);font-weight:600;border:1px solid var(--line);border-radius:6px;padding:0 6px}
+.actor .meta{font-size:13px;color:var(--muted);margin-top:6px;font-variant-numeric:tabular-nums}
+.actor .ov-bar{height:12px;margin-top:8px}
+.actorgrid input{font:inherit;font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
+.dsgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px 16px;margin-top:14px}
+.dsrow{font-size:14px}
+.dsrow .top{display:flex;align-items:center;gap:6px}
+.dsrow .top .num{margin-left:auto}
+.dsrow.full .top{color:var(--muted)}
+.mini.f > div{background:var(--fall)} .mini.n > div{background:var(--non)}
 .acts{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media (max-width:560px){.acts{grid-template-columns:1fr}}
 .actgrp h3{font-size:14px;margin:0 0 6px;display:flex;align-items:center;gap:8px}
@@ -144,6 +170,35 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.92em;background:var(--b
   </section>
 
   <!-- setup -->
+  <section id="v-actors" class="panel overall hidden">
+    <h2 style="display:flex;align-items:center">คนแสดง — คนละ session · เลือกคนที่จะเก็บรอบนี้
+      <button class="linkbtn" id="btn-edit-actors" style="width:auto;margin-left:auto;color:var(--accent);padding:4px 10px">แก้ชื่อ</button></h2>
+    <div class="actorgrid" id="actor-cards"></div>
+    <div id="actor-edit" class="hidden" style="margin-top:12px">
+      <div class="actorgrid" id="actor-inputs"></div>
+      <div style="display:flex;gap:10px;margin-top:10px">
+        <button class="btn solid" id="btn-save-actors" style="padding:10px 18px;font-size:16px">บันทึกชื่อ</button>
+        <button class="btn" id="btn-cancel-actors" style="padding:10px 18px;font-size:16px">ยกเลิก</button>
+      </div>
+      <div class="small" style="margin-top:6px">ข้อมูลผูกกับลำดับคน (1–5) ไม่ใช่ชื่อ — แก้ชื่อทีหลังตัวเลขไม่หาย</div>
+    </div>
+  </section>
+
+  <section id="v-dataset" class="panel overall hidden">
+    <h2>ทั้ง dataset — รวมทุก session</h2>
+    <div class="ov-top">
+      <div class="ov-done" id="ds-done"></div>
+      <div class="ov-left"><div class="small">เหลือ</div><b id="ds-left"></b> <span class="small" id="ds-rounds"></span></div>
+    </div>
+    <div class="ov-bar"><div class="f" id="ds-f"></div><div class="n" id="ds-n"></div></div>
+    <div class="ov-sub">
+      <span><span class="pill fall"></span><span id="ds-fall"></span></span>
+      <span><span class="pill non_fall"></span><span id="ds-non"></span></span>
+      <span id="ds-sess"></span>
+    </div>
+    <div class="dsgrid" id="ds-acts"></div>
+  </section>
+
   <section id="v-setup" class="grid hidden">
     <div class="panel">
       <h2>เริ่ม session ใหม่</h2>
@@ -152,7 +207,7 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.92em;background:var(--b
           <input id="f-rounds" type="number" min="1" value="12"></label>
         <label>ห้อง / สถานที่<input id="f-room" placeholder="เช่น ห้องนอนชั้น 2"></label>
         <label>ตำแหน่ง ESP32<input id="f-esp" placeholder="เช่น #1 บนตู้ สูง 1.2 ม. · #2 ฝั่งตรงข้าม ห่าง 3 ม."></label>
-        <label>คนแสดงท่า<input id="f-actor"></label>
+        <div class="small" id="f-actor-show">คนแสดง: <b>— เลือกจากการ์ดด้านบน —</b></div>
         <label>หมายเหตุ<input id="f-notes" placeholder="ประตูเปิด · คนกดนั่งที่โต๊ะ ฯลฯ"></label>
         <label class="toggle" style="color:var(--ink);font-size:15px"><input type="checkbox" id="f-cue" checked>
           บอกจังหวะให้ทำท่า — ติ๊ก 3·2·1 แล้วเสียงยาว + "ล้ม" ที่วินาทีที่ 5 (ท่าที่มาร์คเท่านั้น)</label>
@@ -182,6 +237,20 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.92em;background:var(--b
   </section>
 
   <!-- collecting -->
+  <section id="v-overall" class="panel overall hidden">
+    <div class="ov-top">
+      <div class="ov-done" id="ov-done"></div>
+      <div class="ov-left"><div class="small">เหลือ</div><b id="ov-left"></b> <span class="small" id="ov-eta"></span></div>
+    </div>
+    <div class="ov-bar"><div class="f" id="ov-f"></div><div class="n" id="ov-n"></div></div>
+    <div class="ov-sub">
+      <span><span class="pill fall"></span><span id="ov-fall"></span></span>
+      <span><span class="pill non_fall"></span><span id="ov-non"></span></span>
+      <span id="ov-retake"></span>
+      <span id="ov-pace"></span>
+    </div>
+  </section>
+
   <section id="v-collect" class="grid hidden">
     <div>
       <div class="card" id="card">
@@ -217,12 +286,6 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.92em;background:var(--b
       </div>
     </div>
     <div class="side">
-      <div class="panel">
-        <h2>ความคืบหน้า</h2>
-        <div class="prog" id="p-prog"></div>
-        <div class="mini"><div id="p-bar"></div></div>
-        <div class="small" style="margin-top:8px" id="p-sub"></div>
-      </div>
       <div class="panel"><h2>ตาถัดไป</h2><ul class="list" id="p-next"></ul></div>
       <div class="panel"><h2>แต่ละท่า</h2><ul class="list" id="p-tally"></ul></div>
       <button class="linkbtn" id="btn-end">จบ session ก่อนครบ</button>
@@ -338,8 +401,13 @@ function render(){
   show("v-connecting", ph === "connecting" || (ph === "error" && !st.session));
   show("v-setup", ph === "setup");
   show("v-collect", ["idle","countdown","recording","review"].includes(ph));
+  show("v-overall", ["idle","countdown","recording","review"].includes(ph));
   show("v-done", ph === "done");
 
+  show("v-dataset", ph === "setup" || ph === "done");
+  show("v-actors", ph === "setup");
+  if (ph === "setup") renderActors();
+  if (ph === "setup" || ph === "done") renderDataset();
   if (ph === "setup") { buildActs(); renderSetup(); }
   if (["idle","countdown","recording","review"].includes(ph)) renderCollect();
   if (ph === "done") renderDone();
@@ -427,7 +495,8 @@ function renderCollect(){
   show("k-review", ph === "review");
   if (ph === "review"){
     const r = st.review;
-    const stats = [["ความยาว", `${r.dur_sec} วิ`], ["packet", r.n], ["อัตรา", r.rate != null ? `${r.rate.toFixed(0)}/วิ` : "–"]];
+    const stats = [["ความยาว", `${r.dur_sec} วิ`], ["packet", r.n], ["อัตรา", r.rate != null ? `${r.rate.toFixed(0)}/วิ` : "–"],
+                   ["ขาดยาวสุด", r.max_gap_ms != null ? `${r.max_gap_ms} ms` : "–"]];
     if (c.mode === "mark") stats.push(["มาร์คที่", r.mark_sec != null ? `${r.mark_sec} วิ` : "ไม่มี"], ["หลังมาร์ค", r.after_sec != null ? `${r.after_sec} วิ` : "–"]);
     $("r-stats").innerHTML = stats.map(([a,b])=>`<div class="stat"><div class="k">${a}</div><div class="v">${b}</div></div>`).join("");
     $("r-issues").innerHTML = r.issues.length
@@ -453,14 +522,83 @@ function renderCollect(){
   b.innerHTML = label + (dis ? "" : ' <span class="keyhint">Space</span>');
 
   // side
-  const p = st.progress, tgt = p.target || 1;
-  $("p-prog").textContent = `${p.done} / ${p.target}`;
-  $("p-bar").style.width = (p.done / tgt * 100) + "%";
-  const left = p.target - p.done, mins = Math.round(left * 22 / 60);
-  $("p-sub").textContent = `fall ${p.fall} · non_fall ${p.non_fall} · เก็บซ้ำ ${p.retakes} · เหลือ ~${mins >= 60 ? (mins/60).toFixed(1)+" ชม." : mins+" นาที"}`;
+  renderOverall();
   $("p-next").innerHTML = st.upcoming.length ? st.upcoming.map(u=>`<li><span class="pill ${u.label}"></span>${u.name}</li>`).join("") : '<li class="small">ตานี้เป็นตาสุดท้าย</li>';
   $("p-tally").innerHTML = st.tally.map(t=>
     `<li><span class="pill ${t.label}"></span>${t.name}<span class="num">${t.done}/${t.goal}</span></li>`).join("");
+}
+
+// ---------- ทั้ง dataset (หน้าแรก) ----------
+// ---------- คนแสดง ----------
+let actorSel = null, editingActors = false;
+try { actorSel = parseInt(localStorage.getItem("collect_actor")) || null; } catch(e){}
+function renderActors(){
+  const d = st.dataset; if (!d || !d.actors) return;
+  $("actor-cards").innerHTML = d.actors.map(a => {
+    const tgt = a.goal_files || 1, full = a.need_rounds === 0;
+    return `<button class="actor ${a.id === actorSel ? "sel" : ""} ${full ? "full" : ""}" data-actor="${a.id}">
+      <div class="nm"><span class="id">${a.id}</span>${esc(a.name)}${full ? " ✓" : ""}</div>
+      <div class="ov-bar"><div class="f" style="width:${a.fall/tgt*100}%"></div><div class="n" style="width:${a.non_fall/tgt*100}%"></div></div>
+      <div class="meta">${a.files} / ${a.goal_files} ไฟล์ · ${full ? "ครบแล้ว" : `เหลือ ${a.need_rounds} รอบ`}${a.sessions ? ` · ${a.sessions} session` : ""}</div>
+    </button>`;
+  }).join("");
+  document.querySelectorAll("[data-actor]").forEach(b => b.onclick = () => pickActor(parseInt(b.dataset.actor)));
+  const a = d.actors.find(x => x.id === actorSel);
+  $("f-actor-show").innerHTML = a ? `คนแสดง: <b>${a.id} · ${esc(a.name)}</b>` : `คนแสดง: <b style="color:var(--bad)">— เลือกจากการ์ดด้านบน —</b>`;
+  if (!editingActors)
+    $("actor-inputs").innerHTML = d.actors.map(a => `<label class="small">${a.id}<input data-aname="${a.id}" value="${esc(a.name)}"></label>`).join("");
+}
+function pickActor(id){
+  actorSel = id; try { localStorage.setItem("collect_actor", id); } catch(e){}
+  const a = st.dataset.actors.find(x => x.id === id);
+  // ใส่จำนวนรอบที่คนนี้ยังขาด ให้เป็นค่าเริ่มต้น (แก้เองได้)
+  if (a && a.need_rounds) { $("f-rounds").value = a.need_rounds; $("f-rounds").dataset.touched = "1"; }
+  renderActors(); updateActSum();
+}
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+
+function renderDataset(){
+  const d = st.dataset; if (!d) return;
+  const done = d.fall + d.non_fall, tgt = d.target || 1, left = Math.max(0, d.target - done);
+  $("ds-done").innerHTML = `เก็บแล้ว ${done} <small>/ ${d.target} ไฟล์ · ${Math.round(done / tgt * 1000) / 10}%</small>`;
+  $("ds-left").textContent = `${left} ไฟล์`;
+  // รอบที่ต้องเก็บเพิ่ม = คลาสที่ขาดมากกว่า (1 รอบ = 1 fall + 1 non_fall)
+  const need = Math.max(d.fall_goal - d.fall, d.non_goal - d.non_fall, 0);
+  $("ds-rounds").textContent = need ? `≈ ${need} รอบ` : "ครบแล้ว";
+  $("ds-f").style.width = (d.fall / tgt * 100) + "%";
+  $("ds-n").style.width = (d.non_fall / tgt * 100) + "%";
+  $("ds-fall").textContent = `fall ${d.fall} / ${d.fall_goal}`;
+  $("ds-non").textContent = `non_fall ${d.non_fall} / ${d.non_goal}`;
+  $("ds-sess").textContent = `${d.sessions} session · ${d.files} ไฟล์ใน data/raw`;
+  $("ds-acts").innerHTML = d.activities.map(a => {
+    const p = Math.min(100, a.done / a.goal * 100), full = a.done >= a.goal;
+    return `<div class="dsrow ${full ? "full" : ""}"><div class="top"><span class="pill ${a.label}"></span>${a.name}
+      <span class="num">${full ? "✓ " : ""}${a.done}/${a.goal}</span></div>
+      <div class="mini ${a.label === "fall" ? "f" : "n"}"><div style="width:${p}%"></div></div></div>`;
+  }).join("");
+  // จำนวนรอบของ session ตั้งจากคนแสดงที่เลือก (pickActor) ไม่ใช่จากทั้ง dataset
+}
+
+// ---------- แถบความคืบหน้ารวม ----------
+const fmtDur = sec => { sec = Math.max(0, Math.round(sec));
+  const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+  return h ? `${h} ชม. ${m} นาที` : `${m} นาที`; };
+function renderOverall(){
+  const p = st.progress, tgt = p.target || 1, half = tgt / 2;
+  const pct = Math.round(p.done / tgt * 1000) / 10, left = Math.max(0, p.target - p.done);
+  $("ov-done").innerHTML = `เก็บแล้ว ${p.done} <small>/ ${p.target} ไฟล์ · ${pct}%</small>`;
+  $("ov-left").textContent = `${left} ไฟล์`;
+  $("ov-f").style.width = (p.fall / tgt * 100) + "%";
+  $("ov-n").style.width = (p.non_fall / tgt * 100) + "%";
+  $("ov-fall").textContent = `fall ${p.fall} / ${half}`;
+  $("ov-non").textContent = `non_fall ${p.non_fall} / ${half}`;
+  $("ov-retake").textContent = p.retakes ? `เก็บซ้ำ ${p.retakes} ครั้ง` : "";
+  // ความเร็วจริง (รวมเวลาพัก) — ยังเก็บน้อยใช้ค่าประมาณจากรอบซ้อม ~20 วิ/ไฟล์
+  const elapsed = (Date.now() - Date.parse(st.session.started_at)) / 1000;
+  const per = p.done >= 3 ? elapsed / p.done : 20;
+  $("ov-eta").textContent = left ? `≈ ${fmtDur(left * per)}` : "ครบแล้ว";
+  $("ov-pace").textContent = p.done >= 3
+    ? `ใช้ไป ${fmtDur(elapsed)} · เฉลี่ย ${per.toFixed(0)} วิ/ไฟล์` : `ใช้ไป ${fmtDur(elapsed)}`;
 }
 
 function renderDone(){
@@ -487,39 +625,58 @@ function buildActs(){
     const boxes = [...document.querySelectorAll(`#g-${b.dataset.grp} input`)];
     const all = boxes.every(x => x.checked); boxes.forEach(x => x.checked = !all); updateActSum();
   });
-  $("f-rounds").addEventListener("input", updateActSum);
+  $("f-rounds").addEventListener("input", () => { $("f-rounds").dataset.touched = "1"; updateActSum(); });
   updateActSum();
 }
 // จำนวนต่อท่าแบบเดียวกับ build_interleaved_plan: แต่ละคลาสหมุนครบทุกท่าก่อนวนใหม่
-function perAct(rounds, n){ const base = Math.floor(rounds / n), extra = rounds % n; return [base, base + (extra ? 1 : 0)]; }
+// จำนวนต่อท่าถามจาก server — ใช้น้ำหนักท่า + ส่วนที่คนแสดงคนนี้ยังขาด แบบเดียวกับ plan จริง
+let previewTimer = null, previewSeq = 0;
+function requestPreview(rounds, sel){
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(async () => {
+    const my = ++previewSeq;
+    try {
+      const r = await fetch("/api/preview", {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({rounds, activities: sel, actor_id: actorSel})});
+      const j = await r.json(); if (my !== previewSeq) return;
+      for (const a of st.activities){
+        const el = document.querySelector(`[data-n="${a.name}"]`); if (!el) continue;
+        const n = (j.counts || {})[a.name] || 0;
+        el.textContent = sel.includes(a.name) && n ? `×${n}` : "";
+      }
+      $("act-note").textContent = j.from_quota ? "· จำนวนต่อท่าคิดจากส่วนที่คนนี้ยังขาด" : "· ท่าที่แยกยากเก็บมากกว่า (ดูน้ำหนักใน runbook)";
+    } catch(e){}
+  }, 150);
+}
 function updateActSum(){
   const sel = selectedActs(), rounds = Math.max(0, parseInt($("f-rounds").value) || 0);
   try { localStorage.setItem("collect_acts", JSON.stringify(sel)); } catch(e){}
   const by = g => st.activities.filter(a => a.label === g && sel.includes(a.name));
   const f = by("fall"), nf = by("non_fall");
-  for (const [g, list] of [["fall", f], ["non_fall", nf]]){
-    for (const a of st.activities.filter(x => x.label === g)){
-      const el = document.querySelector(`[data-n="${a.name}"]`); if (!el) continue;
-      if (!sel.includes(a.name) || !list.length) { el.textContent = ""; continue; }
-      const [lo, hi] = perAct(rounds, list.length); el.textContent = lo === hi ? `×${lo}` : `×${lo}–${hi}`;
-    }
-  }
   const ok = f.length > 0 && nf.length > 0;
+  if (ok) requestPreview(rounds, sel);
   $("act-sum").innerHTML = ok
-    ? `${rounds} รอบ = <b>${rounds * 2}</b> ไฟล์ · fall ${f.length} ท่า · non_fall ${nf.length} ท่า`
+    ? `${rounds} รอบ = <b>${rounds * 2}</b> ไฟล์ · fall ${f.length} ท่า · non_fall ${nf.length} ท่า <span class="small" id="act-note"></span>`
     : `<span style="color:var(--bad)">ต้องเลือกท่า fall และ non_fall อย่างน้อยคลาสละ 1 ท่า — ถ้าเก็บคลาสเดียว ข้อมูลจะผูกกับเวลาแบบชุดแรก</span>`;
-  $("btn-start").disabled = !ok || rounds < 1;
+  $("btn-start").disabled = !ok || rounds < 1 || !actorSel;
 }
 
 $("btn-start").onclick = () => post("/api/session", {
   rounds: $("f-rounds").value, room: $("f-room").value, esp32_setup: $("f-esp").value,
-  actor: $("f-actor").value, notes: $("f-notes").value, activities: selectedActs(),
+  actor_id: actorSel, notes: $("f-notes").value, activities: selectedActs(),
   action_cue: $("f-cue").checked });
 $("btn-primary").onclick = () => post("/api/primary");
 $("btn-save").onclick = () => post("/api/save");
 $("btn-discard").onclick = () => post("/api/discard");
 $("btn-end").onclick = () => { if (confirm("จบ session ตอนนี้? ตาที่บันทึกแล้วไม่หาย แต่จะเก็บต่อใน session นี้ไม่ได้")) post("/api/end"); };
 $("btn-new").onclick = () => post("/api/new");
+$("btn-edit-actors").onclick = () => { editingActors = !editingActors; renderActors(); show("actor-edit", editingActors); };
+$("btn-cancel-actors").onclick = () => { editingActors = false; show("actor-edit", false); renderActors(); };
+$("btn-save-actors").onclick = async () => {
+  const names = [...document.querySelectorAll("[data-aname]")].sort((a,b)=>a.dataset.aname-b.dataset.aname).map(i => i.value);
+  editingActors = false; show("actor-edit", false);
+  await post("/api/actors", {names});
+};
 
 document.addEventListener("keydown", ev => {
   if (["INPUT","TEXTAREA"].includes(document.activeElement.tagName)) return;

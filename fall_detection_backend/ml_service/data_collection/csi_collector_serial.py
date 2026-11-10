@@ -28,7 +28,7 @@ import random
 import socket
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # =================== Config ===================
 # ทางรับข้อมูล — "serial" หรือ "udp" (ตั้งผ่าน env CSI_TRANSPORT)
@@ -96,6 +96,11 @@ WINDOW_SIZE_MIN    = 273   # = WINDOW_SIZE ใน preprocess_v3 (2.73 วิ) �
 MARK_MIN_PKT       = 342   # = FRAMED_BEFORE (3.4 วิ) → ยืนก่อนทำท่าอย่างน้อย ~3.4 วิ
 # และต้องมีหลังจุดมาร์คอย่างน้อยเท่านี้ — กดหยุดเร็วไป window สุดท้ายหาย
 MARK_AFTER_PKT     = 68    # = FRAMED_AFTER (0.7 วิ)
+
+# ช่องว่างระหว่าง packet ติดกัน — ปกติ 10 ms · ที่ตำแหน่งจริงยาวสุด 21-33 ms (รอบซ้อม 8 ไฟล์)
+# window 2.73 วิ ที่มีรูกลางเกิน 0.1 วิ ค่า std/iqr ของ window นั้นเพี้ยน
+GAP_WARN_SEC = 0.10
+GAP_BAD_SEC  = 0.30
 
 # เกณฑ์เตือนเรื่องอัตรา — firmware ใหม่วัดได้ 99.9 · SD 0.9
 # ต่ำกว่านี้แปลว่ามีอะไรผิดปกติ: unicast หลุด (ไม่ได้ HELLO) / มีของแย่งช่อง / firmware เก่า
@@ -186,6 +191,45 @@ def csi_timestamp(line: str):
         return int(parts[18]) / 1e6
     except (IndexError, ValueError):
         return None
+
+
+# local_timestamp ของ ESP32 เป็น uint32 หน่วย µs → วนกลับเป็น 0 ทุก 2^32 µs ≈ 71.6 นาที
+# บอร์ดเปิดทิ้งไว้ข้ามหลาย session แน่นอน ถ้าไม่ unwrap คลิปที่คร่อมจุดวนจะได้อัตราติดลบ/วัดไม่ได้
+TS_WRAP_SEC = 2 ** 32 / 1e6
+
+
+def esp_rate_gap(packets):
+    """(อัตรา pkt/s, ช่องว่างยาวสุดระหว่าง packet ติดกัน วินาที) จาก timestamp ของ ESP32
+
+    ช่องว่างใหญ่ผิดปกติ = packet หายเป็นช่วง หรือ ESP32 #1 รีบูต (timestamp เริ่มใหม่)
+    อัตราเฉลี่ยของทั้งคลิปมองไม่เห็นปัญหานี้ — หาย 0.5 วิกลางคลิปอัตรายังดูปกติ
+    """
+    ts = [csi_timestamp(p["raw"]) for p in packets]
+    ts = [t for t in ts if t is not None]
+    if len(ts) < 50:
+        return None, None
+    gaps = [(b - a) % TS_WRAP_SEC for a, b in zip(ts, ts[1:])]
+    span = sum(gaps)
+    return ((len(ts) - 1) / span if span > 0 else None), max(gaps)
+
+
+def new_session_id():
+    """session id รูปแบบเดิม (YYYYmmdd_HHMM) แต่รับประกันว่าไม่ซ้ำ
+
+    id ละเอียดแค่ระดับนาที — ถ้าคนแสดงคนหนึ่งจบแล้วอีกคนเริ่มในนาทีเดียวกัน manifest ของ
+    คนแรกจะถูกเขียนทับ และไฟล์ของคนแรกจะถูกนับเป็นของคนที่สอง (actor_id ผิดทั้ง session)
+    ไม่เปลี่ยนรูปแบบเพราะ preprocess_v2/v3 และ collect_web แยก session จากชื่อไฟล์ด้วยรูปแบบนี้
+    → ถ้าซ้ำ เลื่อนไปนาทีถัดไปจนกว่าจะว่าง
+    """
+    t = datetime.now().replace(second=0, microsecond=0)
+    raw = os.listdir(RAW_DIR) if os.path.isdir(RAW_DIR) else []
+    while True:
+        sid = t.strftime("%Y%m%d_%H%M")
+        taken = (os.path.exists(os.path.join(SESSION_DIR, f"session_{sid}.json"))
+                 or any(f.startswith(f"s{sid}_") for f in raw))
+        if not taken:
+            return sid
+        t += timedelta(minutes=1)
 
 
 def csi_mac(line: str):
@@ -497,6 +541,7 @@ def collect_sample(reader, label, activity_name, sample_num, prefix=None):
 
     stop_flag.set()
     time.sleep(0.15)                  # ให้แถบ progress พิมพ์บรรทัดสุดท้ายเสร็จก่อน
+    _, max_gap = esp_rate_gap(packets)
     if is_auto:
         print("\a\n  🔔 ครบแล้ว — กลับเข้าห้องได้")
     mark = mark_idx[0]
@@ -504,12 +549,7 @@ def collect_sample(reader, label, activity_name, sample_num, prefix=None):
     # ถ้าไม่ดึงกลับ จะไม่มีแถวไหนได้ mark=1 แล้ว preprocess ทิ้งไฟล์นี้ทั้งที่ manifest บอกว่ามีมาร์ค
     if mark >= len(packets):
         mark = len(packets) - 1
-    rate = None
-    if len(packets) >= 50:
-        t0 = csi_timestamp(packets[0]["raw"])
-        t1 = csi_timestamp(packets[-1]["raw"])
-        if t0 is not None and t1 is not None and t1 > t0:
-            rate = (len(packets) - 1) / (t1 - t0)
+    rate, _ = esp_rate_gap(packets)
 
     print(f"\n  รับมา {len(packets)} pkts", end="")
     if rate:
@@ -543,6 +583,8 @@ def collect_sample(reader, label, activity_name, sample_num, prefix=None):
 
     if len(packets) < WINDOW_SIZE_MIN:
         print(f"  ⚠️  สั้นเกินไป (<{WINDOW_SIZE_MIN} pkts) — ใช้ทำ window ไม่ได้")
+    if max_gap is not None and max_gap > GAP_WARN_SEC:
+        print(f"  ⚠️  ข้อมูลขาดช่วง {max_gap*1000:.0f} ms — packet หายเป็นช่วง / ESP32 รีบูต")
 
     confirm = input("  บันทึก sample นี้ไหม? (y/n): ").strip().lower()
     if confirm != "y":
@@ -587,7 +629,7 @@ def write_sample_csv(packets, label, activity_name, sample_num, prefix, mark):
     return filename
 
 
-def assess_sample(mode, n_packets, mark, rate):
+def assess_sample(mode, n_packets, mark, rate, max_gap=None):
     """ตรวจ sample ที่เพิ่งเก็บ — คืน list ของ (ระดับ, ข้อความ) · ระดับ = "bad" | "warn"
 
     กฎเดียวกับที่ CLI พิมพ์เตือน — หน้าเว็บใช้ตัวนี้ตัดสินว่าควรเก็บซ้ำไหม
@@ -613,6 +655,11 @@ def assess_sample(mode, n_packets, mark, rate):
         out.append(("bad", f"อัตราต่ำมาก {rate:.0f} pkt/s (ปกติ ~{PKT_PER_SEC:.0f})"))
     elif rate < RATE_WARN:
         out.append(("warn", f"อัตราต่ำ {rate:.0f} pkt/s (ปกติ ~{PKT_PER_SEC:.0f})"))
+    if max_gap is not None and max_gap > GAP_BAD_SEC:
+        out.append(("bad", f"ข้อมูลขาดช่วง {max_gap*1000:.0f} ms — packet หายเป็นช่วง หรือ ESP32 #1 รีบูต "
+                           "(ถ้ารีบูต: จดไว้ใน notes และอุ่นบอร์ดใหม่)"))
+    elif max_gap is not None and max_gap > GAP_WARN_SEC:
+        out.append(("warn", f"ข้อมูลขาดช่วง {max_gap*1000:.0f} ms (ปกติ ≤ 35 ms)"))
     return out
 
 
@@ -666,15 +713,74 @@ def show_menu():
 """
 
 
-def build_interleaved_plan(rounds, seed=None, activities=None):
+# น้ำหนักของแต่ละท่า "ภายในคลาสเดียวกัน" — ตัดสินใจ 2026-11-11
+#
+# ท่าที่แยกจากการล้มยาก = ต้นเหตุของ false alarm → เก็บมากขึ้นให้ตัวเลขแม่นพอ
+# ท่าที่แยกง่าย หรือมีอยู่แล้วในช่วงยืนก่อนล้มของทุกคลิป → เก็บน้อยลง
+#   ห้องว่าง: แยกง่ายมาก (ไม่มีคนเลย) และแพงสุด — ทุกคนต้องออกจากห้องทุกครั้ง
+#   ยืนนิ่ง:  ทุกคลิปที่มาร์คมีช่วงยืนนิ่ง ~5 วิ ก่อนทำท่าอยู่แล้ว (dataset B ได้ไปเต็ม ๆ)
+#
+# ต่อคน 80 รอบ → fall ท่าละ 20 · สะดุดแต่ไม่ล้ม 20 · นอนลง 16 · ก้ม 16 · เดิน 14 · ยืนนิ่ง 8 · ห้องว่าง 6
+# 5 คนรวม     → fall ท่าละ 100 · สะดุดแต่ไม่ล้ม 100 (= คู่ของ "สดุดล้ม") · นอนลง 80 · ก้ม 80 · เดิน 70 · ยืนนิ่ง 40 · ห้องว่าง 30
+ACTIVITY_WEIGHT = {
+    "ล้มไปข้างหน้า":  1,
+    "ล้มไปข้างหลัง":  1,
+    "ล้มไปข้างๆ":     1,
+    "สดุดล้ม":        1,
+    "สะดุดแต่ไม่ล้ม":  20,
+    "นอนลงบนพื้น":    16,
+    "ก้มเก็บของ":     16,
+    "เดิน":          14,
+    "ยืนนิ่ง":         8,
+    "ห้องว่าง":        6,
+}
+
+
+def allocate(total, weights):
+    """แบ่ง total ตามน้ำหนักแบบ largest remainder — ผลรวมเท่ากับ total พอดี และ deterministic
+
+    weights: {ชื่อท่า: น้ำหนัก} (เรียงตาม ACTIVITIES) · น้ำหนัก 0 = ไม่ได้
+    ใช้ทั้งตอนสร้าง plan และตอนแสดงตัวเลขในหน้าเว็บ — ต้องได้ค่าเดียวกันเสมอ
+    """
+    names = [n for n, w in weights.items() if w > 0]
+    if total <= 0 or not names:
+        return {n: 0 for n in weights}
+    wsum = float(sum(weights[n] for n in names))
+    exact = {n: total * weights[n] / wsum for n in names}
+    out = {n: int(exact[n]) for n in names}
+    left = total - sum(out.values())
+    order = sorted(names, key=lambda n: (-(exact[n] - out[n]), -weights[n], names.index(n)))
+    for n in order[:left]:
+        out[n] += 1
+    return {n: out.get(n, 0) for n in weights}
+
+
+def _spread(counts, rng):
+    """เรียงท่าให้แต่ละท่ากระจายทั่วทั้ง session ไม่กระจุกช่วงใดช่วงหนึ่ง
+
+    ท่าที่มี c ครั้ง ได้ตำแหน่ง (i + สุ่ม 0.25-0.75) / c — เหมือนแบ่งเวลาเป็น c ช่วงแล้ววางช่วงละครั้ง
+    ถ้าท่าใดกระจุกตอนต้น/ท้าย session ท่านั้นจะผูกกับอุณหภูมิบอร์ด/ความล้าของคนแสดง
+    """
+    slots = []
+    for n, c in counts.items():
+        for i in range(c):
+            slots.append(((i + rng.uniform(0.25, 0.75)) / c, rng.random(), n))
+    return [n for _, _, n in sorted(slots)]
+
+
+def build_interleaved_plan(rounds, seed=None, activities=None, quota=None):
     """
     สร้างลำดับการเก็บที่สลับ fall / non_fall
 
-    1 รอบ = 1 fall + 1 non_fall โดยสุ่มว่ารอบนั้นเริ่มด้วยคลาสไหน
+    1 รอบ = 1 fall + 1 non_fall · สลับว่ารอบไหนขึ้นต้นด้วยคลาสไหน
     (ถ้าสลับตายตัว fall จะตามหลัง non_fall เสมอ ผลข้างเคียงจากท่าก่อนหน้า
      เช่นยังลุกไม่เสร็จ จะเข้าคลาสเดียวเสมอกลายเป็น confound ตัวใหม่)
 
-    ท่าภายในแต่ละคลาสหมุนจนครบทุกท่าก่อนวนใหม่ — ได้จำนวนเท่ากันทุกท่า
+    จำนวนต่อท่าภายในคลาส:
+      quota=None  → แบ่งตาม ACTIVITY_WEIGHT
+      quota=dict  → แบ่งตามจำนวนที่ "ยังขาด" (เช่นคนแสดงคนเดิมกลับมาเก็บ session ที่สอง)
+                    ถ้าคลาสไหนไม่ขาดแล้วเลย กลับไปใช้ ACTIVITY_WEIGHT
+    แต่ละท่ากระจายทั่วทั้ง session (_spread)
 
     activities = ชื่อท่าที่จะเก็บ (None = ทุกท่า) · ต้องมีทั้ง fall และ non_fall อย่างน้อยคลาสละ 1 ท่า
     ไม่งั้นสลับคลาสไม่ได้ = กลับไปเป็นปัญหา session confound ของชุดข้อมูลแรก
@@ -685,22 +791,37 @@ def build_interleaved_plan(rounds, seed=None, activities=None):
     if not falls or not nonfalls:
         raise ValueError("ต้องเลือกท่า fall และ non_fall อย่างน้อยคลาสละ 1 ท่า")
     rng = random.Random(seed)
+    by_name = {a[1]: a for a in pool}
 
-    plan, fall_pool, non_pool = [], [], []
+    def order_for(acts):
+        w = {a[1]: max(0, int((quota or {}).get(a[1], 0))) for a in acts} if quota else {}
+        if not w or sum(w.values()) == 0:
+            w = {a[1]: ACTIVITY_WEIGHT.get(a[1], 1) for a in acts}
+        return _spread(allocate(rounds, w), rng)
+
+    f_order, n_order = order_for(falls), order_for(nonfalls)
+    plan = []
     for r in range(rounds):
-        if not fall_pool:
-            fall_pool = falls[:]
-            rng.shuffle(fall_pool)
-        if not non_pool:
-            non_pool = nonfalls[:]
-            rng.shuffle(non_pool)
-
-        pair = [fall_pool.pop(), non_pool.pop()]
+        pair = [by_name[f_order[r]], by_name[n_order[r]]]
         if r % 2:
             pair.reverse()
         plan.extend(pair)
-
     return plan
+
+
+def planned_counts(rounds, activities=None, quota=None):
+    """จำนวนต่อท่าที่ build_interleaved_plan จะให้ — ใช้แสดงผลล่วงหน้า (ไม่ต้องสุ่ม)"""
+    pool = [a for a in ACTIVITIES if activities is None or a[1] in activities]
+    out = {}
+    for label in ("fall", "non_fall"):
+        acts = [a for a in pool if a[0] == label]
+        if not acts:
+            continue
+        w = {a[1]: max(0, int((quota or {}).get(a[1], 0))) for a in acts} if quota else {}
+        if not w or sum(w.values()) == 0:
+            w = {a[1]: ACTIVITY_WEIGHT.get(a[1], 1) for a in acts}
+        out.update(allocate(rounds, w))
+    return out
 
 
 def ask_session_info():
@@ -757,7 +878,7 @@ def run_session(reader):
     info = ask_session_info()
     plan = build_interleaved_plan(rounds)
 
-    session_id = datetime.now().strftime("%Y%m%d_%H%M")
+    session_id = new_session_id()
     started_at = datetime.now().isoformat()
 
     print("\n  📋 ลำดับที่จะเก็บ (" + str(len(plan)) + " sample)")

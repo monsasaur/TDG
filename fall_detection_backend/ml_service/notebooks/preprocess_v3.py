@@ -109,6 +109,23 @@ def parse_csi_line(raw_line: str):
         return None
 
 
+def load_session_actors():
+    """session_id → actor_id จาก manifest (info.actor_id) — เก็บด้วยหน้าเว็บ collect_web.py
+
+    คนแสดงแต่ละคนเก็บคนละ session → แบ่ง test ตามคนได้ (เทรน 4 คน ทดสอบคนที่ 5)
+    session ที่ไม่มีข้อมูลคนแสดง = 0
+    """
+    out = {}
+    for p in glob.glob(os.path.join(SESSION_DIR, "session_*.json")):
+        try:
+            with open(p, encoding="utf-8") as f:
+                m = json.load(f)
+            out[m["session_id"]] = int((m.get("info") or {}).get("actor_id") or 0)
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    return out
+
+
 def parse_session(filename):
     """คืน session_id จาก prefix s<id>_<seq>_ — ไฟล์เก่าที่ไม่มี prefix ได้ 'legacy'"""
     m = re.match(r"^s(\d{8}_\d{4})_\d+_", filename)
@@ -223,7 +240,7 @@ def build_continuous(amp_seq, label, mark):
 
 
 # =================== Save ===================
-def save(out_dir, X, y, file_ids, session_ids, extra):
+def save(out_dir, X, y, file_ids, session_ids, extra, actor_ids=None):
     os.makedirs(out_dir, exist_ok=True)
     X = np.array(X, dtype=np.float32)
     y = np.array(y, dtype=np.int32)
@@ -231,6 +248,8 @@ def save(out_dir, X, y, file_ids, session_ids, extra):
     np.save(os.path.join(out_dir, "y.npy"), y)
     np.save(os.path.join(out_dir, "file_ids.npy"), np.array(file_ids, dtype=np.int32))
     np.save(os.path.join(out_dir, "session_ids.npy"), np.array(session_ids, dtype=np.int32))
+    if actor_ids is not None:
+        np.save(os.path.join(out_dir, "actor_ids.npy"), np.array(actor_ids, dtype=np.int32))
     meta = {
         "n_samples":    int(len(X)),
         "n_features":   int(X.shape[1]) if len(X) else N_FEATURES,
@@ -261,8 +280,9 @@ def main():
           f"· stride {STRIDE} ({STRIDE/PKT_PER_SEC:.2f} วิ)")
     print("=" * 64 + "\n")
 
-    A = {"X": [], "y": [], "fid": [], "sid": []}
-    B = {"X": [], "y": [], "fid": [], "sid": []}
+    A = {"X": [], "y": [], "fid": [], "sid": [], "aid": []}
+    B = {"X": [], "y": [], "fid": [], "sid": [], "aid": []}
+    sess_actor = load_session_actors()
     sess_index, skipped, unmarked = {}, 0, 0
     mark_pos = []
 
@@ -282,6 +302,7 @@ def main():
 
         sname = parse_session(fname)
         sid   = sess_index.setdefault(sname, len(sess_index))
+        aid   = sess_actor.get(sname, 0)
         lab   = LABEL_MAP[label]
 
         fa = build_framed(amp, label, mark)
@@ -295,11 +316,11 @@ def main():
                 why = f"คลิปสั้นไป ({len(amp)} pkt)"
             print(f"  ⚠️  {fname[:52]:54s} {why} → ได้แค่ {len(fa)} window")
         A["X"].extend(fa); A["y"].extend([lab] * len(fa))
-        A["fid"].extend([fid] * len(fa)); A["sid"].extend([sid] * len(fa))
+        A["fid"].extend([fid] * len(fa)); A["sid"].extend([sid] * len(fa)); A["aid"].extend([aid] * len(fa))
 
         fb = build_continuous(amp, label, mark)
         B["X"].extend(f for f, _ in fb); B["y"].extend(l for _, l in fb)
-        B["fid"].extend([fid] * len(fb)); B["sid"].extend([sid] * len(fb))
+        B["fid"].extend([fid] * len(fb)); B["sid"].extend([sid] * len(fb)); B["aid"].extend([aid] * len(fb))
 
         print(f"  ✅ {fname[:52]:54s} {label:9s} A={len(fa):2d}  B={len(fb):3d}")
 
@@ -309,14 +330,15 @@ def main():
 
     common = {"n_files": len(files) - skipped - unmarked,
               "n_sessions": len(sess_index),
-              "sessions": list(sess_index)}
+              "sessions": list(sess_index),
+              "actors": sorted({a for a in A["aid"]})}
     mA = save(OUT_FRAMED, A["X"], A["y"], A["fid"], A["sid"],
               {"variant": "framed", "framed_before": FRAMED_BEFORE,
                "framed_after": FRAMED_AFTER, "no_event_mark": NO_EVENT_MARK,
-               "event_non_fall": list(EVENT_NON_FALL), **common})
+               "event_non_fall": list(EVENT_NON_FALL), **common}, A["aid"])
     mB = save(OUT_CONT, B["X"], B["y"], B["fid"], B["sid"],
               {"variant": "continuous", "fall_before": FALL_BEFORE,
-               "fall_after": FALL_AFTER, **common})
+               "fall_after": FALL_AFTER, **common}, B["aid"])
 
     print("\n" + "=" * 64)
     for name, m, d in [("A framed", mA, OUT_FRAMED), ("B continuous", mB, OUT_CONT)]:
@@ -334,6 +356,8 @@ def main():
         if early:
             print(f"  ⚠️  {early}/{len(mp)} ไฟล์ล้มเร็วเกินไป (มาร์ค < {FRAMED_BEFORE} pkt) "
                   "— ได้ window ไม่ครบ")
+    n_act = len({a for a in A["aid"] if a})
+    print(f"  คนแสดง {n_act} คน (actor_ids.npy)" + ("" if n_act else " — ไม่มีข้อมูลคนแสดงใน manifest"))
     if len(sess_index) < 2:
         print("\n  ⚠️  มี session เดียว — แบ่ง test ตาม session ยังทำไม่ได้")
     print("=" * 64 + "\n")

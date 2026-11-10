@@ -40,6 +40,13 @@ while time.time() - t0 < DUR:
     except ValueError: pass
 if len(ts) < 50:
     print(f"❌ ได้แค่ {len(ts)} pkt จาก #2 — แมคเกาะ myssid ไหม / #2 มีไฟไหม · MAC อื่น: {other}"); sys.exit(1)
+# timestamp ของ ESP32 เป็น uint32 µs วนกลับทุก 71.6 นาที — unwrap ก่อนใช้
+WRAP = 2 ** 32 / 1e6
+acc, unwrapped = 0.0, [ts[0]]
+for a, b in zip(ts, ts[1:]):
+    acc += (b - a) % WRAP
+    unwrapped.append(ts[0] + acc)
+ts = unwrapped
 span = ts[-1] - ts[0]
 rate = (len(ts) - 1) / span
 # อัตรารายวินาที (ตาม ESP32 clock)

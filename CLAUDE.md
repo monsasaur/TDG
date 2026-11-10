@@ -26,7 +26,7 @@
 | Threshold tuning | Med | หาแล้วสำหรับ RandomForest — แนะนำ 0.36 (recall 97.6%, false alarm 9.6%) เหลือแค่ตัดสินใจว่าจะเปลี่ยน production model ไหม |
 | BLE WiFi Provisioning | Med | เหลือ 4 อย่าง (ตรวจ 2026-09-06): 1) build/flash กับบอร์ดจริง — `sdkconfig` ปัจจุบันยังเป็น flash 2MB + single-app partition + ไม่มี BT ต้อง `rm sdkconfig` ก่อน 2) หน้าจอกรอก PoP 3) **บันทึกอุปกรณ์ลง Supabase — ยังไม่มีการ insert ที่ไหนเลย** 4) ขั้นตอนผลิต device code + PoP (default เป็นค่าเดียวกันทุกเครื่อง) · ใบงาน `docs/reports/frontend_req_device_pairing_code.md` |
 | One-class anomaly model | ✅ ตอบแล้ว | ลอง 4 ตัว ROC-AUC ดีสุด 0.70 เทียบ supervised 0.985 — ใช้แทนไม่ได้กับ feature ชุดนี้ |
-| เก็บ dataset ใหม่ (สลับคลาสใน session) | **High** | ข้อมูลชุดเดิมเก็บ fall ทั้งหมดก่อนแล้วค่อย non_fall → สภาพห้องกับคลาสทับกันสนิท แก้ย้อนหลังไม่ได้ · **ต้องสลับคลาสภายใน session เดียวกัน** ดูข้อกำหนดใน `docs/reports/data_quality_audit_2026-09.md` |
+| เก็บ dataset ใหม่ (สลับคลาสใน session) | **High** | **เครื่องมือพร้อม** (หน้าเว็บ `collect_web.py` · firmware 100 pkt/s · 5 คน × 80 รอบ) · เหลือ: ด่านนำร่อง `pilot_check.py` หลังคนแรก 30 รอบ แล้วเก็บจริง · ดู `docs/reports/collect_runbook.md` |
 | Unseen test scenario | **High** | test set ต้องเป็น session ที่ไม่เคยเห็น ไม่ใช่แค่ไฟล์ที่ไม่เคยเห็น |
 | **CSI uplink ในบ้านลูกค้า** | **High** | 🔴 **ยังไม่มีอะไรส่ง CSI ขึ้น cloud เลย** — ทั้งสองทางที่มีอยู่ต้องมีคอมเปิดในบ้าน และ `csi_streamer.py` ยิงตรงไป ML service ข้าม Express API (ไม่มี event/alert/push/escalation) · ตัวเลข + ทางเลือก: `docs/reports/production_csi_uplink_decision.md` |
 | Production Cloud deploy | Med | **Dockerfile + render.yaml + compose พร้อมแล้ว** · เหลือ: ตัดสินใจเรื่องไฟล์โมเดลที่ถูก gitignore · กรอก env ใน Render · ทดสอบ `docker compose up` (ยังไม่ได้รัน — เครื่องนี้ไม่มี docker) |
@@ -125,38 +125,39 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### Data Collection & Training Pipeline
+
+> รายละเอียดทุกขั้น + ข้อห้าม: **`docs/reports/collect_runbook.md`** · firmware/อัตรา CSI: `docs/reports/esp_build_worklog.md` (2026-11-11)
+
+แผนรอบนี้: คนแสดง 5 คน · คนละ session คนละ 80 รอบ = 800 ไฟล์ · ห้องเดียว · ทาง UDP (แมคใช้เน็ตผ่าน iPhone ทางสาย USB)
+ท่าถ่วงน้ำหนักตามความยาก (`ACTIVITY_WEIGHT` ใน `csi_collector_serial.py`) · อัตรา CSI 100 pkt/s (ชุดแรก 73 เพราะบั๊ก firmware)
+
 ```bash
-cd fall_detection_backend/ml_service
-pip install pyserial   # ครั้งแรกเท่านั้น
+cd fall_detection_backend/ml_service && source venv/bin/activate
 
-# 1. เช็ค ESP32 (USB serial)
-python data_collection/esp_checker.py
+# 1. แมคเกาะ WiFi "myssid" (รหัส mypassword) · เช็คอัตราที่ตำแหน่งจริง — ต้อง ≈100 pkt/s · unicast · qdrop/fail 0
+python data_collection/udp_rate_check.py 60 site hello
 
-# 2. เก็บ data ผ่าน USB serial (ไม่ใช้ UDP แล้ว)
-python data_collection/csi_collector_serial.py
-#    ⭐ ในเมนูให้กด 's' = โหมด session สลับคลาส — สคริปต์สั่งเองว่าตาต่อไปเก็บท่าอะไร
-#    สลับ fall/non_fall ให้อัตโนมัติ กันปัญหา session confound ที่เจอในชุดข้อมูลแรก
-#    เมนูเลือกท่าแบบเดิมยังใช้ได้ แต่จะเก็บทีละท่ารวดเดียว = ทำให้คลาสผูกกับเวลา
-#    ห้าม reboot ESP32 / ห้ามขยับอุปกรณ์ / ห้ามย้ายของในห้อง ตลอด session
-#    manifest บันทึกที่ data/sessions/session_<id>.json
+# 2. เก็บด้วยหน้าเว็บ (แทน CLI) → http://localhost:8765 · เลือกคนแสดงจากการ์ด · Space/Y/N
+CSI_TRANSPORT=udp python data_collection/collect_web.py
+#    ซ้อมโดยไม่มีบอร์ด: python data_collection/collect_web.py --demo (เขียนลง data/raw จริง — ลบก่อนเก็บจริง)
+#    ไฟล์ → data/raw/s<session>_<seq>_<label>_<ท่า>_*.csv · manifest → data/sessions/session_<id>.json (มี actor_id)
 
-# 3. Preprocess → data/processed_v2/
-python notebooks/preprocess_v2.py
-#    ออก X.npy, y.npy, file_ids.npy, session_ids.npy, metadata.json
-#    session_ids มาจาก prefix s<id>_ ที่ collector เขียนไว้ (ไฟล์เก่าไม่มี prefix = "legacy")
-#    จำเป็นสำหรับแบ่ง test set ตาม session — test ต้องเป็น session ที่โมเดลไม่เคยเห็น
+# 3. 🚦 ด่านนำร่อง — หลังคนแรกเก็บ ~30 รอบ ก่อนเก็บต่อ (โมเดลแยก fall/non_fall ได้ดีกว่าสุ่มไหม)
+python experiments/pilot_check.py --actor 1
 
-# 4. ⭐ ตรวจข้อมูลก่อนเทรน — 0 = ผ่าน, 1 = ไม่ผ่าน
-python experiments/check_dataset.py
-#    เช็ค: สลับคลาสจริงไหม · สภาพห้องเลื่อนไหม · โมเดลจับระดับสัญญาณหรือการเคลื่อนไหว
-#    · ข้าม session แล้วยังทำงานไหม · วิธีวัดรั่วไหม
-#    ไม่ผ่าน = อย่าเพิ่งเทรน ตัวเลขที่ได้จะไม่สะท้อนความจริง
-#    อยากรู้รายละเอียดว่าทำไม → python experiments/audit_data.py
+# 4. Preprocess → data/processed_v3_framed (dataset A) + processed_v3_continuous (dataset B)
+python notebooks/preprocess_v3.py        # ห้ามใช้ preprocess_v2 กับข้อมูลชุดใหม่
+#    window 273 pkt (2.73 วิ) · stride 68 · ออก file_ids / session_ids / actor_ids
+#    ⚠️ ค้าง: เลือก subcarrier ผิด (ใช้ 0-51 ต้องเป็น 6-31,33-58) + ยังไม่หาร gain ต่อ packet — แก้ก่อนเทรน rf_v2
 
-# 5. Train → เปิด notebooks/train_v3.ipynb → Restart & Run All
+# 5. ตรวจข้อมูลก่อนเทรน (ใช้กับ dataset A เท่านั้น) — 0 = ผ่าน
+CSI_DATA_DIR=data/processed_v3_framed python experiments/check_dataset.py
+#    ข้อ "โมเดลจับอะไรอยู่" อาจ FAIL ทั้งที่ข้อมูลดี (ห้องว่าง/ท่านอนเปลี่ยนระดับสัญญาณจริง) — ดูคู่กับผลแบ่งตามคน
+
+# 6. Train rf_v2 (RandomForest) — แบ่ง test ตามคน (leave-one-actor-out) · ยังไม่มี notebook
 ```
 
-> หมายเหตุ: `csi_collector.py` (UDP version) เก็บไว้สำหรับโหมด WiFi ในอนาคต — ตอนนี้ใช้ `csi_collector_serial.py` เท่านั้น
+> CLI เดิม `csi_collector_serial.py` (กด `s`) ยังใช้ได้เป็นทางสำรอง · `csi_collector.py` (UDP รุ่นเก่า) ห้ามใช้ — ไม่มีโหมดสลับคลาส
 
 ## API Endpoints (Express API — Render Cloud)
 
