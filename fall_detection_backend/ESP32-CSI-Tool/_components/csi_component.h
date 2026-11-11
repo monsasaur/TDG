@@ -149,6 +149,7 @@ static void fill_item(csi_item_t *it, wifi_csi_info_t *data) {
 // ตัวนับ (พิมพ์ทุก 1 วิ เป็นบรรทัด STAT ทั้งทาง UDP และ serial — collector กรองทิ้งเพราะไม่ใช่ CSI_DATA):
 //   cb    = callback ที่ WiFi ส่งมา (CSI ที่ #1 วัดได้จริง ทุก MAC)
 //   skip  = ทิ้งเพราะ MAC ไม่ตรง CONFIG_CSI_UDP_SOURCE_MAC
+//   dup   = ทิ้งเพราะเป็นเฟรมเดิมที่ #2 ส่งซ้ำ (rx_seq เท่าตัวก่อน)
 //   qdrop = คิวเต็ม ทิ้ง
 //   sent  = sendto สำเร็จ
 //   fail  = sendto ล้มเหลว (ENOMEM ฯลฯ)
@@ -163,7 +164,11 @@ static void fill_item(csi_item_t *it, wifi_csi_info_t *data) {
 #define HELLO_TIMEOUT_US  (10 * 1000000LL)
 
 static QueueHandle_t   csi_queue = NULL;
-static volatile uint32_t st_cb = 0, st_skip = 0, st_qdrop = 0, st_sent = 0, st_fail = 0;
+static volatile uint32_t st_cb = 0, st_skip = 0, st_dup = 0, st_qdrop = 0, st_sent = 0, st_fail = 0;
+// เฟรมที่ #2 ส่งซ้ำ (retry) มีเลขลำดับ 802.11 เดิม — ESP32 ยังเรียก callback ให้ทุกครั้งที่รับได้
+// ถ้าไม่ทิ้ง: ข้อมูลมีเฟรมซ้ำ (เจอจริง 2026-11-11: 130-190 pkt/s ทั้งที่ #2 ส่ง 100) window สั้นลง
+// และ #1 ต้องส่งของซ้ำ → ช่องยิ่งแน่น → #2 ยิ่งส่งซ้ำ วนเป็นวงจร
+static int32_t  last_seq = -1;
 static uint8_t  src_mac[6];
 static bool     src_filter = false;   // true = ส่งเฉพาะเฟรมจาก src_mac (CONFIG_CSI_UDP_SOURCE_MAC)
 
@@ -246,9 +251,10 @@ static void csi_udp_task(void *arg) {
             ctrl_poll();
             char stat[160];
             snprintf(stat, sizeof(stat),
-                     "STAT,%s,%lld,cb=%lu,skip=%lu,qdrop=%lu,sent=%lu,fail=%lu,dest=%s\n",
+                     "STAT,%s,%lld,cb=%lu,skip=%lu,dup=%lu,qdrop=%lu,sent=%lu,fail=%lu,dest=%s\n",
                      project_type, (long long)(now / 1000),
-                     (unsigned long)st_cb, (unsigned long)st_skip, (unsigned long)st_qdrop,
+                     (unsigned long)st_cb, (unsigned long)st_skip, (unsigned long)st_dup,
+                     (unsigned long)st_qdrop,
                      (unsigned long)st_sent, (unsigned long)st_fail,
                      peer_ip ? "unicast" : "broadcast");
             printf("%s", stat);
@@ -263,7 +269,10 @@ void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
     st_cb++;
     if (src_filter && memcmp(data->mac, src_mac, 6) != 0) {
         st_skip++;
+    } else if (src_filter && (int32_t) data->rx_seq == last_seq) {
+        st_dup++;                     // เฟรมเดิมที่ #2 ส่งซ้ำ — เก็บแค่ครั้งแรก
     } else if (csi_queue) {
+        if (src_filter) last_seq = data->rx_seq;
         fill_item(&cb_item, data);
         if (xQueueSend(csi_queue, &cb_item, 0) != pdTRUE) st_qdrop++;
     }

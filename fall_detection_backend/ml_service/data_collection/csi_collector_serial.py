@@ -106,6 +106,9 @@ GAP_BAD_SEC  = 0.30
 # ต่ำกว่านี้แปลว่ามีอะไรผิดปกติ: unicast หลุด (ไม่ได้ HELLO) / มีของแย่งช่อง / firmware เก่า
 RATE_WARN          = 90.0
 RATE_FAIL          = 75.0
+# สูงเกินก็ผิดปกติ — #2 ส่ง 100/วิ พอดี ถ้าได้เกินแปลว่ามีเฟรมซ้ำจากการส่งซ้ำ (ช่องแน่น/แมคทำให้
+# #1 ส่งไม่ทัน) · เจอจริง 2026-11-11: 177 pkt/s ตอน AirDrop/Handoff ของแมคเปิด · window 273 pkt จะสั้นลง
+RATE_HIGH          = 110.0
 
 # =================== เมนู ===================
 ACTIVITIES = [
@@ -573,6 +576,9 @@ def collect_sample(reader, label, activity_name, sample_num, prefix=None):
             print(f"  ⚠️  สั้นไป ({len(packets)} < {PLAIN_MIN_PKT} pkt) "
                   "— preprocess จะได้ window ไม่ครบ")
 
+    if rate and rate > RATE_HIGH:
+        print(f"  ⚠️  อัตราสูงผิดปกติ ({rate:.0f} pkt/s · ปกติ ~{PKT_PER_SEC:.0f}) — เฟรมซ้ำจากการส่งซ้ำ "
+              "ปิด AirDrop/Handoff ของแมค ขยับแมคใกล้ #1")
     if rate and rate < RATE_WARN:
         print(f"  ⚠️  อัตราต่ำ ({rate:.0f} pkt/s · ปกติ ~{PKT_PER_SEC:.0f}) "
               "— มีอะไรแย่งช่องสัญญาณอยู่")
@@ -655,6 +661,9 @@ def assess_sample(mode, n_packets, mark, rate, max_gap=None):
         out.append(("bad", f"อัตราต่ำมาก {rate:.0f} pkt/s (ปกติ ~{PKT_PER_SEC:.0f})"))
     elif rate < RATE_WARN:
         out.append(("warn", f"อัตราต่ำ {rate:.0f} pkt/s (ปกติ ~{PKT_PER_SEC:.0f})"))
+    elif rate > RATE_HIGH:
+        out.append(("bad", f"อัตราสูงผิดปกติ {rate:.0f} pkt/s — มีเฟรมซ้ำจากการส่งซ้ำ (ช่องสัญญาณแน่น) "
+                           "· ปิด AirDrop/Handoff ของแมค ขยับแมคใกล้ #1"))
     if max_gap is not None and max_gap > GAP_BAD_SEC:
         out.append(("bad", f"ข้อมูลขาดช่วง {max_gap*1000:.0f} ms — packet หายเป็นช่วง หรือ ESP32 #1 รีบูต "
                            "(ถ้ารีบูต: จดไว้ใน notes และอุ่นบอร์ดใหม่)"))

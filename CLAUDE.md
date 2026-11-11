@@ -138,7 +138,8 @@ cd fall_detection_backend/ml_service && source venv/bin/activate
 python data_collection/udp_rate_check.py 60 site hello
 
 # 2. เก็บด้วยหน้าเว็บ (แทน CLI) → http://localhost:8765 · เลือกคนแสดงจากการ์ด · Space/Y/N
-CSI_TRANSPORT=udp python data_collection/collect_web.py
+CSI_TRANSPORT=udp caffeinate -i python data_collection/collect_web.py
+#    ⚠️ แมคต้องเสียบสายชาร์จ + ปิด Low Power Mode (ไม่งั้น WiFi ประหยัดไฟ → อัตราพัง) · ดู runbook หัวข้อ "ตั้งค่าแมค"
 #    ซ้อมโดยไม่มีบอร์ด: python data_collection/collect_web.py --demo (เขียนลง data/raw จริง — ลบก่อนเก็บจริง)
 #    ไฟล์ → data/raw/s<session>_<seq>_<label>_<ท่า>_*.csv · manifest → data/sessions/session_<id>.json (มี actor_id)
 

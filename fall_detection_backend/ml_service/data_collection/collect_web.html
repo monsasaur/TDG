@@ -156,6 +156,7 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.92em;background:var(--b
     <span class="chip" id="c-rate"><span class="dot"></span><span>—</span></span>
     <span class="chip" id="c-esp"><span class="dot"></span><span>—</span></span>
     <span class="spacer"></span>
+    <button class="chip bad" id="c-audio" style="cursor:pointer"><span class="dot"></span><span>🔇 คลิกตรงนี้เพื่อเปิดเสียง</span></button>
     <label class="toggle"><input type="checkbox" id="t-voice" checked> เสียงประกาศท่า</label>
   </header>
 
@@ -309,32 +310,86 @@ const $ = id => document.getElementById(id);
 let st = null, lastSeq = null, busy = false;
 
 // ---------- เสียง ----------
-let actx = null;
+// Chrome ไม่ให้หน้าเว็บเล่นเสียงจนกว่าจะมีคนคลิก/กดปุ่มในแท็บนั้นอย่างน้อย 1 ครั้ง
+// → ปลดล็อกเสียงทุกครั้งที่มีการคลิก/กดคีย์ และขึ้นป้ายบอกถ้ายังล็อกอยู่
+let actx = null, speechPrimed = false, thVoice = null, lastUtter = null, bootSeen = null;
+
+// เปิดหลายแท็บ → ให้เล่นเสียงแค่แท็บที่ใช้งานล่าสุด (กันเสียงซ้อน / กันแท็บที่ถูกล็อกแย่งไป)
+const myTab = Math.random().toString(36).slice(2);
+let audioOwner = myTab;
+const bc = ("BroadcastChannel" in window) ? new BroadcastChannel("collect-web-audio") : null;
+if (bc) bc.onmessage = e => { if (e.data && e.data.owner) { audioOwner = e.data.owner; renderAudioChip(); } };
+function claimAudio(){ audioOwner = myTab; if (bc) bc.postMessage({owner: myTab}); }
+
+function audioState(){
+  if (audioOwner !== myTab) return "other";
+  if (!actx || actx.state !== "running") return "locked";
+  return "ok";
+}
+function unlockAudio(){
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume().then(renderAudioChip);
+  } catch(e) {}
+  if (window.speechSynthesis && !speechPrimed) {          // ปลุกระบบพูดด้วยประโยคว่างภายในจังหวะที่ผู้ใช้กด
+    try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); speechPrimed = true; } catch(e) {}
+  }
+  claimAudio(); renderAudioChip();
+}
+["pointerdown", "keydown"].forEach(ev => document.addEventListener(ev, unlockAudio, {capture: true}));
+window.addEventListener("focus", () => { claimAudio(); renderAudioChip(); });
+
+function pickVoice(){
+  try { thVoice = speechSynthesis.getVoices().find(v => /^th/i.test(v.lang)) || null; } catch(e) {}
+  renderAudioChip();
+}
+if (window.speechSynthesis) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+
 function beep(kind){
-  try{
-    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
-    const tones = {start:[[880,.12]], mark:[[1320,.08]], ready:[[990,.1],[990,.1]],
-                   tick:[[600,.07]], go:[[1200,.45]],
-                   done:[[660,.15],[880,.15],[1100,.25]]}[kind] || [[700,.1]];
-    let t = actx.currentTime;
-    for (const [f,d] of tones){
-      const o = actx.createOscillator(), g = actx.createGain();
-      o.frequency.value = f; o.connect(g); g.connect(actx.destination);
-      g.gain.setValueAtTime(.25,t); g.gain.exponentialRampToValueAtTime(.001,t+d);
-      o.start(t); o.stop(t+d); t += d + .05;
-    }
-  }catch(e){}
+  if (audioOwner !== myTab) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const play = () => {
+      const tones = {start:[[880,.12]], mark:[[1320,.08]], ready:[[990,.1],[990,.1]],
+                     tick:[[600,.07]], go:[[1200,.45]],
+                     done:[[660,.15],[880,.15],[1100,.25]]}[kind] || [[700,.1]];
+      let t = actx.currentTime + 0.01;
+      for (const [f,d] of tones){
+        const o = actx.createOscillator(), g = actx.createGain();
+        o.frequency.value = f; o.connect(g); g.connect(actx.destination);
+        g.gain.setValueAtTime(.25,t); g.gain.exponentialRampToValueAtTime(.001,t+d);
+        o.start(t); o.stop(t+d); t += d + .05;
+      }
+    };
+    if (actx.state === "suspended") actx.resume().then(play).catch(() => {}); else play();
+  } catch(e) {}
 }
 function speak(text){
-  if (!$("t-voice").checked || !window.speechSynthesis) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text); u.lang = "th-TH"; u.rate = 1.0;
-  speechSynthesis.speak(u);
+  if (!$("t-voice").checked || !window.speechSynthesis || audioOwner !== myTab) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text); u.lang = "th-TH"; u.rate = 1.0;
+    if (thVoice) u.voice = thVoice;
+    lastUtter = u;                                        // เก็บไว้ — Chrome เก็บขยะ utterance ก่อนพูดจบได้
+    setTimeout(() => speechSynthesis.speak(u), 60);       // speak ทันทีหลัง cancel บางครั้ง Chrome ไม่พูด
+  } catch(e) {}
 }
 function playEvents(evts){
-  if (lastSeq === null){ lastSeq = evts.length ? evts[evts.length-1].seq : 0; return; } // ไม่เล่นย้อนหลังตอนเปิดหน้า
+  const latest = evts.length ? evts[evts.length-1].seq : 0;
+  // เปิดหน้าครั้งแรก หรือ server เพิ่งเปิดใหม่ (boot เปลี่ยน / ลำดับย้อนกลับ) → เริ่มนับใหม่ ไม่เล่นย้อนหลัง
+  if (lastSeq === null || st.boot !== bootSeen || latest < lastSeq) { bootSeen = st.boot; lastSeq = latest; return; }
   for (const e of evts){ if (e.seq <= lastSeq) continue; lastSeq = e.seq;
     if (e.kind === "beep") beep(e.text); else if (e.kind === "speak") speak(e.text); }
+}
+function renderAudioChip(){
+  const c = $("c-audio"); if (!c) return;
+  const s = audioState();
+  const noThai = window.speechSynthesis && speechSynthesis.getVoices().length && !thVoice;
+  c.className = "chip " + (s === "ok" ? (noThai ? "warn" : "ok") : s === "other" ? "" : "bad");
+  c.lastElementChild.textContent =
+      s === "ok"    ? (noThai ? "🔊 เสียงพร้อม · ไม่มีเสียงพูดภาษาไทยในเครื่อง" : "🔊 เสียงพร้อม · กดเพื่อทดสอบ")
+    : s === "other" ? "🔇 เสียงเล่นที่อีกแท็บ · คลิกเพื่อย้ายมาที่นี่"
+    :                 "🔇 คลิกตรงนี้เพื่อเปิดเสียง";
 }
 
 // ---------- API ----------
@@ -363,6 +418,7 @@ function signalLevel(){
   const s = st.signal, k = st.consts;
   if (s.rate == null) return ["bad", "ไม่มีข้อมูลจาก #2"];
   if (s.rate < k.rate_fail) return ["bad", `${s.rate.toFixed(0)} pkt/s`];
+  if (k.rate_high && s.rate > k.rate_high) return ["bad", `${s.rate.toFixed(0)} pkt/s · สูงผิดปกติ`];
   if (s.rate < k.rate_warn) return ["warn", `${s.rate.toFixed(0)} pkt/s`];
   return ["ok", `${s.rate.toFixed(0)} pkt/s`];
 }
@@ -370,6 +426,7 @@ function signalLevel(){
 function render(){
   if (!st) return;
   playEvents(st.events);
+  renderAudioChip();
   const k = st.consts, s = st.signal;
 
   chip("c-transport", st.transport ? "ok" : "warn",
@@ -382,7 +439,8 @@ function render(){
     else {
       const bad = (e.qdrop||0) > 1 || (e.fail||0) > 1, bc = e.dest !== "unicast";
       chip("c-esp", bad ? "bad" : bc ? "warn" : "ok",
-           `#1 ${e.dest||"?"} · คิวเต็ม ${e.qdrop??"–"} · ส่งพลาด ${e.fail??"–"} /วิ`);
+           `#1 ${e.dest||"?"} · คิวเต็ม ${e.qdrop??"–"} · ส่งพลาด ${e.fail??"–"}` +
+           (e.dup !== undefined ? ` · ทิ้งซ้ำ ${e.dup}` : "") + " /วิ");
     }
   } else chip("c-esp", "", "#1: —");
 
@@ -392,7 +450,9 @@ function render(){
   let sigMsg = "";
   if (live && st.transport && lv === "bad") sigMsg = s.rate == null
       ? "ไม่ได้รับข้อมูลจาก ESP32 #2 — เช็คไฟของ #2 และแมคยังเกาะ myssid อยู่ไหม"
-      : `อัตราต่ำมาก (${s.rate} pkt/s) — ข้อมูลจะไม่สม่ำเสมอ · ดู udp_rate_check.py`;
+      : s.rate > k.rate_high
+      ? `อัตราสูงผิดปกติ (${s.rate} pkt/s) — มีเฟรมซ้ำเพราะช่องสัญญาณแน่น · ปิด AirDrop/Handoff ของแมค · ขยับแมคเข้าใกล้ #1 · iPhone ปิด Wi-Fi`
+      : `อัตราต่ำมาก (${s.rate} pkt/s) — ข้อมูลจะไม่สม่ำเสมอ · ปิด AirDrop/Handoff ของแมค · ขยับแมคเข้าใกล้ #1`;
   else if (live && e && e.dest && e.dest !== "unicast" && st.transport === "udp")
     sigMsg = "#1 ยังส่งแบบ broadcast — HELLO ไม่ถึง #1 อัตราจะแกว่ง (รอ 2–3 วิ ถ้ายังไม่หายให้เช็ค WiFi)";
   $("b-signal").textContent = sigMsg; show("b-signal", !!sigMsg);
@@ -417,12 +477,15 @@ function renderSetup(){
   const s = st.signal, k = st.consts, e = s.esp, items = [];
   const add = (lvl, text) => items.push(`<div class="check ${lvl}"><span class="ic">${lvl==="ok"?"✓":lvl==="bad"?"✗":"!"}</span><span>${text}</span></div>`);
   add(s.rate != null ? "ok" : "bad", s.rate != null ? `ได้รับข้อมูลจาก #2 (${st.mac})` : "ยังไม่ได้รับข้อมูลจาก #2");
-  if (s.rate != null) add(s.rate >= k.rate_warn ? "ok" : s.rate >= k.rate_fail ? "warn" : "bad", `อัตรา ${s.rate} pkt/s (ต้อง ≥ ${k.rate_warn})`);
+  if (s.rate != null) add(s.rate > k.rate_high ? "bad" : s.rate >= k.rate_warn ? "ok" : s.rate >= k.rate_fail ? "warn" : "bad",
+                          `อัตรา ${s.rate} pkt/s (ต้องอยู่ช่วง ${k.rate_warn}–${k.rate_high})`);
   if (st.transport === "udp"){
     if (!e) add("warn", "ไม่เห็นบรรทัด STAT จาก #1 — firmware #1 เป็นตัวใหม่หรือเปล่า");
     else {
       add(e.dest === "unicast" ? "ok" : "warn", `#1 ส่งแบบ ${e.dest} ${e.dest==="unicast"?"":"(ต้องเป็น unicast)"}`);
       add((e.qdrop||0) <= 1 && (e.fail||0) <= 1 ? "ok" : "bad", `#1 คิวเต็ม ${e.qdrop}/วิ · ส่งพลาด ${e.fail}/วิ (ต้องเป็น 0)`);
+      if (e.dup !== undefined)
+        add((e.dup||0) <= 5 ? "ok" : "warn", `#2 ส่งซ้ำ ${e.dup}/วิ (#1 ทิ้งให้แล้ว ข้อมูลไม่ซ้ำ · ถ้าเยอะแปลว่าช่องแน่น)`);
     }
   }
   add(s.other_per_s > 5 ? "warn" : "ok", `เฟรมจากเครื่องอื่น ${s.other_per_s}/วิ ${s.other_per_s>5?"— มีเครื่องอื่นเกาะ myssid?":""}`);
@@ -670,6 +733,7 @@ $("btn-save").onclick = () => post("/api/save");
 $("btn-discard").onclick = () => post("/api/discard");
 $("btn-end").onclick = () => { if (confirm("จบ session ตอนนี้? ตาที่บันทึกแล้วไม่หาย แต่จะเก็บต่อใน session นี้ไม่ได้")) post("/api/end"); };
 $("btn-new").onclick = () => post("/api/new");
+$("c-audio").onclick = () => { unlockAudio(); setTimeout(() => { beep("ready"); speak("ทดสอบเสียง"); }, 80); };
 $("btn-edit-actors").onclick = () => { editingActors = !editingActors; renderActors(); show("actor-edit", editingActors); };
 $("btn-cancel-actors").onclick = () => { editingActors = false; show("actor-edit", false); renderActors(); };
 $("btn-save-actors").onclick = async () => {

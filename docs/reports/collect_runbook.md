@@ -117,6 +117,21 @@ WiFi ของแมคต้องเกาะ `myssid` ไว้ จึงต�
 
 ---
 
+## ⚠️ ตั้งค่าแมคก่อนเก็บทุกครั้ง — เจอจริง 2026-11-11
+
+ถ้าข้ามข้อไหน อัตราจะแกว่ง 30-190 pkt/s · #1 ส่งไม่ออก 100+/วิ · #2 ส่งซ้ำจนข้อมูลมีเฟรมซ้ำ
+
+| ทำ | ทำไม |
+|---|---|
+| **เสียบสายชาร์จแมค + ปิด Low Power Mode** (Battery → Low Power Mode → Never) | **ต้นเหตุหลัก** — ใช้แบต + Low Power Mode ทำให้ WiFi แมคประหยัดไฟ #1 ต้องพักข้อมูลรอ คิวเต็ม |
+| ปิด AirDrop (No One) + Handoff · ถ้า `ifconfig awdl0` ยัง UP → `sudo ifconfig awdl0 down` ใน Terminal | AWDL ทำให้วิทยุแมคกระโดดออกจากช่อง 6 เป็นระยะ |
+| iPhone ปิด Wi-Fi (ใช้เน็ตทางสาย USB) | hotspot ทาง WiFi ปล่อยคลื่นในห้อง |
+| ปิด Auto-Join ของ WiFi บ้าน | ทุกครั้งที่ #1 รีบูต แมคจะกระโดดกลับไป WiFi บ้านเอง |
+| รันหน้าเว็บด้วย `caffeinate -i` (ดูคำสั่งข้างล่าง) | กันแมคหลับกลาง session |
+
+เช็คที่ป้ายบนหน้าเว็บ: อัตรา 90-110 · `#1 unicast · คิวเต็ม 0 · ส่งพลาด 0 · ทิ้งซ้ำ ~0`
+(firmware #1 ทิ้งเฟรมที่ #2 ส่งซ้ำให้แล้ว — ข้อมูลไม่ซ้ำแม้ช่องแน่น แต่ "ทิ้งซ้ำ" เยอะ = ช่องมีปัญหา)
+
 ## ก่อนเริ่ม (ทำครั้งเดียว)
 
 ```bash
@@ -183,7 +198,7 @@ python notebooks/preprocess_v3.py    # ทุกไฟล์ต้องได�
 
 ```bash
 cd fall_detection_backend/ml_service && source venv/bin/activate
-CSI_TRANSPORT=udp python data_collection/collect_web.py     # ของจริง
+CSI_TRANSPORT=udp caffeinate -i python data_collection/collect_web.py     # ของจริง (caffeinate = กันแมคหลับ)
 python data_collection/collect_web.py --demo                 # ซ้อมโดยไม่มีบอร์ด
 ```
 เปิด **http://localhost:8765** · ตรรกะ/ชื่อไฟล์/manifest เหมือน CLI ทุกอย่าง (ใช้โค้ดชุดเดียวกัน)

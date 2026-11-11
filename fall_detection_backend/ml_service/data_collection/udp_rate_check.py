@@ -63,7 +63,7 @@ res = {"tag": TAG, "pkts": len(ts), "span_s": round(span, 1), "rate": round(rate
 if len(stats) >= 2:
     (ta, a), (tb, b) = stats[0], stats[-1]
     dt = tb - ta
-    res["at_#1_per_s"] = {k: round((b[k] - a[k]) / dt, 1) for k in ("cb", "skip", "qdrop", "sent", "fail") if k in a}
+    res["at_#1_per_s"] = {k: round((b[k] - a[k]) / dt, 1) for k in ("cb", "skip", "dup", "qdrop", "sent", "fail") if k in a}
     res["at_#1_dest"] = b.get("dest")
     res["stat_lines"] = len(stats)
     # สัดส่วนที่หายกลางอากาศ ≈ 1 - (คอมรับได้ทุก MAC) / (ที่ #1 ส่งสำเร็จ)

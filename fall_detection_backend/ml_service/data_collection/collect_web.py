@@ -48,6 +48,9 @@ ACTORS_FILE      = "actors.json"       # อยู่ใน data/sessions — �
 RAW_NAME_RE = re.compile(r"^s(\d{8}_\d{4})_\d+_(fall|non_fall)_(.+)_\d{8}_\d{6}_\d+\.csv$")
 HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "collect_web.html")
 DEMO = "--demo" in sys.argv
+# เปลี่ยนทุกครั้งที่เปิดโปรแกรมใหม่ — หน้าเว็บที่เปิดค้างไว้จะรู้ว่า server เริ่มนับลำดับเสียงใหม่
+# (เดิมแท็บเก่าจำเลขลำดับจาก server ตัวก่อน เสียงของ server ตัวใหม่เลยถูกมองว่า "เล่นไปแล้ว" → เงียบ)
+BOOT_ID = f"{int(time.time())}-{random.randint(1000, 9999)}"
 
 
 # =================== ข้อมูลปลอมสำหรับซ้อม ===================
@@ -361,7 +364,7 @@ def stat_summary():
     dt = b.get("t", 0) - a.get("t", 0)
     if dt <= 0:
         return b
-    out = {k: round((b[k] - a[k]) / dt, 1) for k in ("cb", "skip", "qdrop", "sent", "fail")
+    out = {k: round((b[k] - a[k]) / dt, 1) for k in ("cb", "skip", "dup", "qdrop", "sent", "fail")
            if isinstance(b.get(k), int) and isinstance(a.get(k), int)}
     out["dest"] = b.get("dest")
     out["age"] = round(time.time() - stat_hist[-1][0], 1)
@@ -513,7 +516,7 @@ def snapshot():
                    "plain_min_sec": round(C.PLAIN_MIN_PKT / C.PKT_PER_SEC, 1),
                    "stop_after_mark_sec": C.STOP_AFTER_MARK_SEC, "plain_stop_sec": C.PLAIN_STOP_SEC,
                    "action_cue_sec": C.ACTION_CUE_SEC,
-                   "rate_warn": C.RATE_WARN, "rate_fail": C.RATE_FAIL},
+                   "rate_warn": C.RATE_WARN, "rate_fail": C.RATE_FAIL, "rate_high": C.RATE_HIGH},
         "session": S["session"], "cur": rec, "review": S["review"],
         "progress": {"done": len(recs), "target": S["session"]["target"] if S["session"] else 0,
                      "fall": sum(1 for r in recs if r["label"] == "fall"),
@@ -528,6 +531,7 @@ def snapshot():
         "raw_files_existing": len(raw_files),
         "dataset": dataset_totals(raw_files),
         "events": S["events"],
+        "boot": BOOT_ID,
     }
 
 
