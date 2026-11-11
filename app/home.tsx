@@ -17,7 +17,6 @@ import AlertCardSmall from "../components/AlertCardSmall";
 import HouseDropdown from "../components/HouseDropdown";
 import SystemAlertCard from "../components/SystemAlertCard";
 import { useAlerts } from "../contexts/AlertsContext";
-import { acknowledgeEvent } from "../lib/api";
 import { Alert as AlertType, SystemAlert } from "../types/alert";
 
 // Import Hook สำหรับดึงบ้านจริง
@@ -27,7 +26,7 @@ const PAGE_SIZE = 5;
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { alerts, systemAlerts, setAlerts } = useAlerts();
+  const { alerts, systemAlerts, setAlerts, acknowledgeAlert } = useAlerts();
   const { houses: dbHouses } = useHouses();
 
   // แปลงบ้านจาก Database ให้กลายเป็น Array
@@ -40,6 +39,8 @@ export default function HomeScreen() {
   const [selectedHouse, setSelectedHouse] = useState("ทั้งหมด");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  // แจ้งผู้ใช้เมื่อการกดรับทราบไปไม่ถึงระบบ — เดิมเงียบ ทั้งที่ระบบยังจะโทรฉุกเฉิน
+  const [ackNotice, setAckNotice] = useState<string | null>(null);
 
   // อัปเดต SelectedHouse เมื่อดึงข้อมูลบ้านเสร็จ
   useEffect(() => {
@@ -90,34 +91,19 @@ export default function HomeScreen() {
     await requestNotificationPermissions();
   };
 
-  const handleConfirm = (id: string) => {
-    setAlerts((prev) =>
-      prev.map((a) => {
-        if (a.id !== id) return a;
-        const newTimeline = [
-          a.timeline[0],
-          {
-            label: "ยืนยันการตรวจสอบ",
-            detail: "โดย : ฉัน",
-            status: "success" as const,
-          },
-          ...a.timeline.slice(1),
-        ];
-        return {
-          ...a,
-          status: "completed" as const,
-          answeredBy: "ฉัน",
-          timeline: newTimeline,
-        };
-      }),
-    );
+  // อัปเดตหน้าจอ + ส่งถึง backend อยู่ใน AlertsContext.acknowledgeAlert
+  const handleConfirm = async (id: string) => {
     setExpandedId(id);
-
-    // ถ้า id มาจาก backend (ไม่ใช่ mock ที่เป็น "1","2","3"...) ยิง ack ไปด้วย
-    if (id.length > 5) {
-      acknowledgeEvent(id, "caregiver").catch(() => {
-        // backend offline — ไม่เป็นไร UI อัปเดตแล้ว
-      });
+    setAckNotice(null);
+    const result = await acknowledgeAlert(id);
+    if (result === "failed") {
+      setAckNotice(
+        "ส่งการรับทราบไม่สำเร็จ ระบบจะยังโทรหาเบอร์ติดต่อฉุกเฉินเมื่อหมดเวลา กรุณากดรับทราบอีกครั้ง",
+      );
+    } else if (result === "already_escalated") {
+      setAckNotice(
+        "หมดเวลารอแล้ว ระบบโทรหาเบอร์ติดต่อฉุกเฉินไปก่อนที่การรับทราบจะมาถึง",
+      );
     }
   };
 
@@ -263,6 +249,18 @@ export default function HomeScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {ackNotice && (
+        <View className="mx-5 mt-3 rounded-xl bg-[#FFE5E8] px-4 py-3 flex-row items-start">
+          <Ionicons name="alert-circle" size={18} color="#D14343" />
+          <Text className="flex-1 text-xs text-[#D14343] ml-2 leading-[18px]">
+            {ackNotice}
+          </Text>
+          <TouchableOpacity onPress={() => setAckNotice(null)} hitSlop={8}>
+            <Ionicons name="close" size={16} color="#D14343" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Content */}
       {visibleData.length === 0 ? (
