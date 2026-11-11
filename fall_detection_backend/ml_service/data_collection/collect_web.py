@@ -34,6 +34,8 @@ import time
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import numpy as np
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import csi_collector_serial as C  # noqa: E402
 
@@ -112,6 +114,7 @@ packets = []                      # packet ของตาที่กำลั�
 live_ts = collections.deque()     # (เวลาเครื่อง, ESP32 timestamp) — วัดอัตราสด 2 วิล่าสุด
 live_drop = collections.deque()   # เวลาเครื่องของเฟรม MAC อื่น
 stat_hist = collections.deque(maxlen=8)   # บรรทัด STAT ล่าสุดจาก #1
+live_lines = collections.deque(maxlen=1000)   # บรรทัด CSI ล่าสุด — ให้ link_quality() parse ทีหลัง (reader ไม่ต้องทำงานเพิ่ม)
 last_pkt_at = [0.0]
 reader_ref = [None]
 
@@ -197,6 +200,7 @@ def reader_loop():
                         last_pkt_at[0] = now
                         if ts is not None:
                             live_ts.append((now, ts))
+                        live_lines.append(line)
                         if S["phase"] == "recording":
                             packets.append({"timestamp": datetime.now().isoformat(),
                                             "label": S["cur"]["label"], "raw": line})
@@ -357,6 +361,74 @@ def live_rate():
     return round((len(live_ts) - 1) / span, 1) if span > 0 else None
 
 
+# =================== คุณภาพลิงก์ (สด) ===================
+# วัดว่าสัญญาณ "นิ่งพอจะเห็นคน" ไหม — อัตรา packet ครบไม่ได้แปลว่าข้อมูลดี
+#   ชุดแรก (Data_2) ยืนนิ่ง:           กระตุก 3.6% · RSSI กระโดด 0.3%
+#   session 20261111_1333 (นำร่องไม่ผ่าน): กระตุก 9.0% · RSSI กระโดด 36-40%
+#     ห้องนั้นมี WiFi เพื่อนบ้านช่อง 6, 6(40MHz), 10, 11 ทับช่องที่ลิงก์ใช้ (6+10, 40 MHz)
+# กระตุก = แอมพลิจูด 52 subcarrier (หาร gain ต่อ packet แล้ว) เปลี่ยนเฉลี่ยกี่ % จาก packet ก่อนหน้า
+# การเคลื่อนไหว = std ตามเวลาของค่าเฉลี่ยเลื่อน 0.2 วิ ใน 1.5 วิล่าสุด — ใช้เทียบ "นิ่ง" กับ "เดินผ่านจุดทำท่า"
+LINK_SC = list(range(6, 32)) + list(range(33, 59))
+LINK_N = 500                               # 5 วิล่าสุด
+JITTER_OK, JITTER_BAD = 5.0, 7.0           # %
+JUMP_OK, JUMP_BAD = 5.0, 15.0              # % ของ packet ติดกันที่ RSSI ต่างกัน ≥ 5 dB
+link_buf = collections.deque(maxlen=LINK_N)      # (rssi, แอมพลิจูดหลังหาร gain)
+motion_hist = collections.deque(maxlen=60)       # ค่า motion ทุก 1 วิ — 60 วิล่าสุด
+link_cache = {"t": 0.0, "v": None}
+link_lock = threading.Lock()
+
+
+def parse_link(line):
+    head, _, arr = line.partition("[")
+    p = head.split(",")
+    if line.count("CSI_DATA") != 1 or len(p) != 26 or p[5] == "0":   # บรรทัดเสีย / legacy
+        return None
+    try:
+        v = np.asarray(arr.rstrip("] \r\n").split(), dtype=float)
+        rssi = int(p[3])
+    except ValueError:
+        return None
+    if len(v) != 128:
+        return None
+    a = np.hypot(v[0::2], v[1::2])[LINK_SC]
+    m = a.mean()
+    return (rssi, a / m) if m > 0 else None
+
+
+def link_quality(now):
+    """คำนวณอย่างมากวิละครั้ง · parse เฉพาะบรรทัดใหม่ · เรียกนอก lock หลัก (do_GET) — snapshot อ่านแค่ cache"""
+    if now - link_cache["t"] < 1.0 or not link_lock.acquire(blocking=False):
+        return link_cache["v"]
+    try:
+        lines = []
+        while live_lines:                  # popleft ทีละตัว = ปลอดภัยกับ reader ที่ append พร้อมกัน
+            lines.append(live_lines.popleft())
+        for ln in lines:
+            r = parse_link(ln)
+            if r:
+                link_buf.append(r)
+        v = None
+        if len(link_buf) >= 160:
+            R = np.fromiter((x[0] for x in link_buf), float, len(link_buf))
+            A = np.vstack([x[1] for x in link_buf])
+            tail = A[-150:]
+            c = np.cumsum(np.vstack([np.zeros((1, tail.shape[1])), tail]), 0)
+            ma = (c[20:] - c[:-20]) / 20
+            motion = float(ma.std(0).mean() * 100)
+            motion_hist.append(motion)
+            v = {"jitter": round(float(np.abs(np.diff(A, axis=0)).mean() * 100), 1),
+                 "rssi_jump": round(float((np.abs(np.diff(R)) >= 5).mean() * 100), 1),
+                 "rssi": int(np.median(R)), "n": len(link_buf),
+                 "motion": round(motion, 2), "motion_floor": round(min(motion_hist), 2),
+                 "motion_hist": [round(m, 2) for m in list(motion_hist)[-40:]],
+                 "jitter_ok": JITTER_OK, "jitter_bad": JITTER_BAD,
+                 "jump_ok": JUMP_OK, "jump_bad": JUMP_BAD}
+        link_cache.update(t=now, v=v)
+        return v
+    finally:
+        link_lock.release()
+
+
 def stat_summary():
     if len(stat_hist) < 2:
         return stat_hist[-1][1] if stat_hist else None
@@ -510,7 +582,7 @@ def snapshot():
         "transport": S["transport"], "mac": S["mac"],
         "signal": {"rate": live_rate(), "other_per_s": round(len(live_drop) / 2.0, 1),
                    "last_pkt_age": round(now - last_pkt_at[0], 1) if last_pkt_at[0] else None,
-                   "esp": stat_summary()},
+                   "esp": stat_summary(), "link": link_cache["v"]},
         "consts": {"pkt_per_sec": C.PKT_PER_SEC, "target_pkts": C.PACKETS_PER_SAMPLE,
                    "mark_min_sec": round(C.MARK_MIN_PKT / C.PKT_PER_SEC, 1),
                    "plain_min_sec": round(C.PLAIN_MIN_PKT / C.PKT_PER_SEC, 1),
@@ -554,6 +626,7 @@ class Handler(BaseHTTPRequestHandler):
             with open(HTML_PATH, "rb") as f:
                 return self._send(200, f.read(), "text/html")
         if self.path.startswith("/api/state"):
+            link_quality(time.time())          # นอก lock หลัก — reader ไม่ต้องรอ
             with lock:
                 return self._send(200, snapshot())
         self._send(404, {"error": "not found"})

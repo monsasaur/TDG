@@ -101,11 +101,8 @@ def read_improved(path):
             raw = r["raw"]
             if r.get("mark") == "1":
                 mark = len(amps)
-            try:
-                v = list(map(int, raw[raw.index("[") + 1:raw.index("]")].split()))
-            except ValueError:
-                continue
-            if len(v) < 128:
+            v = P3.csi_values(raw)               # ทิ้งบรรทัดซ้อน + เฟรม legacy แบบเดียวกับ preprocess_v3
+            if v is None or len(v) != 128:       # != (ไม่ใช่ <) — บรรทัดที่ข้อมูลหายกลางทางมีค่าไม่ครบ/เกิน
                 continue
             a = np.asarray(v[0:128:2], float)
             b = np.asarray(v[1:128:2], float)

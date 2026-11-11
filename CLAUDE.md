@@ -26,7 +26,7 @@
 | Threshold tuning | Med | หาแล้วสำหรับ RandomForest — แนะนำ 0.36 (recall 97.6%, false alarm 9.6%) เหลือแค่ตัดสินใจว่าจะเปลี่ยน production model ไหม |
 | BLE WiFi Provisioning | Med | เหลือ 4 อย่าง (ตรวจ 2026-09-06): 1) build/flash กับบอร์ดจริง — `sdkconfig` ปัจจุบันยังเป็น flash 2MB + single-app partition + ไม่มี BT ต้อง `rm sdkconfig` ก่อน 2) หน้าจอกรอก PoP 3) **บันทึกอุปกรณ์ลง Supabase — ยังไม่มีการ insert ที่ไหนเลย** 4) ขั้นตอนผลิต device code + PoP (default เป็นค่าเดียวกันทุกเครื่อง) · ใบงาน `docs/reports/frontend_req_device_pairing_code.md` |
 | One-class anomaly model | ✅ ตอบแล้ว | ลอง 4 ตัว ROC-AUC ดีสุด 0.70 เทียบ supervised 0.985 — ใช้แทนไม่ได้กับ feature ชุดนี้ |
-| เก็บ dataset ใหม่ (สลับคลาสใน session) | **High** | **เครื่องมือพร้อม** (หน้าเว็บ `collect_web.py` · firmware 100 pkt/s · 5 คน × 80 รอบ) · เหลือ: ด่านนำร่อง `pilot_check.py` หลังคนแรก 30 รอบ แล้วเก็บจริง · ดู `docs/reports/collect_runbook.md` |
+| เก็บ dataset ใหม่ (สลับคลาสใน session) | **High** | คนที่ 2 เก็บครบ 160 ไฟล์ (session `20261111_1333`) ไฟล์สะอาด แต่ **ด่านนำร่องไม่ผ่าน** 59.6% (สุ่ม 48% · p 0.095) — สัญญาณกระตุก 9% vs ชุดแรก 3.6% · RSSI กระโดด 38% vs 0.3% (น่าจะคลื่นรบกวน: WiFi เพื่อนบ้านช่อง 6/10/11 ทับลิงก์ 40 MHz + WiFi แมคข้าง #1) · เหลือ: ทำแผง "ทดสอบลิงก์" ในหน้าเว็บให้ผ่าน → นำร่องใหม่ 30 รอบ · ดู `docs/reports/collect_runbook.md` |
 | Unseen test scenario | **High** | test set ต้องเป็น session ที่ไม่เคยเห็น ไม่ใช่แค่ไฟล์ที่ไม่เคยเห็น |
 | **CSI uplink ในบ้านลูกค้า** | **High** | 🔴 **ยังไม่มีอะไรส่ง CSI ขึ้น cloud เลย** — ทั้งสองทางที่มีอยู่ต้องมีคอมเปิดในบ้าน และ `csi_streamer.py` ยิงตรงไป ML service ข้าม Express API (ไม่มี event/alert/push/escalation) · ตัวเลข + ทางเลือก: `docs/reports/production_csi_uplink_decision.md` |
 | Production Cloud deploy | Med | **Dockerfile + render.yaml + compose พร้อมแล้ว** · เหลือ: ตัดสินใจเรื่องไฟล์โมเดลที่ถูก gitignore · กรอก env ใน Render · ทดสอบ `docker compose up` (ยังไม่ได้รัน — เครื่องนี้ไม่มี docker) |
@@ -140,6 +140,8 @@ cd fall_detection_backend/ml_service && source venv/bin/activate
 # 2. เก็บด้วยหน้าเว็บ → http://localhost:8765 · เลือกคนแสดงจากการ์ด · Space/Y/N
 caffeinate -i python data_collection/collect_web.py      # serial เป็นค่าเริ่มต้น
 #    เปิดพอร์ตแล้ว #1 รีบูต → เปิดหน้าเว็บก่อน แล้วค่อยอุ่นบอร์ด 10-15 นาที · ป้ายบนสุดต้อง ~100 pkt/s · ส่งพลาด/ทิ้งซ้ำ 0
+#    แผง "ทดสอบลิงก์" (หน้าแรก): ทุกคนนิ่ง → กระตุก ≤ 5% · RSSI กระโดด ≤ 5% · เดินผ่านจุดทำท่า → การเคลื่อนไหว ≥ 3 เท่า
+#    อัตราครบ ≠ ข้อมูลดี — session 20261111_1333 อัตราครบทุกไฟล์แต่กระตุก 9% นำร่องไม่ผ่าน
 #    (สำรอง) UDP: CSI_TRANSPORT=udp ... + udp_rate_check.py — ดู runbook หัวข้อ UDP
 #    ซ้อมโดยไม่มีบอร์ด: python data_collection/collect_web.py --demo (เขียนลง data/raw จริง — ลบก่อนเก็บจริง)
 #    ไฟล์ → data/raw/s<session>_<seq>_<label>_<ท่า>_*.csv · manifest → data/sessions/session_<id>.json (มี actor_id)
@@ -151,6 +153,7 @@ python experiments/pilot_check.py --actor 1
 python notebooks/preprocess_v3.py        # ห้ามใช้ preprocess_v2 กับข้อมูลชุดใหม่
 #    window 273 pkt (2.73 วิ) · stride 68 · ออก file_ids / session_ids / actor_ids
 #    ⚠️ ค้าง: เลือก subcarrier ผิด (ใช้ 0-51 ต้องเป็น 6-31,33-58) + ยังไม่หาร gain ต่อ packet — แก้ก่อนเทรน rf_v2
+#    parser ทิ้งแถวเสียจากสาย USB (บรรทัดซ้อน/ขาดกลาง) + เฟรม legacy sig_mode 0 แล้ว (เดิมพังทั้งไฟล์ / เป็นทางลัดของโมเดล)
 
 # 5. ตรวจข้อมูลก่อนเทรน (ใช้กับ dataset A เท่านั้น) — 0 = ผ่าน
 CSI_DATA_DIR=data/processed_v3_framed python experiments/check_dataset.py

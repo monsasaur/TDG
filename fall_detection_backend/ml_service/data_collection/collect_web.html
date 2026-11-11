@@ -106,6 +106,12 @@ header h1{font-size:18px;margin:0 8px 0 0;font-weight:700}
 .form label{display:grid;gap:6px;font-size:14px;color:var(--muted)}
 .form input{font:inherit;font-size:17px;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
 .checks{display:grid;gap:8px}
+.linkpanel .lk-row{display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 10px}
+.linkpanel .lk-m{display:grid;gap:2px}
+.linkpanel .lk-m b{font-size:24px;font-variant-numeric:tabular-nums}
+.linkpanel .lk-m.ok b{color:var(--ok)} .linkpanel .lk-m.warn b{color:var(--warn)} .linkpanel .lk-m.bad b{color:var(--bad)}
+.linkpanel svg{width:100%;height:70px;display:block;background:var(--bg);border-radius:8px}
+.linkpanel ol{margin:8px 0 0;padding-left:20px;font-size:14px;color:var(--muted);display:grid;gap:4px}
 .check{display:flex;gap:10px;align-items:flex-start;font-size:15px}
 .check .ic{width:22px;flex:none;text-align:center;font-weight:800}
 .check.ok .ic{color:var(--ok)} .check.bad .ic{color:var(--bad)} .check.warn .ic{color:var(--warn)}
@@ -155,6 +161,7 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.92em;background:var(--b
     <span class="chip" id="c-transport"><span class="dot"></span><span>—</span></span>
     <span class="chip" id="c-rate"><span class="dot"></span><span>—</span></span>
     <span class="chip" id="c-esp"><span class="dot"></span><span>—</span></span>
+    <span class="chip" id="c-link"><span class="dot"></span><span>—</span></span>
     <span class="spacer"></span>
     <button class="chip bad" id="c-audio" style="cursor:pointer"><span class="dot"></span><span>🔇 คลิกตรงนี้เพื่อเปิดเสียง</span></button>
     <label class="toggle"><input type="checkbox" id="t-voice" checked> เสียงประกาศท่า</label>
@@ -234,6 +241,20 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.92em;background:var(--b
         <div class="check"><span class="ic">☐</span>คนกดนั่งที่เดิม · ไม่มีคนอื่นในห้อง · มีเบาะรองท่าล้ม</div>
         <div class="check"><span class="ic">☐</span>iPhone ปิด Wi-Fi · ไม่มีมือถือเครื่องอื่นเกาะ <code>myssid</code></div>
       </div>
+    </div>
+    <div class="panel linkpanel">
+      <h2>ทดสอบลิงก์ — สัญญาณนิ่งพอจะเห็นคนไหม</h2>
+      <div class="lk-row">
+        <div class="lk-m" id="lk-jit"><span class="small">กระตุก (ตอนนิ่ง)</span><b>—</b><span class="small">ดี ≤ 5% · ชุดแรก 3.6%</span></div>
+        <div class="lk-m" id="lk-jump"><span class="small">RSSI กระโดด</span><b>—</b><span class="small">ดี ≤ 5% · ชุดแรก 0.3%</span></div>
+        <div class="lk-m" id="lk-mot"><span class="small">การเคลื่อนไหวตอนนี้</span><b>—</b><span class="small" id="lk-mot-sub">—</span></div>
+      </div>
+      <svg id="lk-spark" viewBox="0 0 400 70" preserveAspectRatio="none" aria-label="การเคลื่อนไหว 40 วิล่าสุด"></svg>
+      <ol>
+        <li>ทุกคนนิ่ง 10 วิ (คนแสดงยืนที่จุดทำท่า คนกดนั่งที่เดิม) → ดู <b>กระตุก</b> กับ <b>RSSI กระโดด</b></li>
+        <li>คนแสดงเดินไป-กลับผ่านจุดทำท่า 10 วิ → <b>การเคลื่อนไหว</b> ควรขึ้น <b>≥ 3 เท่า</b> ของตอนนิ่ง</li>
+        <li>ตัวเลขไม่ผ่าน = เก็บไปโมเดลก็แยกไม่ออก (รอบ 11 พ.ย. 13:33 กระตุก 9% · นำร่องไม่ผ่าน)</li>
+      </ol>
     </div>
   </section>
 
@@ -443,6 +464,9 @@ function render(){
            (e.dup !== undefined ? ` · ทิ้งซ้ำ ${e.dup}` : "") + " /วิ");
     }
   } else chip("c-esp", "", "#1: —");
+  const L = s.link;
+  if (!st.transport || !L) chip("c-link", "", "ลิงก์: —");
+  else chip("c-link", linkLevel(L), `กระตุก ${L.jitter}% · RSSI กระโดด ${L.rssi_jump}%`);
 
   show("b-demo", st.demo);
   $("b-error").textContent = st.error || ""; show("b-error", !!st.error);
@@ -473,7 +497,31 @@ function render(){
   if (ph === "done") renderDone();
 }
 
+function lvl3(v, ok, bad){ return v <= ok ? "ok" : v <= bad ? "warn" : "bad"; }
+function linkLevel(L){
+  const a = lvl3(L.jitter, L.jitter_ok, L.jitter_bad), b = lvl3(L.rssi_jump, L.jump_ok, L.jump_bad);
+  return [a, b].includes("bad") ? "bad" : [a, b].includes("warn") ? "warn" : "ok";
+}
+function renderLink(){
+  const L = st.signal.link;
+  const set = (id, cls, val) => { const e = $(id); e.className = "lk-m " + cls; e.querySelector("b").textContent = val; };
+  if (!L){ set("lk-jit", "", "—"); set("lk-jump", "", "—"); set("lk-mot", "", "—"); $("lk-spark").innerHTML = ""; return; }
+  set("lk-jit", lvl3(L.jitter, L.jitter_ok, L.jitter_bad), L.jitter.toFixed(1) + "%");
+  set("lk-jump", lvl3(L.rssi_jump, L.jump_ok, L.jump_bad), L.rssi_jump.toFixed(1) + "%");
+  const ratio = L.motion_floor > 0 ? L.motion / L.motion_floor : 0;
+  set("lk-mot", ratio >= 3 ? "ok" : "", L.motion.toFixed(2));
+  $("lk-mot-sub").textContent = `×${ratio.toFixed(1)} ของค่าต่ำสุด 60 วิ (${L.motion_floor.toFixed(2)}) · RSSI ${L.rssi} dBm`;
+  const h = L.motion_hist || [], W = 400, H = 70;
+  if (h.length < 2){ $("lk-spark").innerHTML = ""; return; }
+  const top = Math.max(...h, L.motion_floor * 3) * 1.1, x = i => (i / (h.length - 1)) * W, y = v => H - (v / top) * H;
+  const pts = h.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  $("lk-spark").innerHTML =
+    `<line x1="0" x2="${W}" y1="${y(L.motion_floor*3).toFixed(1)}" y2="${y(L.motion_floor*3).toFixed(1)}" stroke="currentColor" stroke-opacity=".35" stroke-dasharray="4 4"/>` +
+    `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+}
+
 function renderSetup(){
+  renderLink();
   const s = st.signal, k = st.consts, e = s.esp, items = [];
   const add = (lvl, text) => items.push(`<div class="check ${lvl}"><span class="ic">${lvl==="ok"?"✓":lvl==="bad"?"✗":"!"}</span><span>${text}</span></div>`);
   add(s.rate != null ? "ok" : "bad", s.rate != null ? `ได้รับข้อมูลจาก #2 (${st.mac})` : "ยังไม่ได้รับข้อมูลจาก #2");
@@ -491,6 +539,11 @@ function renderSetup(){
     }
   }
   add(s.other_per_s > 5 ? "warn" : "ok", `เฟรมจากเครื่องอื่น ${s.other_per_s}/วิ ${s.other_per_s>5?"— มีเครื่องอื่นเกาะ myssid?":""}`);
+  if (s.link){
+    const L = s.link;
+    add(lvl3(L.jitter, L.jitter_ok, L.jitter_bad), `สัญญาณกระตุก ${L.jitter}% (ดี ≤ ${L.jitter_ok}% · ดูตอนทุกคนนิ่ง)`);
+    add(lvl3(L.rssi_jump, L.jump_ok, L.jump_bad), `RSSI กระโดด ${L.rssi_jump}% ของ packet (ดี ≤ ${L.jump_ok}% · สูง = มีสัญญาณอื่นรบกวน)`);
+  }
   if (st.raw_files_existing > 0) add("warn", `มีไฟล์ใน data/raw อยู่แล้ว ${st.raw_files_existing} ไฟล์ — ถ้าเป็นไฟล์ซ้อม/demo ลบก่อนเก็บจริง`);
   $("checks").innerHTML = items.join("");
 }

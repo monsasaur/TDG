@@ -26,6 +26,7 @@ preprocess_v2 ตัด `amplitudes[:300]` = เอา 300 packet แรกข�
 ค่าคงที่ด้านล่างกำหนดเป็นวินาที แล้วแปลงด้วย PKT_PER_SEC
 """
 
+import collections
 import csv
 import glob
 import json
@@ -66,6 +67,7 @@ WINDOW_SIZE   = sec(2.73)              # 273 pkt — เท่ากับ 200 p
 STRIDE        = sec(0.68)              # 68 pkt
 
 LABEL_MAP     = {"fall": 0, "non_fall": 1}
+BAD_ROWS      = [0]                    # แถวที่ทิ้งเพราะบรรทัดเสีย (นับรวมทุกไฟล์ที่อ่าน)
 
 # --- dataset A: กรอบรอบจุดล้ม ---
 # การล้มเกิด "ก่อน" จุดมาร์ค (mark = ตอนถึงพื้น) จึงกินช่วงซ้ายมากกว่าขวา
@@ -95,18 +97,45 @@ DROP_AFTER    = FALL_AFTER    # เลยจากนี้ = นอนอยู
 
 
 # =================== Parse ===================
-def parse_csi_line(raw_line: str):
+def csi_values(raw_line: str):
+    """ค่าดิบในวงเล็บของบรรทัด CSI_DATA — None ถ้าบรรทัดเสีย
+
+    สาย USB ทำบรรทัดเสียได้นาน ๆ ครั้ง (session 20261111_1333: 9 จาก 123,406 แถว) สองแบบ
+      - หลายบรรทัดซ้อนเป็นแถวเดียว → มี CSI_DATA หลายครั้ง → ตัดทิ้งที่นี่
+      - ข้อมูลหายกลางบรรทัด → จำนวนค่าไม่ครบแต่ยัง parse ได้ → ต้องเทียบกับแถวอื่นในไฟล์ (read_clip)
+    และทิ้งเฟรม legacy (sig_mode 0) ด้วย — ดูเหตุผลด้านล่าง
+    """
     try:
-        start  = raw_line.index("[")
-        end    = raw_line.index("]")
-        values = list(map(int, raw_line[start + 1:end].strip().split()))
-        if len(values) >= N_SUBCARRIERS * 2:
-            I = np.array(values[0::2][:N_SUBCARRIERS], dtype=float)
-            Q = np.array(values[1::2][:N_SUBCARRIERS], dtype=float)
-            return np.sqrt(I ** 2 + Q ** 2)
-        return np.array(values[:N_SUBCARRIERS], dtype=float)
+        n_csi = raw_line.count("CSI_DATA")
+        if n_csi > 1:
+            return None
+        # sig_mode = 0 คือเฟรม legacy (11g 6 Mbps) — แอมพลิจูดสูงกว่าเพื่อนบ้าน ~1.8 เท่า (gain คนละชุด)
+        # และโผล่เป็นชุดตอน rate control ถอยตอนคนเคลื่อนไหว: session 20261111_1333 อยู่ในไฟล์ fall 87 ตัว
+        # non_fall 12 ตัว → ปล่อยไว้โมเดลจะจำ "spike" แทนการล้ม · ทิ้ง (0.08% ของ packet)
+        if n_csi == 1 and raw_line.split(",", 6)[5] == "0":
+            return None
+        start = raw_line.index("[")
+        end   = raw_line.index("]", start)
+        return list(map(int, raw_line[start + 1:end].split()))
     except Exception:
         return None
+
+
+def amplitude(values, expect=None):
+    """แอมพลิจูด N_SUBCARRIERS ตัว · None ถ้าจำนวนค่าไม่เท่า expect (ถ้าให้มา) หรือสั้นเกิน"""
+    if values is None or (expect is not None and len(values) != expect):
+        return None
+    if len(values) >= N_SUBCARRIERS * 2:
+        I = np.array(values[0::2][:N_SUBCARRIERS], dtype=float)
+        Q = np.array(values[1::2][:N_SUBCARRIERS], dtype=float)
+        return np.sqrt(I ** 2 + Q ** 2)
+    if len(values) < N_SUBCARRIERS:
+        return None   # เดิมคืน array สั้น → np.array ทั้งไฟล์พัง (ValueError inhomogeneous shape)
+    return np.array(values[:N_SUBCARRIERS], dtype=float)
+
+
+def parse_csi_line(raw_line: str, expect=None):
+    return amplitude(csi_values(raw_line), expect)
 
 
 def load_session_actors():
@@ -170,13 +199,18 @@ def read_clip(path):
     amps, mark = [], -1
     marks = (df["mark"].to_numpy() if "mark" in df.columns
              else np.zeros(len(df), dtype=int))
-    for i, raw in enumerate(df["raw"]):
+    values = [csi_values(str(raw)) for raw in df["raw"]]
+    # จำนวนค่าที่ถูกต้อง = ค่าที่พบบ่อยสุดในไฟล์ (firmware ทั้งสองชุด = 128) · แถวที่ไม่เท่าคือข้อมูลหายกลางบรรทัด
+    counts = collections.Counter(len(v) for v in values if v)
+    expect = counts.most_common(1)[0][0] if counts else None
+    for i, v in enumerate(values):
         # เช็คมาร์ค **ก่อน** parse — ถ้าบรรทัดที่มาร์คไว้ parse ไม่ผ่าน
         # แล้วข้ามไป mark จะหายทั้งไฟล์ · ให้ผูกกับ window ถัดไปแทน
         if int(marks[i]) == 1:
             mark = len(amps)          # index ใน amps ไม่ใช่ index ในไฟล์
-        amp = parse_csi_line(str(raw))
+        amp = amplitude(v, expect)
         if amp is None:
+            BAD_ROWS[0] += 1          # ทิ้ง 1 แถว = เลื่อน 10 ms — ไม่กระทบ window 2.73 วิ
             continue
         amps.append(amp)
 
@@ -347,7 +381,8 @@ def main():
         pct = (c["fall"] / tot * 100) if tot else 0
         print(f"  {name:14s} {tot:6d} window  ·  fall {c['fall']:5d} ({pct:.1f}%) "
               f"· non_fall {c['non_fall']:5d}  →  {os.path.relpath(d, BASE_DIR)}")
-    print(f"  session {len(sess_index)} · ข้าม {skipped} ไฟล์ · ไม่มีมาร์ค {unmarked} ไฟล์")
+    print(f"  session {len(sess_index)} · ข้าม {skipped} ไฟล์ · ไม่มีมาร์ค {unmarked} ไฟล์"
+          f" · ทิ้งแถวเสีย {BAD_ROWS[0]} แถว")
     if mark_pos:
         mp = sorted(mark_pos)
         early = sum(1 for x in mp if x < FRAMED_BEFORE)
