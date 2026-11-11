@@ -70,8 +70,8 @@ menu "ESP32 CSI Tool Config"
             ใส่ IP ตรง ๆ ได้ถ้าเราเตอร์/ระบบบล็อก broadcast
 
     config CSI_UDP_SOURCE_MAC
-        string "ส่งเฉพาะ CSI จาก MAC นี้ (ว่าง = ทุก MAC)"
-        depends on SEND_CSI_TO_UDP
+        string "ส่งเฉพาะ CSI จาก MAC นี้ (ว่าง = ทุก MAC) — ใช้ทั้ง UDP และ serial"
+        depends on SHOULD_COLLECT_CSI
         default ""
         help
             ใส่ MAC ของ ESP32 #2 เช่น "1c:c3:ab:b9:78:cc" (ตัวเล็ก/ใหญ่ได้)

@@ -26,6 +26,8 @@ CONFIG_SHOULD_COLLECT_CSI=y
 CONFIG_SHOULD_COLLECT_ONLY_LLTF=y
 CONFIG_SEND_CSI_TO_SERIAL=y
 # CONFIG_SEND_CSI_TO_UDP is not set
+# ส่งเฉพาะ CSI จาก ESP32 #2 + ทิ้งเฟรมที่ #2 ส่งซ้ำ (เหมือนโหมด UDP) · เปลี่ยนบอร์ด #2 = แก้ค่านี้
+CONFIG_CSI_UDP_SOURCE_MAC="1c:c3:ab:b9:78:cc"
 # CONFIG_SEND_CSI_TO_SD is not set
 
 # --- AP ที่ ESP32 #2 เกาะเพื่อสร้าง packet ให้วัด CSI ---

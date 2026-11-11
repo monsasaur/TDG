@@ -138,9 +138,17 @@ static void fill_item(csi_item_t *it, wifi_csi_info_t *data) {
     memcpy(it->buf, data->buf, want);
 }
 
-#ifdef CONFIG_SEND_CSI_TO_UDP
+// ส่งออกผ่านคิว + task แยก ทั้งทาง UDP และ serial (และ SD)
+#if defined(CONFIG_SEND_CSI_TO_UDP) || defined(CONFIG_SEND_CSI_TO_SERIAL) || defined(CONFIG_SEND_CSI_TO_SD)
+#define CSI_OUT_TASK 1
+#endif
+
+#ifdef CSI_OUT_TASK
 // ─────────────────────────────────────────────────────────────
-// ทาง UDP — callback แค่ copy ลงคิว · task แยกเป็นคน format + sendto
+// callback แค่ copy ลงคิว · task แยกเป็นคน format + ส่งออก (UDP / serial)
+//
+// serial ก็ใช้ทางนี้ (2026-11-11) — เดิมพิมพ์ใน callback ซึ่งบล็อก WiFi task ~5 ms ต่อบรรทัด
+// ที่ 921600 baud (100 บรรทัด/วิ = ใช้สาย 52%) · ตอนนี้ได้ตัวกรอง MAC + ทิ้งเฟรมซ้ำ + STAT เหมือน UDP
 //
 // เดิม format string + sendto ทำใน callback ซึ่งรันอยู่ใน **WiFi task**
 // ระหว่างที่ sendto ค้าง (lwIP/คิวส่งเต็ม) WiFi task รับ packet ถัดไปไม่ได้ → CSI หาย
@@ -151,8 +159,8 @@ static void fill_item(csi_item_t *it, wifi_csi_info_t *data) {
 //   skip  = ทิ้งเพราะ MAC ไม่ตรง CONFIG_CSI_UDP_SOURCE_MAC
 //   dup   = ทิ้งเพราะเป็นเฟรมเดิมที่ #2 ส่งซ้ำ (rx_seq เท่าตัวก่อน)
 //   qdrop = คิวเต็ม ทิ้ง
-//   sent  = sendto สำเร็จ
-//   fail  = sendto ล้มเหลว (ENOMEM ฯลฯ)
+//   sent  = ส่งออกสำเร็จ (sendto สำเร็จ · หรือพิมพ์ลง serial)
+//   fail  = sendto ล้มเหลว (ENOMEM ฯลฯ) — serial ไม่มี (พิมพ์แบบรอจนเสร็จ)
 // เทียบกับจำนวนที่คอมรับได้ → รู้ว่าหายที่ #2, ที่ #1, หรือกลางอากาศ
 //
 // unicast: คอมส่ง "HELLO" มาที่ port 5501 → ส่งตรงไป IP นั้นแทน broadcast
@@ -185,10 +193,12 @@ static void src_filter_init() {
     }
 #endif
 }
+static csi_item_t cb_item;            // ใช้ใน callback เท่านั้น (WiFi task ตัวเดียว)
+
+#ifdef CONFIG_SEND_CSI_TO_UDP
 static int      ctrl_sock = -1;
 static uint32_t peer_ip = 0;          // network order · 0 = ใช้ broadcast
 static int64_t  peer_seen_us = 0;
-static csi_item_t cb_item;            // ใช้ใน callback เท่านั้น (WiFi task ตัวเดียว)
 
 static void ctrl_init() {
     ctrl_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -236,36 +246,54 @@ static void udp_send_str(const char *msg) {
     if (r < 0) st_fail++; else st_sent++;
 }
 
-static void csi_udp_task(void *arg) {
+#endif  // CONFIG_SEND_CSI_TO_UDP
+
+static void csi_out_task(void *arg) {
     static csi_item_t it;
     int64_t next_stat = esp_timer_get_time() + 1000000;
+#ifdef CONFIG_SEND_CSI_TO_UDP
     ctrl_init();
+#endif
     while (true) {
         if (xQueueReceive(csi_queue, &it, pdMS_TO_TICKS(100)) == pdTRUE) {
             std::string line = format_csi_line(&it);
+#ifdef CONFIG_SEND_CSI_TO_UDP
             udp_send_str(line.c_str());
+#endif
+#if defined(CONFIG_SEND_CSI_TO_SERIAL) || defined(CONFIG_SEND_CSI_TO_SD)
+            outprintf("%s", line.c_str());
+#ifndef CONFIG_SEND_CSI_TO_UDP
+            st_sent++;
+#endif
+#endif
         }
         int64_t now = esp_timer_get_time();
         if (now >= next_stat) {
             next_stat += 1000000;
+#ifdef CONFIG_SEND_CSI_TO_UDP
             ctrl_poll();
+            const char *dest = peer_ip ? "unicast" : "broadcast";
+#else
+            const char *dest = "serial";
+#endif
             char stat[160];
             snprintf(stat, sizeof(stat),
                      "STAT,%s,%lld,cb=%lu,skip=%lu,dup=%lu,qdrop=%lu,sent=%lu,fail=%lu,dest=%s\n",
                      project_type, (long long)(now / 1000),
                      (unsigned long)st_cb, (unsigned long)st_skip, (unsigned long)st_dup,
                      (unsigned long)st_qdrop,
-                     (unsigned long)st_sent, (unsigned long)st_fail,
-                     peer_ip ? "unicast" : "broadcast");
+                     (unsigned long)st_sent, (unsigned long)st_fail, dest);
             printf("%s", stat);
+#ifdef CONFIG_SEND_CSI_TO_UDP
             udp_send_str(stat);
+#endif
         }
     }
 }
-#endif
+#endif  // CSI_OUT_TASK
 
 void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
-#ifdef CONFIG_SEND_CSI_TO_UDP
+#ifdef CSI_OUT_TASK
     st_cb++;
     if (src_filter && memcmp(data->mac, src_mac, 6) != 0) {
         st_skip++;
@@ -276,15 +304,6 @@ void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
         fill_item(&cb_item, data);
         if (xQueueSend(csi_queue, &cb_item, 0) != pdTRUE) st_qdrop++;
     }
-#endif
-#if CONFIG_SEND_CSI_TO_SERIAL
-    // ทาง serial คงพฤติกรรมเดิม (format + พิมพ์ใน callback) — dataset ชุดแรกเก็บแบบนี้
-    xSemaphoreTake(mutex, portMAX_DELAY);
-    static csi_item_t it;             // static — ไม่กิน stack ของ WiFi task (~430 ไบต์)
-    fill_item(&it, data);
-    outprintf("%s", format_csi_line(&it).c_str());
-    vTaskDelay(0);
-    xSemaphoreGive(mutex);
 #endif
 }
 
@@ -309,11 +328,11 @@ void csi_init(char *type) {
     configuration_csi.manu_scale = 0;
 
     ESP_ERROR_CHECK(esp_wifi_set_csi_config(&configuration_csi));
-#ifdef CONFIG_SEND_CSI_TO_UDP
+#ifdef CSI_OUT_TASK
     src_filter_init();
     csi_queue = xQueueCreate(CSI_QUEUE_LEN, sizeof(csi_item_t));
     // priority ต่ำกว่า WiFi (23) และ lwIP (18) · pin core 1 — WiFi อยู่ core 0
-    xTaskCreatePinnedToCore(&csi_udp_task, "csi_udp", 8192, NULL, 5, NULL, 1);
+    xTaskCreatePinnedToCore(&csi_out_task, "csi_out", 8192, NULL, 5, NULL, 1);
 #endif
     ESP_ERROR_CHECK(esp_wifi_set_csi_rx_cb(&_wifi_csi_cb, NULL));
 

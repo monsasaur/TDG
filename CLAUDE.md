@@ -128,18 +128,19 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 > รายละเอียดทุกขั้น + ข้อห้าม: **`docs/reports/collect_runbook.md`** · firmware/อัตรา CSI: `docs/reports/esp_build_worklog.md` (2026-11-11)
 
-แผนรอบนี้: คนแสดง 5 คน · คนละ session คนละ 80 รอบ = 800 ไฟล์ · ห้องเดียว · ทาง UDP (แมคใช้เน็ตผ่าน iPhone ทางสาย USB)
+แผนรอบนี้: คนแสดง 5 คน · คนละ session คนละ 80 รอบ = 800 ไฟล์ · ห้องเดียว · **ทาง USB Serial** (#1 เสียบสายกับแมค · แมคเกาะ WiFi บ้านได้)
+> เปลี่ยนจาก UDP 2026-11-11 — ขา #1→แมคทาง WiFi ขาดเป็นพัก ๆ เพราะ macOS สแกน WiFi (ต่ำสุด 24 pkt/s) · serial ได้ 98-100 นิ่ง
 ท่าถ่วงน้ำหนักตามความยาก (`ACTIVITY_WEIGHT` ใน `csi_collector_serial.py`) · อัตรา CSI 100 pkt/s (ชุดแรก 73 เพราะบั๊ก firmware)
 
 ```bash
 cd fall_detection_backend/ml_service && source venv/bin/activate
 
-# 1. แมคเกาะ WiFi "myssid" (รหัส mypassword) · เช็คอัตราที่ตำแหน่งจริง — ต้อง ≈100 pkt/s · unicast · qdrop/fail 0
-python data_collection/udp_rate_check.py 60 site hello
+# 1. #1 เสียบสาย USB กับแมค (firmware active_ap/build_serial) · #2 เสียบไฟ · แมคเสียบสายชาร์จ
 
-# 2. เก็บด้วยหน้าเว็บ (แทน CLI) → http://localhost:8765 · เลือกคนแสดงจากการ์ด · Space/Y/N
-CSI_TRANSPORT=udp caffeinate -i python data_collection/collect_web.py
-#    ⚠️ แมคต้องเสียบสายชาร์จ + ปิด Low Power Mode (ไม่งั้น WiFi ประหยัดไฟ → อัตราพัง) · ดู runbook หัวข้อ "ตั้งค่าแมค"
+# 2. เก็บด้วยหน้าเว็บ → http://localhost:8765 · เลือกคนแสดงจากการ์ด · Space/Y/N
+caffeinate -i python data_collection/collect_web.py      # serial เป็นค่าเริ่มต้น
+#    เปิดพอร์ตแล้ว #1 รีบูต → เปิดหน้าเว็บก่อน แล้วค่อยอุ่นบอร์ด 10-15 นาที · ป้ายบนสุดต้อง ~100 pkt/s · ส่งพลาด/ทิ้งซ้ำ 0
+#    (สำรอง) UDP: CSI_TRANSPORT=udp ... + udp_rate_check.py — ดู runbook หัวข้อ UDP
 #    ซ้อมโดยไม่มีบอร์ด: python data_collection/collect_web.py --demo (เขียนลง data/raw จริง — ลบก่อนเก็บจริง)
 #    ไฟล์ → data/raw/s<session>_<seq>_<label>_<ท่า>_*.csv · manifest → data/sessions/session_<id>.json (มี actor_id)
 

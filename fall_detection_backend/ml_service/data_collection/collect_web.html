@@ -434,10 +434,10 @@ function render(){
   const [lv, txt] = st.transport ? signalLevel() : ["", "—"];
   chip("c-rate", lv, txt);
   const e = s.esp;
-  if (st.transport === "udp" || st.transport === "demo"){
+  if (st.transport === "udp" || st.transport === "serial" || st.transport === "demo"){
     if (!e) chip("c-esp", "warn", "#1: ไม่มี STAT (firmware เก่า?)");
     else {
-      const bad = (e.qdrop||0) > 1 || (e.fail||0) > 1, bc = e.dest !== "unicast";
+      const bad = (e.qdrop||0) > 1 || (e.fail||0) > 1, bc = st.transport === "udp" && e.dest !== "unicast";
       chip("c-esp", bad ? "bad" : bc ? "warn" : "ok",
            `#1 ${e.dest||"?"} · คิวเต็ม ${e.qdrop??"–"} · ส่งพลาด ${e.fail??"–"}` +
            (e.dup !== undefined ? ` · ทิ้งซ้ำ ${e.dup}` : "") + " /วิ");
@@ -479,10 +479,12 @@ function renderSetup(){
   add(s.rate != null ? "ok" : "bad", s.rate != null ? `ได้รับข้อมูลจาก #2 (${st.mac})` : "ยังไม่ได้รับข้อมูลจาก #2");
   if (s.rate != null) add(s.rate > k.rate_high ? "bad" : s.rate >= k.rate_warn ? "ok" : s.rate >= k.rate_fail ? "warn" : "bad",
                           `อัตรา ${s.rate} pkt/s (ต้องอยู่ช่วง ${k.rate_warn}–${k.rate_high})`);
-  if (st.transport === "udp"){
+  if (st.transport === "udp" || st.transport === "serial"){
     if (!e) add("warn", "ไม่เห็นบรรทัด STAT จาก #1 — firmware #1 เป็นตัวใหม่หรือเปล่า");
     else {
-      add(e.dest === "unicast" ? "ok" : "warn", `#1 ส่งแบบ ${e.dest} ${e.dest==="unicast"?"":"(ต้องเป็น unicast)"}`);
+      if (st.transport === "udp")
+        add(e.dest === "unicast" ? "ok" : "warn", `#1 ส่งแบบ ${e.dest} ${e.dest==="unicast"?"":"(ต้องเป็น unicast)"}`);
+      else add(e.dest === "serial" ? "ok" : "warn", `#1 ส่งทางสาย USB (${e.dest})`);
       add((e.qdrop||0) <= 1 && (e.fail||0) <= 1 ? "ok" : "bad", `#1 คิวเต็ม ${e.qdrop}/วิ · ส่งพลาด ${e.fail}/วิ (ต้องเป็น 0)`);
       if (e.dup !== undefined)
         add((e.dup||0) <= 5 ? "ok" : "warn", `#2 ส่งซ้ำ ${e.dup}/วิ (#1 ทิ้งให้แล้ว ข้อมูลไม่ซ้ำ · ถ้าเยอะแปลว่าช่องแน่น)`);
