@@ -15,14 +15,17 @@ import { useDevices } from "../contexts/DevicesContext";
 import PageHeader from "../components/PageHeader";
 import LabeledTextField from "../components/LabeledTextField";
 import ConfirmModal from "../components/ConfirmModal";
+import { useHouses } from "../data/useHouses";
 
-const HOUSES = ["บ้านแม่", "บ้านพ่อ"];
 const NAME_MAX = 30;
 
 export default function DeviceDetailsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { devices } = useDevices();
+  const { houses } = useHouses();
+
+  const HOUSES = houses.map((h) => h.name);
 
   const device = useMemo(
     () => devices.find((d) => d.id === id),
@@ -30,14 +33,14 @@ export default function DeviceDetailsScreen() {
   );
 
   const [name, setName] = useState("");
-  const [house, setHouse] = useState<string>(HOUSES[0]);
+  const [house, setHouse] = useState<string>("");
   const [houseDropdown, setHouseDropdown] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (device) {
       setName(device.name);
-      setHouse(device.house);
+      setHouse(device.houseName ?? "");
     }
   }, [device]);
 
@@ -83,7 +86,11 @@ export default function DeviceDetailsScreen() {
             <Text className="text-sm text-[#1A1A1A] mb-2">เครือข่ายปัจจุบัน</Text>
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => router.push("/connect-device" as never)}
+              // เปลี่ยน WiFi ต้องจับคู่ BLE ใหม่ — ไปทางเดียวกับปุ่มเชื่อมต่อใหม่
+              // (เดิมไป /connect-device โดยไม่ส่งชื่อเครื่อง จับคู่ไม่ได้ แล้วหน้าตั้งค่าเติมค่าปลอมให้)
+              onPress={() =>
+                router.push(`/scan-devices?deviceId=${device.id}` as never)
+              }
               className={`rounded-xl px-4 py-3 flex-row items-center ${
                 isConnected ? "bg-[#FFE5E8]" : "bg-[#EFEFEF]"
               }`}
@@ -94,7 +101,7 @@ export default function DeviceDetailsScreen() {
                 color={isConnected ? "#1A1A1A" : "#888"}
               />
               <View className="ml-3">
-                <Text className="text-sm text-[#1A1A1A]">{device.wifi}</Text>
+                <Text className="text-sm text-[#1A1A1A]">{device.wifi_ssid}</Text>
                 <Text
                   className={`text-xs mt-0.5 ${
                     isConnected ? "text-[#FF3055]" : "text-[#888]"
