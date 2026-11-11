@@ -6,12 +6,12 @@ import {
   useState,
 } from "react";
 import { Device, useDevices as useFetchDevices } from "../data/useDevices"; // เปลี่ยนจาก mockDevices เป็น Hook และเปลี่ยนชื่อเพื่อไม่ให้ชนกัน
-// import { supabase } from "../data/supabaseClient"; // เปิดคอมเมนต์นี้เมื่อต้องการอัปเดตขึ้นฐานข้อมูลจริง
+import { supabase } from "../data/supabaseClient";
 
 type DevicesContextType = {
   devices: Device[];
   setDevices: React.Dispatch<React.SetStateAction<Device[]>>;
-  updateDevice: (id: string, updates: Partial<Device>) => void;
+  updateDevice: (id: string, updates: Partial<Device>) => Promise<void>;
   isLoading: boolean; // เพิ่ม Loading ให้หน้า UI รู้
 };
 
@@ -32,24 +32,27 @@ export function DevicesProvider({ children }: { children: ReactNode }) {
   }, [fetchedDevices, isFetching]);
 
   const updateDevice = async (id: string, updates: Partial<Device>) => {
-    // อัปเดต State ภายในแอป (เพื่อให้ UI เปลี่ยนทันทีโดยไม่ต้องรอโหลด)
+    // อัปเดต State ก่อน เพื่อให้ UI เปลี่ยนทันทีไม่ต้องรอ network
+    const before = devices.find((d) => d.id === id);
     setDevices((prev) =>
       prev.map((d) => (d.id === id ? { ...d, ...updates } : d)),
     );
 
-    /* // --- โค้ดสำหรับอัปเดตลง Supabase จริง (ถ้าต้องการเปิดใช้ ให้เอา Comment ออก) ---
-    try {
-      // หมายเหตุ: ต้องตรวจสอบด้วยว่า updates มี field ตรงกับในตาราง devices ใน database หรือไม่
-      const { error } = await supabase
-        .from('devices')
-        .update(updates)
-        .eq('id', id);
-        
-      if (error) throw error;
-    } catch (error) {
+    // houseName เป็นค่าที่ join มาจากตาราง houses ไม่ใช่คอลัมน์ของ devices
+    // ส่งขึ้นไปจะทำให้ Supabase ปฏิเสธทั้งคำสั่ง — ตัดออกก่อน
+    const { houseName, ...patch } = updates;
+    if (Object.keys(patch).length === 0) return;
+
+    const { error } = await supabase.from("devices").update(patch).eq("id", id);
+
+    if (error) {
+      // เขียนไม่สำเร็จ = ย้อน state กลับ ไม่ปล่อยให้ UI โชว์สิ่งที่ไม่ได้บันทึก
+      if (before) {
+        setDevices((prev) => prev.map((d) => (d.id === id ? before : d)));
+      }
       console.error("Error updating device in Supabase:", error);
+      throw new Error(error.message);
     }
-    */
   };
 
   return (

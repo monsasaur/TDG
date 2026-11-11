@@ -9,7 +9,7 @@ import { Alert, SystemAlert } from "../types/alert";
 
 // เปลี่ยนชื่อตอน Import เพื่อไม่ให้ชื่อชนกับ Context Hook ด้านล่าง
 import { useAlerts as useFetchAlerts } from "../data/useAlerts";
-import { useSystemAlerts as useFetchSystemAlerts } from "../data/useSystemAlerts.ts";
+import { useSystemAlerts as useFetchSystemAlerts } from "../data/useSystemAlerts";
 
 type ClearOptions = {
   house?: string;

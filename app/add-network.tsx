@@ -19,9 +19,10 @@ const WRONG_SSID = "wrong";
 
 export default function AddNetworkScreen() {
   const router = useRouter();
-  const { device, deviceId } = useLocalSearchParams<{
+  const { device, deviceId, houseId } = useLocalSearchParams<{
     device?: string;
     deviceId?: string;
+    houseId?: string; // บ้านที่เลือกไว้ — ส่งผ่านไปถึง device-setup เพื่อ insert
   }>();
   const [ssid, setSsid] = useState("");
   const [password, setPassword] = useState("");
@@ -46,7 +47,7 @@ export default function AddNetworkScreen() {
           device ?? "",
         )}&ssid=${encodeURIComponent(ssid)}${
           deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""
-        }` as never,
+        }${houseId ? `&houseId=${encodeURIComponent(houseId)}` : ""}` as never,
       );
     }, CONNECT_MS);
   };

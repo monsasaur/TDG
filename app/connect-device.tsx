@@ -16,10 +16,11 @@ import {
 
 export default function ConnectDeviceScreen() {
   const router = useRouter();
-  const { device, deviceId, pop } = useLocalSearchParams<{
+  const { device, deviceId, pop, houseId } = useLocalSearchParams<{
     device?: string;
     deviceId?: string;
     pop?: string;   // Proof of Possession จาก QR / รหัสบนกล่อง
+    houseId?: string; // บ้านที่เลือกไว้ — ส่งผ่านไปถึง device-setup เพื่อ insert
   }>();
 
   const [scanning, setScanning] = useState(true);
@@ -61,7 +62,9 @@ export default function ConnectDeviceScreen() {
     router.push(
       `/wifi-password?ssid=${encodeURIComponent(ssid)}&device=${encodeURIComponent(
         device ?? "",
-      )}${deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""}` as never,
+      )}${deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""}${
+        houseId ? `&houseId=${encodeURIComponent(houseId)}` : ""
+      }` as never,
     );
 
   return (
@@ -127,7 +130,7 @@ export default function ConnectDeviceScreen() {
               router.push(
                 `/add-network?device=${encodeURIComponent(device ?? "")}${
                   deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""
-                }` as never,
+                }${houseId ? `&houseId=${encodeURIComponent(houseId)}` : ""}` as never,
               )
             }
             className="mt-3"
