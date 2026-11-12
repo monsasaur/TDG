@@ -1,6 +1,17 @@
 const axios = require('axios')
 
-const ML_URL   = process.env.ML_SERVICE_URL
+/**
+ * Render ส่ง ML_SERVICE_URL มาจาก `fromService … property: hostport` (render.yaml)
+ * ซึ่งได้ค่าแบบ "tdg-ml-service:10000" — ไม่มี http:// นำหน้า axios จะเรียกไม่ได้เลย
+ * เติม http:// ให้ถ้าไม่มี scheme และตัด / ท้ายออก
+ */
+function normalizeUrl(raw) {
+  if (!raw) return raw
+  const url = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`
+  return url.replace(/\/+$/, '')
+}
+
+const ML_URL   = normalizeUrl(process.env.ML_SERVICE_URL)
 const USE_MOCK = process.env.USE_MOCK_ML === 'true'
 const MOCK_IS_FALL = (process.env.MOCK_IS_FALL || 'true') === 'true'
 

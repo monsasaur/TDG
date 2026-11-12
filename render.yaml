@@ -3,7 +3,7 @@
 #
 # ⚠️ ก่อน deploy ml_service ครั้งแรก: ไฟล์โมเดล models/*.pkl ถูก gitignore ไว้
 #    Render build จาก git จึงจะไม่มีไฟล์ → build fail พร้อมข้อความบอกสาเหตุ
-#    ดูวิธีแก้ในหัวข้อ Deploy ของ CLAUDE.md
+#    ดูทางเลือกและขั้นตอนทั้งหมดใน docs/reports/deploy_render_checklist.md
 
 services:
   - type: web
@@ -20,6 +20,10 @@ services:
         value: "50"
       - key: CSI_SEQUENCE_LEN
         value: "10"
+      # rf_v1 = ตัวที่ใช้อยู่ · rf_v2_event ต้องมี models/rf_v2_event.pkl (43 MB) ใน build ด้วย
+      # Dockerfile เช็คแค่ไฟล์ของ rf_v1 — เปลี่ยนเป็น rf_v2_event แล้วไม่มีไฟล์จะพังตอน boot
+      - key: FALL_MODEL
+        value: rf_v1
 
   - type: web
     name: tdg-express-api
@@ -37,10 +41,19 @@ services:
           property: hostport
 
       # ค่าที่ต้องกรอกเองใน Render dashboard (sync: false = ไม่เก็บไว้ในไฟล์นี้)
+      # คีย์แยกตามผู้เรียก — ตั้งให้ครบใน production ไม่งั้นทุก scope ถอยไปใช้ API_KEY ตัวเดียว
+      # แล้วคีย์ที่ฝังในแอปจะสั่ง demo/fire (โทรออกจริง) ได้ · ดู src/middleware/auth.js
       - key: API_KEY
+        sync: false
+      - key: DEVICE_API_KEY
+        sync: false
+      - key: APP_API_KEY
+        sync: false
+      - key: DEMO_API_KEY
         sync: false
       - key: SUPABASE_URL
         sync: false
+      # ต้องเป็น service_role (ไม่ใช่ anon) — หลังรัน accounts.sql คีย์อื่นเขียน fall_events / alerts ไม่ได้
       - key: SUPABASE_KEY
         sync: false
       - key: TWILIO_ACCOUNT_SID
@@ -57,6 +70,9 @@ services:
         sync: false
       - key: ADMIN_ORIGINS
         sync: false
+      # AI ร่างข้อความโทรแจ้ง (Phase 2a) — ปิดไว้จนกว่าจะตัดสินใจเปิด · เปิดต้องมี TYPHOON_API_KEY
+      - key: TYPHOON_API_KEY
+        sync: false
 
       # ค่าที่ตั้งไว้ตายตัวได้
       - key: TWILIO_MODE
@@ -64,6 +80,8 @@ services:
       - key: PUSH_MODE
         value: real
       - key: USE_MOCK_ML
+        value: "false"
+      - key: AI_VOICE_ENABLED
         value: "false"
       - key: ACK_TIMEOUT_SECONDS
         value: "60"

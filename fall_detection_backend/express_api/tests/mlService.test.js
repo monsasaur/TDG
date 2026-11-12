@@ -65,6 +65,20 @@ describe('mlService.predict — real branch', () => {
     })
   })
 
+  test('ML_SERVICE_URL แบบ host:port ของ Render (ไม่มี http://) → เติม http:// ให้', async () => {
+    const ml = loadService({ ML_SERVICE_URL: 'tdg-ml-service:10000/' })
+    axios.post.mockResolvedValueOnce({ data: { is_fall: false, confidence: 0.1 } })
+    await ml.predict([[1]])
+    expect(axios.post.mock.calls[0][0]).toBe('http://tdg-ml-service:10000/predict')
+  })
+
+  test('https:// เดิมไม่ถูกแตะ', async () => {
+    const ml = loadService({ ML_SERVICE_URL: 'https://ml.example.com' })
+    axios.post.mockResolvedValueOnce({ data: { is_fall: false, confidence: 0.1 } })
+    await ml.predict([[1]])
+    expect(axios.post.mock.calls[0][0]).toBe('https://ml.example.com/predict')
+  })
+
   test('defaults confidence to 0 when missing', async () => {
     const ml = loadService({ ML_SERVICE_URL: 'http://ml:8000' })
     axios.post.mockResolvedValueOnce({ data: { is_fall: false } })
