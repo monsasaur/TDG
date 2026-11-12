@@ -41,6 +41,14 @@ create table if not exists house_invites (
 alter table emergency_contacts
   add column if not exists created_by uuid default auth.uid() references auth.users(id) on delete set null;
 
+-- ── push token: จำว่าเครื่องนี้ login เป็นใคร ─────────────────────
+-- Express ส่ง push ของบ้านให้เฉพาะเครื่องของสมาชิกบ้านนั้น (pushService.recipientsFor)
+-- null = เครื่องที่ยังไม่ได้ login / ออกจากระบบแล้ว → ไม่ได้รับ push ของบ้านไหนเลยหลังเปิดระบบบัญชี
+-- ลบบัญชีแล้วเครื่องยังลงทะเบียนอยู่ (set null) ไม่ใช่ลบแถวทิ้ง
+alter table push_tokens
+  add column if not exists user_id uuid references auth.users(id) on delete set null;
+create index if not exists idx_push_tokens_user on push_tokens(user_id);
+
 -- ── ฟังก์ชันเช็คสิทธิ์ ─────────────────────────────────────────
 -- security definer: อ่าน house_members ได้โดยไม่ติด policy ของ house_members เอง (กันวนอ้างตัวเอง)
 create or replace function public.is_house_member(h text) returns boolean

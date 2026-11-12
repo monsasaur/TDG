@@ -22,7 +22,7 @@ type ClearOptions = {
 };
 
 /** ผลของการกดรับทราบ — หน้าจอใช้เลือกข้อความที่จะบอกผู้ใช้ */
-export type AckResult = "acknowledged" | "already_escalated" | "failed";
+export type AckResult = "acknowledged" | "already_escalated" | "not_allowed" | "failed";
 
 type AlertsContextType = {
   alerts: Alert[];
@@ -164,6 +164,12 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
         if (result === "already_escalated") {
           show({ ...before, status: "in_progress", countdown: undefined });
           return "already_escalated";
+        }
+        if (result === "not_allowed") {
+          // backend ไม่ยอมรับ → การโทรฉุกเฉินยังไม่ถูกยกเลิก ต้องย้อนหน้าจอกลับ
+          held.current.delete(id);
+          setAlerts((prev) => prev.map((x) => (x.id === id ? before : x)));
+          return "not_allowed";
         }
       } else {
         // ข้อมูลตัวอย่าง (seed) ไม่มีเหตุการณ์ใน backend ให้ยกเลิก — บันทึกลงแถว alerts ตรง ๆ

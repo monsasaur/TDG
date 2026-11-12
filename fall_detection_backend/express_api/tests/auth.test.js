@@ -87,6 +87,8 @@ describe('auth — แยกคีย์ตาม scope', () => {
     expect(auth.scopeFor('/api/v1/demo/fire')).toBe('demo')
     // /alert/test ต้องชนะกฎ /alert ที่กว้างกว่า ไม่งั้นคีย์แอปจะสั่งโทรทดสอบได้
     expect(auth.scopeFor('/api/v1/alert/test')).toBe('demo')
+    // คืน push token ทุกเครื่อง — คีย์ที่ฝังในแอปต้องเรียกไม่ได้
+    expect(auth.scopeFor('/api/v1/push/tokens')).toBe('demo')
   })
 
   test('ยังไม่ตั้งคีย์แยก → API_KEY เดิมใช้ได้ทุกเส้นเหมือนก่อน', () => {

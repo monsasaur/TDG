@@ -12,13 +12,13 @@
 | Escalation / Acknowledge flow | ✅ | escalationService.js — timer in-memory, Twilio fallback |
 | Push token registration | ✅ | `POST /api/v1/push/register` |
 | Demo trigger endpoint | ✅ | `POST /api/v1/demo/fire` — ข้าม ML ไปยิง push ตรงๆ |
-| Mobile app (Expo) | ✅ | 32 หน้า — login/สมัคร/บ้าน/สมาชิก/ผู้ติดต่อฉุกเฉิน/อุปกรณ์/แจ้งเตือน · รับ push · รายการแจ้งเตือนดึงตาราง `alerts` ทุก 10 วิ · กดรับทราบผ่าน `AlertsContext.acknowledgeAlert` (แก้ 2026-11-12 — ตั้งแต่ 2 ก.ย. ปุ่มส่ง `alerts.id` แทน id ของ fall_events ได้ 404 แบบเงียบ กดแล้วระบบยังโทรฉุกเฉิน) |
+| Mobile app (Expo) | ✅ | 31 หน้า — login/สมัคร/บ้าน/สมาชิก/ผู้ติดต่อฉุกเฉิน/อุปกรณ์/แจ้งเตือน · รับ push · รายการแจ้งเตือนดึงตาราง `alerts` ทุก 10 วิ · กดรับทราบผ่าน `AlertsContext.acknowledgeAlert` (แก้ 2026-11-12 — ตั้งแต่ 2 ก.ย. ปุ่มส่ง `alerts.id` แทน id ของ fall_events ได้ 404 แบบเงียบ กดแล้วระบบยังโทรฉุกเฉิน) |
 | Supabase schema | ⚠️ | `schema.sql` ครบ แต่**ฐานข้อมูลจริงยังไม่ได้รันส่วนที่เพิ่มหลัง ก.ย.** — ดูแถว "ฐานข้อมูลจริง + Express ยังไม่ต่อกัน" |
 | ESP32 USB Serial mode | ✅ | csi_collector_serial.py @ 921600 baud |
 | End-to-end demo flow | ⚠️ | ESP32 → API → Push → Twilio ใช้ได้ · **รายการในแอปยังไม่เห็นเหตุการณ์จริง** จึงกดรับทราบจากรายการไม่ได้ (ตรวจ 2026-11-12 — ดูแถว "ฐานข้อมูลจริง + Express ยังไม่ต่อกัน") |
 | Admin Client API | ✅ | 6 endpoints + auth แยกจาก x-api-key — ดู `docs/reports/admin_api_progress.md` |
 | Escalation timer persistence | ✅ | สร้าง timer ใหม่จาก DB ตอน boot + sweeper ทุก 60 วิ ไม่ใช้ Redis |
-| บัญชีผู้ใช้ รอบแรก | ⚠️ | login เบอร์โทร + รหัสผ่าน (Supabase Auth) · สิทธิ์ owner/caregiver ด้วย RLS · เชิญเข้าบ้านด้วยรหัส 6 ตัว/QR ของจริง · ทดสอบแล้ว (SQL 14/14 · web 29/29) **แต่ยังไม่เปิดบนฐานจริง** — ต้องเปิด Phone provider + รัน `accounts.sql` **หลัง**ทดสอบสด · dev client ต้อง build ใหม่ (AsyncStorage) · ดู `docs/reports/accounts_round1.md` |
+| บัญชีผู้ใช้ รอบแรก | ⚠️ | login เบอร์โทร + รหัสผ่าน (Supabase Auth) · สิทธิ์ owner/caregiver ด้วย RLS · เชิญเข้าบ้านด้วยรหัส 6 ตัว/QR ของจริง · ทดสอบแล้ว (SQL 14/14 · web 29/29) **แต่ยังไม่เปิดบนฐานจริง** — ต้องเปิด Phone provider + รัน `accounts.sql` **หลัง**ทดสอบสด · dev client ต้อง build ใหม่ (AsyncStorage) · **รอบ 2 (13 พ.ย.):** push เฉพาะสมาชิกบ้าน + กดรับทราบต้อง login เป็นสมาชิก (มีผลหลังรัน accounts.sql) · ดู `docs/reports/accounts_round1.md` |
 
 ### 🔲 ยังค้าง (Pending)
 
@@ -44,7 +44,7 @@ Hybrid AI-driven fall detection system using WiFi CSI (Channel State Information
 
 ```
 TDG/
-├── app/                          # React Native + Expo (expo-router) — 32 หน้า
+├── app/                          # React Native + Expo (expo-router) — 31 หน้า
 │   ├── _layout.tsx  index.tsx  welcome.tsx  home.tsx  settings.tsx
 │   ├── login.tsx  register.tsx                                    # เบอร์โทร + รหัสผ่าน (Supabase Auth)
 │   ├── houses.tsx  add-house.tsx  select-house.tsx  manage-home.tsx
@@ -208,12 +208,14 @@ All endpoints require `x-api-key` header.
 
 ### Push Notification
 - `POST /api/v1/push/register` — ลงทะเบียน Expo push token (`{ token, device_id, platform }`)
-- `GET  /api/v1/push/tokens` — debug: ดู token ทั้งหมด
+- `GET  /api/v1/push/tokens` — debug: ดู token ทั้งหมด · ใช้ **DEMO_API_KEY** (คืน token ทุกเครื่อง)
+- push ตอนตรวจพบการล้ม: ก่อนรัน `accounts.sql` ส่งทุกเครื่อง · หลังรันส่งเฉพาะเครื่องของสมาชิกบ้าน (`pushService.recipientsFor`)
 
 ### Acknowledge / Escalation
 - `POST /api/v1/alert/ack/:event_id` — ผู้ดูแลกด OK → ยกเลิก escalation timer ·
   `event_id` คือ id ของ `fall_events` (ในแอปคือ `alerts.fall_event_id`) **ไม่ใช่ `alerts.id`** —
   ส่งผิดตัวได้ 404 แล้วระบบโทรตามเวลาเหมือนไม่มีใครกด · หมดเวลาแล้วได้ 409
+  · หลังรัน `accounts.sql` ต้องแนบ `Authorization: Bearer <access token ของบัญชี>` และเป็นสมาชิกบ้านของอุปกรณ์ ไม่งั้น 401/403 (`services/accountService.js`)
 - escalationService จะ auto-call Twilio ถ้าไม่มีใคร ack ภายใน `ACK_TIMEOUT_SECONDS` (default 60s)
 
 ### Admin Client (ใช้ Bearer token ไม่ใช่ x-api-key)

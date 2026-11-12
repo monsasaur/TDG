@@ -44,11 +44,11 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
 **Push**
 
 - [`POST /api/v1/push/register`](#post-api-v1-push-register) — ลงทะเบียน Expo push token
-- [`GET /api/v1/push/tokens`](#get-api-v1-push-tokens) — ดู token ที่ลงทะเบียนไว้ (debug)
 
 **Demo**
 
 - [`POST /api/v1/alert/test`](#post-api-v1-alert-test) — ⚠️ ทดสอบ Twilio — ส่ง SMS และโทรออกจริงถ้า TWILIO_MODE=real
+- [`GET /api/v1/push/tokens`](#get-api-v1-push-tokens) — ดู token ที่ลงทะเบียนไว้ (debug)
 - [`POST /api/v1/push/test`](#post-api-v1-push-test) — ยิง push ทดสอบไปทุก token
 - [`POST /api/v1/demo/fire`](#post-api-v1-demo-fire) — ⚠️ จำลองการล้ม — ข้าม ML ไปสร้าง event จริง
 
@@ -196,7 +196,7 @@ _ดูเหตุการณ์และกดรับทราบ_
 
 **ผู้ดูแลกดรับทราบ — ยกเลิกการโทรฉุกเฉิน**
 
-ยกเลิก escalation timer และอัปเดต alert ที่แอปแสดงเป็น completed
+ยกเลิก escalation timer และอัปเดต alert ที่แอปแสดงเป็น completed · ส่ง `Authorization: Bearer <access token ของบัญชี>` มาด้วยเมื่อ login อยู่ → "รับทราบโดย" ใช้ชื่อจากบัญชี ไม่ใช้ `acknowledged_by` · **หลังรัน accounts.sql ต้องส่ง token และต้องเป็นสมาชิกบ้านของอุปกรณ์นี้** (ไม่งั้น 401 / 403)
 
 **สิทธิ์:** `x-api-key` — ใช้ `APP_API_KEY`
 
@@ -217,7 +217,8 @@ _ดูเหตุการณ์และกดรับทราบ_
 | รหัส | ความหมาย |
 |---|---|
 | `200` | รับทราบแล้ว |
-| `401` | ไม่ได้รับอนุญาต |
+| `401` | ไม่ได้รับอนุญาต · token ของบัญชีหมดอายุ · หรือเปิดระบบบัญชีแล้วแต่ไม่ได้ login |
+| `403` | เปิดระบบบัญชีแล้ว และบัญชีนี้ไม่ใช่สมาชิกบ้านของอุปกรณ์ |
 | `404` | ไม่พบ event |
 | `409` | หมดเวลาไปแล้ว ระบบ escalate ไปเรียบร้อย — กดรับทราบไม่ได้อีก |
 
@@ -245,6 +246,8 @@ _Push notification_
 
 **ลงทะเบียน Expo push token**
 
+ส่ง `Authorization: Bearer <access token ของบัญชี>` มาด้วยเมื่อ login อยู่ → ผูกเครื่องกับบัญชี · ไม่ส่ง = ปลดการผูก (หลังออกจากระบบ) · หลังรัน accounts.sql push ของบ้านส่งเฉพาะเครื่องของสมาชิกบ้านนั้น
+
 **สิทธิ์:** `x-api-key` — ใช้ `APP_API_KEY`
 
 **Request body** (JSON) — จำเป็น
@@ -259,24 +262,9 @@ _Push notification_
 
 | รหัส | ความหมาย |
 |---|---|
-| `200` | ลงทะเบียนแล้ว |
+| `200` | ลงทะเบียนแล้ว (`user_linked` บอกว่าผูกกับบัญชีไหม) |
 | `400` | ไม่มี token |
-| `401` | ไม่ได้รับอนุญาต |
-
----
-
-### `GET /api/v1/push/tokens`
-
-**ดู token ที่ลงทะเบียนไว้ (debug)**
-
-**สิทธิ์:** `x-api-key` — ใช้ `APP_API_KEY`
-
-**Responses**
-
-| รหัส | ความหมาย |
-|---|---|
-| `200` | รายการ token |
-| `401` | ไม่ได้รับอนุญาต |
+| `401` | ไม่ได้รับอนุญาต หรือ token ของบัญชีหมดอายุ |
 
 ---
 
@@ -297,6 +285,23 @@ _⚠️ ใช้สาธิต — สั่งให้ระบบโทร�
 | รหัส | ความหมาย |
 |---|---|
 | `200` | ยิงแล้ว — ดูผลใน sms/call |
+| `401` | ต้องใช้ DEMO_API_KEY |
+
+---
+
+### `GET /api/v1/push/tokens`
+
+**ดู token ที่ลงทะเบียนไว้ (debug)**
+
+ใช้ **DEMO_API_KEY** — คืน push token ทุกเครื่อง ใครได้ token ไปก็ยิง push ปลอมใส่มือถือคนอื่นได้ จึงไม่ให้คีย์ของแอปเรียก
+
+**สิทธิ์:** `x-api-key` — ใช้ `DEMO_API_KEY`
+
+**Responses**
+
+| รหัส | ความหมาย |
+|---|---|
+| `200` | รายการ token |
 | `401` | ต้องใช้ DEMO_API_KEY |
 
 ---

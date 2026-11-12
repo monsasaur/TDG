@@ -128,6 +128,10 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
     securitySchemes: {
       apiKey:     { type: 'apiKey', in: 'header', name: 'x-api-key' },
       adminToken: { type: 'http', scheme: 'bearer', description: 'token จาก POST /api/v1/admin/login' },
+      userToken:  {
+        type: 'http', scheme: 'bearer',
+        description: 'access token ของบัญชีผู้ใช้ (Supabase Auth) — ส่งคู่กับ x-api-key · ใช้กับ /alert/ack และ /push/register',
+      },
     },
     schemas: { FallEvent: FALL_EVENT, AdminEvent: ADMIN_EVENT, TimelineStep: TIMELINE_STEP, MlModel: ML_MODEL },
   },
@@ -241,7 +245,11 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
       post: {
         tags: ['Events'],
         summary: 'ผู้ดูแลกดรับทราบ — ยกเลิกการโทรฉุกเฉิน',
-        description: 'ยกเลิก escalation timer และอัปเดต alert ที่แอปแสดงเป็น completed',
+        description:
+          'ยกเลิก escalation timer และอัปเดต alert ที่แอปแสดงเป็น completed · ' +
+          'ส่ง `Authorization: Bearer <access token ของบัญชี>` มาด้วยเมื่อ login อยู่ → "รับทราบโดย" ใช้ชื่อจากบัญชี ไม่ใช้ `acknowledged_by` · ' +
+          '**หลังรัน accounts.sql ต้องส่ง token และต้องเป็นสมาชิกบ้านของอุปกรณ์นี้** (ไม่งั้น 401 / 403)',
+        security: [{ apiKey: [], userToken: [] }, { apiKey: [] }],
         parameters: [{ name: 'event_id', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: {
           content: {
@@ -261,7 +269,8 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
           },
           404: ERR('ไม่พบ event'),
           409: ERR('หมดเวลาไปแล้ว ระบบ escalate ไปเรียบร้อย — กดรับทราบไม่ได้อีก'),
-          401: ERR('ไม่ได้รับอนุญาต'),
+          401: ERR('ไม่ได้รับอนุญาต · token ของบัญชีหมดอายุ · หรือเปิดระบบบัญชีแล้วแต่ไม่ได้ login'),
+          403: ERR('เปิดระบบบัญชีแล้ว และบัญชีนี้ไม่ใช่สมาชิกบ้านของอุปกรณ์'),
         },
       },
     },
@@ -279,6 +288,10 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
       post: {
         tags: ['Push'],
         summary: 'ลงทะเบียน Expo push token',
+        description:
+          'ส่ง `Authorization: Bearer <access token ของบัญชี>` มาด้วยเมื่อ login อยู่ → ผูกเครื่องกับบัญชี · ' +
+          'ไม่ส่ง = ปลดการผูก (หลังออกจากระบบ) · หลังรัน accounts.sql push ของบ้านส่งเฉพาะเครื่องของสมาชิกบ้านนั้น',
+        security: [{ apiKey: [], userToken: [] }, { apiKey: [] }],
         requestBody: {
           required: true,
           content: {
@@ -295,15 +308,16 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
             },
           },
         },
-        responses: { 200: { description: 'ลงทะเบียนแล้ว' }, 400: ERR('ไม่มี token'), 401: ERR('ไม่ได้รับอนุญาต') },
+        responses: { 200: { description: 'ลงทะเบียนแล้ว (`user_linked` บอกว่าผูกกับบัญชีไหม)' }, 400: ERR('ไม่มี token'), 401: ERR('ไม่ได้รับอนุญาต หรือ token ของบัญชีหมดอายุ') },
       },
     },
 
     '/api/v1/push/tokens': {
       get: {
-        tags: ['Push'],
+        tags: ['Demo'],
         summary: 'ดู token ที่ลงทะเบียนไว้ (debug)',
-        responses: { 200: { description: 'รายการ token' }, 401: ERR('ไม่ได้รับอนุญาต') },
+        description: 'ใช้ **DEMO_API_KEY** — คืน push token ทุกเครื่อง ใครได้ token ไปก็ยิง push ปลอมใส่มือถือคนอื่นได้ จึงไม่ให้คีย์ของแอปเรียก',
+        responses: { 200: { description: 'รายการ token' }, 401: ERR('ต้องใช้ DEMO_API_KEY') },
       },
     },
 
