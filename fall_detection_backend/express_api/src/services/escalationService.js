@@ -24,7 +24,6 @@ const alertService = require("./alertService");
 const dbService = require("./dbService");
 const appAlertService = require("./appAlertService");
 const demoLog = require("../utils/demoLog");
-const aiVoiceAgentService = require("./aiVoiceAgentService");
 
 const ACK_TIMEOUT_SECONDS = Number(process.env.ACK_TIMEOUT_SECONDS || 60);
 const COOLDOWN_SECONDS = Number(process.env.COOLDOWN_SECONDS || 300);

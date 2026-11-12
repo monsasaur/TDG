@@ -44,6 +44,11 @@ function validateMessage(msg) {
   if (msg.length > MAX_CHARS) return false;
   // ห้ามมีเครื่องหมายที่ทำให้ XML (TwiML) พังเด็ดขาด
   if (/[<>&]/.test(msg)) return false;
+  // วงเล็บเหลี่ยม/ปีกกา และอักษรโรมัน — prompt ห้ามไว้แล้ว แต่ prompt ไม่การันตี
+  // วงเล็บเหลี่ยมมักเป็นช่องที่ AI ลืมเติม เช่น "[ชื่อห้อง]" และเครื่องอ่านภาษาไทย
+  // อ่านอักษรโรมันเพี้ยน — เจอแล้วใช้ข้อความมาตรฐานแทนดีกว่าโทรไปพูดผิด
+  if (/[[\]{}]/.test(msg)) return false;
+  if (/[A-Za-z]/.test(msg)) return false;
   // ต้องมีภาษาไทยผสมอยู่ เพื่อป้องกันการตอบเป็นภาษาอื่นล้วน
   if (!/[ก-๙]/.test(msg)) return false;
   return true;
@@ -132,4 +137,5 @@ async function generateCallMessage(event) {
 module.exports = {
   generateCallMessage,
   isEnabled,
+  validateMessage, // export ไว้ให้เทสต์
 };
