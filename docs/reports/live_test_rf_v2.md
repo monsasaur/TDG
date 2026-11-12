@@ -39,8 +39,18 @@
    VALUES ('d-b96ab8', 'h1', 'บอร์ดทดสอบ', 'ESP-B96AB8', 'myssid', 'connected');  -- h1 = บ้านแม่
    ```
 
-เช็คก่อนเริ่ม: ยิง `POST /api/v1/demo/fire` ด้วย `{"device_id":"ESP-B96AB8"}` → ภายใน 10 วิ ต้องขึ้นการ์ดในแอปใต้บ้านแม่
-กดรับทราบแล้ว log ของ Express ต้องขึ้น `Caregiver acknowledged ... escalation cancelled` และไม่โทรออก
+เช็คก่อนเริ่ม:
+1. `cd fall_detection_backend/express_api && node scripts/check_live_setup.js` — ต้องไม่มี ❌ (อ่านอย่างเดียว ไม่เขียนอะไร)
+2. ยิง `POST /api/v1/demo/fire` ด้วย `{"device_id":"ESP-B96AB8"}` → ภายใน 10 วิ ต้องขึ้นการ์ดในแอปใต้บ้านแม่
+   กดรับทราบแล้ว log ของ Express ต้องขึ้น `Caregiver acknowledged ... escalation cancelled` และไม่โทรออก
+
+## ⚠️ สองเรื่องที่เจอตอนเช็คเครื่อง (2026-11-12)
+
+- **พอร์ต 8000 มีโปรแกรมของโปรเจกต์อื่นจองอยู่** (ตอบ `/health` เป็นข้อมูล merchants) — uvicorn จะเปิดไม่ขึ้น
+  ปิดโปรแกรมนั้นก่อน (`lsof -iTCP:8000 -sTCP:LISTEN` ดูว่าตัวไหน) หรือรัน ML service ที่ `--port 8001`
+  แล้วรัน Express ด้วย `ML_SERVICE_URL=http://localhost:8001` นำหน้าคำสั่ง
+- **`.env` ตั้ง `ACK_TIMEOUT_SECONDS=5`** (เหลือจากการทดสอบ 13 ต.ค.) = โทรฉุกเฉินหลังตรวจพบ 5 วิ กดรับทราบไม่ทัน
+  คำสั่งข้างล่างใส่ `ACK_TIMEOUT_SECONDS=60` ไว้แล้ว — ค่าบนบรรทัดคำสั่งชนะค่าใน `.env`
 
 ## เปิด 3 terminal
 
@@ -50,9 +60,9 @@ cd fall_detection_backend/ml_service && source venv/bin/activate
 FALL_MODEL=rf_v2_event uvicorn app.main:app --port 8000
 #    เช็ค: curl localhost:8000/health → model_version rf_v2_event · n_features 28
 
-# 2) Express — ช่วงทดสอบ: กันแจ้งซ้ำแค่ 20 วิ และไม่โทรจริง (ถ่ายวิดีโอค่อยเอา TWILIO_MODE ออก)
+# 2) Express — ช่วงทดสอบ: รอกดรับทราบ 60 วิ · กันแจ้งซ้ำแค่ 20 วิ · ไม่โทรจริง (ถ่ายวิดีโอค่อยเอา TWILIO_MODE ออก)
 cd fall_detection_backend/express_api
-COOLDOWN_SECONDS=20 TWILIO_MODE=fake npm run dev
+ACK_TIMEOUT_SECONDS=60 COOLDOWN_SECONDS=20 TWILIO_MODE=fake npm run dev
 
 # 3) ตัวตรวจจับสด
 cd fall_detection_backend/ml_service && source venv/bin/activate
@@ -92,7 +102,7 @@ python data_collection/fall_monitor.py --env-file ../express_api/.env --stay-sti
 
 ## ถ่ายวิดีโอ demo
 
-ถ้าผลช่วงที่ 4 ใช้ได้: รีสตาร์ท Express แบบไม่ใส่ `TWILIO_MODE=fake` แล้วถ่ายเทคเดียว
+ถ้าผลช่วงที่ 4 ใช้ได้: รีสตาร์ท Express ด้วย `ACK_TIMEOUT_SECONDS=60 npm run dev` (ไม่ใส่ `TWILIO_MODE=fake` · อย่าลืม 60 ไม่งั้นโทรหลัง 5 วิ) แล้วถ่ายเทคเดียว
 เดินเข้ามา → ล้ม → อยู่ที่พื้น → มือถือเด้งแจ้งเตือน → ไม่มีใครกดรับใน 60 วิ → ระบบโทรออก
 
 ถ้าผลยังไม่พอ ใช้ `POST /api/v1/demo/fire` แทนได้ แต่ต้องบอกในวิดีโอว่าเป็นการสั่งเอง ไม่ใช่โมเดลตรวจจับ
