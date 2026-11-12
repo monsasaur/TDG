@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { View, Text, Switch, Linking, Platform } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { View, Text, Switch, Linking, Platform, AppState } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import PageHeader from "../components/PageHeader";
 import ConfirmModal from "../components/ConfirmModal";
@@ -14,21 +14,26 @@ export default function NotificationsScreen() {
   const router = useRouter();
 
   const [permission, setPermission] = useState<Permission>("undetermined");
-  const [enabled, setEnabled] = useState(false);
   const [settingsPrompt, setSettingsPrompt] = useState(false);
+  const [offPrompt, setOffPrompt] = useState(false);
 
-  useEffect(() => {
+  // สวิตช์ = สิทธิ์แจ้งเตือนของเครื่องจริง ไม่ใช่ค่าในแอป
+  // (เดิมกดปิดแล้วเปลี่ยนแค่บนจอ push ยังเด้ง และเปิดหน้าใหม่ก็กลับมาเปิด)
+  const refresh = useCallback(() => {
     if (Platform.OS === "web") return;
-
     getNotificationPermissions().then(({ status }) => {
-      if (status === "granted") {
-        setPermission("granted");
-        setEnabled(true);
-      } else if (status === "denied") {
-        setPermission("denied");
-      }
+      setPermission(status === "granted" ? "granted" : status === "denied" ? "denied" : "undetermined");
     });
   }, []);
+
+  // กลับมาจากหน้าตั้งค่าของเครื่อง → อ่านสิทธิ์ใหม่
+  useEffect(() => {
+    refresh();
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") refresh();
+    });
+    return () => sub.remove();
+  }, [refresh]);
 
   const handleToggle = async () => {
     if (Platform.OS === "web") {
@@ -37,14 +42,14 @@ export default function NotificationsScreen() {
     }
 
     if (permission === "granted") {
-      setEnabled((v) => !v);
+      // แอปปิดสิทธิ์ของเครื่องเองไม่ได้ — บอกผลให้ชัด แล้วพาไปปิดที่ตั้งค่าของเครื่อง
+      setOffPrompt(true);
       return;
     }
     if (permission === "undetermined") {
       const { status, canAskAgain } = await requestNotificationPermissions();
       if (status === "granted") {
         setPermission("granted");
-        setEnabled(true);
       } else {
         setPermission("denied");
         if (!canAskAgain) setSettingsPrompt(true);
@@ -56,6 +61,7 @@ export default function NotificationsScreen() {
 
   const handleOpenSettings = () => {
     setSettingsPrompt(false);
+    setOffPrompt(false);
     if (Platform.OS !== "web") Linking.openSettings();
   };
 
@@ -68,12 +74,26 @@ export default function NotificationsScreen() {
       <View className="bg-white mx-5 mt-5 rounded-2xl px-4 py-3 flex-row items-center justify-between">
         <Text className="text-sm text-[#1A1A1A]">การแจ้งเตือนทั้งหมด</Text>
         <Switch
-          value={permission === "granted" && enabled}
+          value={permission === "granted"}
           onValueChange={handleToggle}
           trackColor={{ false: "#E8E8E8", true: "#FF3055" }}
           thumbColor="#FFFFFF"
         />
       </View>
+
+      <ConfirmModal
+        visible={offPrompt}
+        onClose={() => setOffPrompt(false)}
+        onConfirm={handleOpenSettings}
+        confirmLabel="ไปที่การตั้งค่า"
+        title="ปิดการแจ้งเตือน"
+        titleAlign="left"
+        messageAlign="left"
+        message={
+          "ปิดได้ที่การตั้งค่าของเครื่อง\n\n" +
+          "ถ้าปิด เครื่องนี้จะไม่เด้งเตือนเมื่อตรวจพบการล้ม — ระบบยังโทรหาเบอร์ติดต่อฉุกเฉินเมื่อไม่มีใครกดรับทราบในเวลาที่กำหนด"
+        }
+      />
 
       <ConfirmModal
         visible={settingsPrompt}
