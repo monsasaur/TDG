@@ -92,6 +92,13 @@ export default function SettingsScreen() {
           label="จัดการบ้าน"
           onPress={() => router.push("/manage-home" as any)}
         />
+        {user && (
+          <SettingItem
+            icon="time-outline"
+            label="ประวัติการเปลี่ยนแปลง"
+            onPress={() => router.push("/activity-log" as any)}
+          />
+        )}
       </View>
 
       {user && (

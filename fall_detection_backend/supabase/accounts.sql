@@ -299,7 +299,7 @@ create table if not exists audit_logs (
   entity     text not null,             -- ชื่อตาราง
   entity_id  text,
   action     text not null check (action in ('insert', 'update', 'delete')),
-  changes    jsonb                      -- insert/delete = ทั้งแถว · update = เฉพาะคอลัมน์ที่เปลี่ยน {col: {old, new}}
+  changes    jsonb                      -- insert/delete = ทั้งแถว · update = เฉพาะคอลัมน์ที่เปลี่ยน {col: {old, new}} + _label (ชื่อของแถว)
 );
 create index if not exists idx_audit_logs_at on audit_logs(at desc);
 create index if not exists idx_audit_logs_house on audit_logs using gin(house_ids);
@@ -325,6 +325,8 @@ begin
     if diff is null then
       return null;
     end if;
+    -- แก้แค่เบอร์ก็ต้องรู้ว่าเป็นของใคร — เก็บชื่อของแถวไว้ด้วย
+    diff := diff || jsonb_build_object('_label', coalesce(new_j ->> 'name', new_j ->> 'title', ''));
   else
     diff := row_j;
   end if;
