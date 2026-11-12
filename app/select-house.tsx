@@ -5,10 +5,15 @@ import HousePicker from "../components/HousePicker";
 import PageHeader from "../components/PageHeader";
 import PrimaryButton from "../components/PrimaryButton";
 import { useHouses } from "../data/useHouses";
+import { useOwnerAccess } from "../data/useOwnerAccess";
 
 export default function SelectHouseScreen() {
   const router = useRouter();
-  const { houses, isLoading } = useHouses();
+  const { houses: allHouses, isLoading } = useHouses();
+  // เพิ่มอุปกรณ์ได้เฉพาะบ้านที่เราเป็นเจ้าของ (RLS devices_insert) — ยังไม่เปิดระบบบัญชี = ทุกบ้าน
+  const { enforced, isOwner } = useOwnerAccess();
+  const houses = allHouses.filter((h) => isOwner(h.id));
+  const caregiverOnly = enforced && allHouses.length > 0 && houses.length === 0;
 
   // เก็บเป็น id ไม่ใช่ชื่อ เพราะ id คือสิ่งที่ต้องส่งต่อไปลงทะเบียนอุปกรณ์
   // (devices.house_id เป็น FK บังคับ — ไม่มี id ก็ insert ไม่ได้)
@@ -55,8 +60,10 @@ export default function SelectHouseScreen() {
           </View>
         ) : houses.length === 0 ? (
           <View className="px-5 mt-10">
-            <Text className="text-base text-[#6B6B6B] text-center">
-              ยังไม่มีบ้านในระบบ ต้องเพิ่มบ้านก่อนจึงจะลงทะเบียนอุปกรณ์ได้
+            <Text className="text-base text-[#6B6B6B] text-center leading-6">
+              {caregiverOnly
+                ? "คุณเป็นผู้ดูแลในทุกบ้านที่อยู่ — เฉพาะเจ้าของบ้านที่เพิ่มอุปกรณ์ได้\nสร้างบ้านของคุณเองเพื่อเพิ่มอุปกรณ์"
+                : "ยังไม่มีบ้านในระบบ ต้องเพิ่มบ้านก่อนจึงจะลงทะเบียนอุปกรณ์ได้"}
             </Text>
           </View>
         ) : (

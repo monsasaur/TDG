@@ -8,6 +8,7 @@ import {
   Modal,
   TouchableWithoutFeedback,
   Platform,
+  Alert,
 } from "react-native";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,16 +17,20 @@ import PageHeader from "../components/PageHeader";
 import LabeledTextField from "../components/LabeledTextField";
 import ConfirmModal from "../components/ConfirmModal";
 import { useHouses } from "../data/useHouses";
+import { useOwnerAccess } from "../data/useOwnerAccess";
+import type { Device } from "../data/useDevices";
 
 const NAME_MAX = 30;
 
 export default function DeviceDetailsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { devices } = useDevices();
+  const { devices, updateDevice, deleteDevice } = useDevices();
   const { houses } = useHouses();
+  const { isOwner } = useOwnerAccess();
 
-  const HOUSES = houses.map((h) => h.name);
+  // ย้ายอุปกรณ์ได้เฉพาะไปบ้านที่เราเป็นเจ้าของ (RLS: with check is_house_owner ของบ้านปลายทาง)
+  const HOUSES = houses.filter((h) => isOwner(h.id)).map((h) => h.name);
 
   const device = useMemo(
     () => devices.find((d) => d.id === id),
@@ -36,6 +41,7 @@ export default function DeviceDetailsScreen() {
   const [house, setHouse] = useState<string>("");
   const [houseDropdown, setHouseDropdown] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (device) {
@@ -58,7 +64,45 @@ export default function DeviceDetailsScreen() {
   }
 
   const isConnected = device.status === "connected";
-  const canSave = name.trim().length > 0;
+  const canSave = name.trim().length > 0 && !isSaving;
+  // ผู้ดูแล (caregiver) ดูได้อย่างเดียว — แก้/ลบ/เชื่อมต่อใหม่ได้เฉพาะเจ้าของบ้าน
+  const canManage = isOwner(device.houseId);
+
+  // เดิมปุ่มบันทึกแค่ย้อนกลับ — ชื่อและบ้านที่แก้ไม่เคยถูกบันทึก
+  const handleSave = async () => {
+    if (!canSave) return;
+    const updates: Partial<Device> = {};
+    if (name.trim() !== device.name) updates.name = name.trim();
+    const target = houses.find((h) => h.name === house);
+    if (target && target.id !== device.houseId) {
+      updates.houseId = target.id;
+      updates.houseName = target.name;
+    }
+    if (Object.keys(updates).length === 0) {
+      goBack();
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await updateDevice(device.id, updates);
+      goBack();
+    } catch (err) {
+      Alert.alert("บันทึกไม่ได้", err instanceof Error ? err.message : "กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // เดิมยืนยันลบแล้วแค่ย้อนกลับ — อุปกรณ์ไม่เคยถูกลบ
+  const handleDelete = async () => {
+    setConfirmDelete(false);
+    try {
+      await deleteDevice(device.id);
+      goBack();
+    } catch (err) {
+      Alert.alert("ลบอุปกรณ์ไม่ได้", err instanceof Error ? err.message : "กรุณาลองใหม่อีกครั้ง");
+    }
+  };
 
   return (
     <View className="flex-1 bg-[#F2F2F2]">
@@ -91,6 +135,7 @@ export default function DeviceDetailsScreen() {
               onPress={() =>
                 router.push(`/scan-devices?deviceId=${device.id}` as never)
               }
+              disabled={!canManage}
               className={`rounded-xl px-4 py-3 flex-row items-center ${
                 isConnected ? "bg-[#FFE5E8]" : "bg-[#EFEFEF]"
               }`}
@@ -118,6 +163,7 @@ export default function DeviceDetailsScreen() {
             value={name}
             onChangeText={(t) => setName(t.slice(0, NAME_MAX))}
             maxLength={NAME_MAX}
+            readOnly={!canManage}
           />
 
           {/* กลุ่มบ้าน */}
@@ -126,21 +172,29 @@ export default function DeviceDetailsScreen() {
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => setHouseDropdown(true)}
+              disabled={!canManage}
               className="bg-white rounded-xl px-4 py-3 flex-row items-center justify-between border border-[#E8E8E8]"
             >
               <Text className="text-sm text-[#1A1A1A]">{house}</Text>
-              <Ionicons name="chevron-down" size={14} color="#888" />
+              {canManage && <Ionicons name="chevron-down" size={14} color="#888" />}
             </TouchableOpacity>
           </View>
         </ScrollView>
 
         {/* Bottom buttons */}
+        {!canManage ? (
+          <View className="px-5 pb-8">
+            <Text className="text-xs text-[#888] text-center leading-5">
+              คุณเป็นผู้ดูแลของบ้านนี้ — เฉพาะเจ้าของบ้านที่แก้ไข ลบ หรือเชื่อมต่ออุปกรณ์ใหม่ได้
+            </Text>
+          </View>
+        ) : (
         <View className="px-5 pb-8">
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={
               isConnected
-                ? goBack
+                ? handleSave
                 : () =>
                     router.push(
                       `/scan-devices?deviceId=${device.id}` as never
@@ -156,7 +210,7 @@ export default function DeviceDetailsScreen() {
             }`}
           >
             <Text className="text-base font-semibold text-white">
-              {isConnected ? "บันทึก" : "เชื่อมต่อใหม่"}
+              {isConnected ? (isSaving ? "กำลังบันทึก..." : "บันทึก") : "เชื่อมต่อใหม่"}
             </Text>
           </TouchableOpacity>
 
@@ -170,6 +224,7 @@ export default function DeviceDetailsScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+        )}
       </KeyboardAvoidingView>
 
       {/* House dropdown (centered modal — different from filter dropdown) */}
@@ -210,10 +265,7 @@ export default function DeviceDetailsScreen() {
       <ConfirmModal
         visible={confirmDelete}
         onClose={() => setConfirmDelete(false)}
-        onConfirm={() => {
-          setConfirmDelete(false);
-          goBack();
-        }}
+        onConfirm={handleDelete}
         title="ลบอุปกรณ์นี้หรือไม่"
         message="อุปกรณ์นี้จะถูกลบออกจากบ้านของคุณ คุณแน่ใจหรือไม่ว่าคุณต้องการลบอุปกรณ์นี้"
       />

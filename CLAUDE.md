@@ -73,7 +73,7 @@ TDG/
 │   │   │   └── middleware/       # auth (x-api-key), adminAuth (Bearer), cors, validate
 │   │   ├── scripts/              # hash_admin_password.js, fake_csi_stream.sh,
 │   │   │                         # check_live_setup.js (เช็คก่อนทดสอบสด · อ่านอย่างเดียว)
-│   │   └── tests/                # 143 เคส (jest · นับ 2026-11-12)
+│   │   └── tests/                # 185 เคสบน dev (jest · นับ 2026-11-13)
 │   ├── ml_service/               # Python + FastAPI ML inference
 │   │   ├── app/                  # main.py, predict.py, preprocess.py, schemas.py
 │   │   ├── experiments/          # ⭐ eval_harness · check_dataset · audit_data
