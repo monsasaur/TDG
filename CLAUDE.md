@@ -1,24 +1,26 @@
 # Fall Detection System — CLAUDE.md
 
-## Current Status (2026-09-01)
+## Current Status (ตรวจกับโค้ด 2026-11-13)
 
 ### ✅ ทำเสร็จแล้ว
 
 | Feature | สถานะ | หมายเหตุ |
 |---|---|---|
 | LSTM v3 model | ⚠️ | 99.7% วัดด้วย split ที่ข้อมูลรั่ว · ไม่รั่วได้ 95.6% · **แต่ 95.6% นั้นมาจากการแยก session ไม่ใช่การจับการล้ม** — ความสามารถจริงราว 72.6% · ดู `docs/reports/data_quality_audit_2026-09.md` |
-| Express API (core) | ✅ | predict, events, alert endpoints |
-| Push Notification (FCM V1) | ✅ | pushService.js + Expo SDK + useFcmV1 |
+| Express API (core) | ✅ | predict · ack · push · demo · admin · คีย์แยก scope (device / app / demo — `/events` กับ `/push/tokens` อยู่ใน demo เพราะคืนข้อมูลทุกบ้าน) · หลังเปิดระบบบัญชี ack ต้องแนบ token ของสมาชิกบ้าน (`accountService.js` · เทสต์ระดับ route `tests/routes.test.js`) |
+| Push Notification (FCM V1) | ✅ | pushService.js + Expo SDK + useFcmV1 · หลังเปิดระบบบัญชีส่งเฉพาะเครื่องของสมาชิกบ้าน (`recipientsFor`) |
 | Escalation / Acknowledge flow | ✅ | escalationService.js — timer in-memory, Twilio fallback |
 | Push token registration | ✅ | `POST /api/v1/push/register` |
 | Demo trigger endpoint | ✅ | `POST /api/v1/demo/fire` — ข้าม ML ไปยิง push ตรงๆ |
-| Mobile app (Expo) | ✅ | 32 หน้า — login/สมัคร/บ้าน/สมาชิก/ผู้ติดต่อฉุกเฉิน/อุปกรณ์/แจ้งเตือน · รับ push · รายการแจ้งเตือนดึงตาราง `alerts` ทุก 10 วิ · กดรับทราบผ่าน `AlertsContext.acknowledgeAlert` (แก้ 2026-11-12 — ตั้งแต่ 2 ก.ย. ปุ่มส่ง `alerts.id` แทน id ของ fall_events ได้ 404 แบบเงียบ กดแล้วระบบยังโทรฉุกเฉิน) |
+| Mobile app (Expo) | ✅ | 32 หน้า — login/สมัคร/บ้าน/สมาชิก/ผู้ติดต่อฉุกเฉิน/อุปกรณ์/แจ้งเตือน/ประวัติการเปลี่ยนแปลง · รับ push · รายการแจ้งเตือนดึงตาราง `alerts` ทุก 10 วิ · กดรับทราบส่ง `alerts.fall_event_id` (แก้ 12 พ.ย. — เดิมส่ง `alerts.id` ได้ 404 แบบเงียบ) · แก้ 13 พ.ย.: นับถอยหลังคิดจาก `created_at` (เดิมเริ่ม 60 ใหม่ทุกครั้งที่เปิดแอป) · ลบการแจ้งเตือน = ซ่อนต่อบัญชีต่อเครื่อง ไม่ซ่อนการ์ดที่ยังรอ · ปุ่มบันทึก/ลบอุปกรณ์ทำงานจริง (เดิมแค่ย้อนกลับ) · ผู้ดูแลไม่เห็นปุ่มของเจ้าของบ้าน · สวิตช์แจ้งเตือน = สิทธิ์จริงของเครื่อง · **ทดสอบบนเว็บเท่านั้น ยังไม่ได้ลองบนมือถือ** → `docs/reports/device_test_checklist.md` |
 | Supabase schema | ⚠️ | `schema.sql` ครบ แต่**ฐานข้อมูลจริงยังไม่ได้รันส่วนที่เพิ่มหลัง ก.ย.** — ดูแถว "ฐานข้อมูลจริง + Express ยังไม่ต่อกัน" |
 | ESP32 USB Serial mode | ✅ | csi_collector_serial.py @ 921600 baud |
 | End-to-end demo flow | ⚠️ | ESP32 → API → Push → Twilio ใช้ได้ · **รายการในแอปยังไม่เห็นเหตุการณ์จริง** จึงกดรับทราบจากรายการไม่ได้ (ตรวจ 2026-11-12 — ดูแถว "ฐานข้อมูลจริง + Express ยังไม่ต่อกัน") |
 | Admin Client API | ✅ | 6 endpoints + auth แยกจาก x-api-key — ดู `docs/reports/admin_api_progress.md` |
 | Escalation timer persistence | ✅ | สร้าง timer ใหม่จาก DB ตอน boot + sweeper ทุก 60 วิ ไม่ใช้ Redis |
-| บัญชีผู้ใช้ รอบแรก | ⚠️ | login เบอร์โทร + รหัสผ่าน (Supabase Auth) · สิทธิ์ owner/caregiver ด้วย RLS · เชิญเข้าบ้านด้วยรหัส 6 ตัว/QR ของจริง · ทดสอบแล้ว (SQL 14/14 · web 29/29) **แต่ยังไม่เปิดบนฐานจริง** — ต้องเปิด Phone provider + รัน `accounts.sql` **หลัง**ทดสอบสด · dev client ต้อง build ใหม่ (AsyncStorage) · **รอบ 2 (13 พ.ย.):** push เฉพาะสมาชิกบ้าน + กดรับทราบต้อง login เป็นสมาชิก (มีผลหลังรัน accounts.sql) · ดู `docs/reports/accounts_round1.md` |
+| บัญชีผู้ใช้ + สิทธิ์รายบ้าน | ⚠️ | โค้ดครบ (12–13 พ.ย.): login เบอร์โทร + รหัสผ่าน (Supabase Auth) · RLS owner/caregiver · เชิญด้วยรหัส 6 ตัว/QR · push เฉพาะสมาชิก · ack ต้องเป็นสมาชิก · ออกจากบ้าน / นำสมาชิกออก · หน้าสมาชิกจริง (`house_member_list()`) · audit log + หน้าประวัติ · ทดสอบ SQL บน Postgres ในเครื่อง + เว็บแล้ว · **ยังไม่เปิดบนฐานจริงและยังไม่ทดสอบบนมือถือ** — ต้องเปิด Phone provider + รัน `accounts.sql` **หลัง**ทดสอบสด · dev client ต้อง build ใหม่ (AsyncStorage) · ลำดับเปิดใช้ `docs/reports/accounts_round1.md` |
+| Hybrid AI escalation call (Phase 2a) | ✅ | merge เข้า dev แล้ว (PR #34 · 12 พ.ย.) — OpenTyphoon ร่างข้อความ · กฎยังเป็นตัวตัดสินใจโทร · **ปิดเป็นค่าเริ่มต้น** (`AI_VOICE_ENABLED=true` + `TYPHOON_API_KEY` ถึงจะทำงาน) · ⚠️ branch feature/ml-service ยังไม่มีโค้ดนี้ — ตอน merge dev เข้ามา ต้องรัน `schema.sql` ที่รวมแล้วบน Supabase ก่อนต่อ Express (โค้ดใหม่เขียน `fall_events.escalation_method`) · Phase 2b ยังไม่อนุญาต ต้องผ่าน shadow mode ก่อน (`docs/reports/hybrid_ai_escalation_design.md`) |
+| CI (GitHub Actions) | ✅ | ทุก push / PR เข้า dev: Express jest · ML pytest · แอป tsc + lint (`npm ci --force` เพราะ `lightningcss-darwin-arm64` เป็น dependency ตรง) |
 
 ### 🔲 ยังค้าง (Pending)
 
@@ -32,7 +34,6 @@
 | **CSI uplink ในบ้านลูกค้า** | **High** | 🔴 **ยังไม่มีอะไรส่ง CSI ขึ้น cloud เลย** — ทั้งสองทางที่มีอยู่ต้องมีคอมเปิดในบ้าน และ `csi_streamer.py` ยิงตรงไป ML service ข้าม Express API (ไม่มี event/alert/push/escalation) · ตัวเลข + ทางเลือก: `docs/reports/production_csi_uplink_decision.md` |
 | **ฐานข้อมูลจริง + Express ยังไม่ต่อกัน** | **High** | ตรวจ 2026-11-12 (อ่านอย่างเดียว): Express `.env` ไม่มี `SUPABASE_URL`/`SUPABASE_KEY` → `dbService` ใช้ mock store ในหน่วยความจำ (`fall_events` บน Supabase มี 0 แถว) · ฐานข้อมูลจริงยังไม่ได้รัน `schema.sql` (ไม่มี `alerts.fall_event_id` · `devices.last_seen_at`/`is_active`/`installed_at` · ตาราง `ml_models`) · `ESP-B96AB8` ยังไม่อยู่ใน `devices` → แอปไม่เห็นเหตุการณ์จริง เห็นแต่ push · หน้า Admin ใช้ไม่ได้ · วิธีแก้: `docs/reports/live_test_rf_v2.md` หัวข้อ "ให้เหตุการณ์ขึ้นในแอป" |
 | Production Cloud deploy | Med | **Dockerfile + render.yaml + compose พร้อมแล้ว** · แก้ 13 พ.ย.: `ML_SERVICE_URL` จาก Render ไม่มี `http://` (เดิม Express เรียก ML ไม่ได้) + เติม env ที่ขาดใน `render.yaml` · เหลือ: ตัดสินใจเรื่องไฟล์โมเดลที่ถูก gitignore · กรอก env ใน Render · ยังไม่เคย build image (เครื่องนี้ไม่มี docker) · รายการตรวจ: `docs/reports/deploy_render_checklist.md` |
-| Hybrid AI escalation call | Low | ✅ **Phase 2a merge เข้า dev แล้ว** (PR #34 · 2026-11-12) — เพื่อน implement (OpenTyphoon ไม่ใช่ Claude) + แก้บั๊ก 4 จุด + ข้อความที่มีวงเล็บ/อักษรโรมันถอยไปใช้ข้อความคงที่ · **ปิดเป็นค่าเริ่มต้น** ทำงานเมื่อตั้ง `AI_VOICE_ENABLED=true` + `TYPHOON_API_KEY` · ⚠️ branch นี้ (feature/ml-service) ยังไม่มีโค้ดนี้ — ตอน merge dev เข้ามา ต้องรัน `schema.sql` ที่รวมแล้วบน Supabase ก่อนต่อ Express (โค้ดใหม่เขียนคอลัมน์ `fall_events.escalation_method` ถ้าไม่มี mark escalated จะล้ม) · สเปค `docs/reports/spec_hybrid_ai_escalation_phase2a.md` · Phase 2b ยังไม่อนุญาต ต้องผ่าน shadow mode ก่อน (`docs/reports/hybrid_ai_escalation_design.md`) |
 
 ---
 
@@ -55,12 +56,14 @@ TDG/
 │   ├── members.tsx  member-detail.tsx
 │   ├── emergency-contacts.tsx  add-external-contact.tsx  edit-contact.tsx
 │   └── notifications.tsx  clear-alerts.tsx  activity-log.tsx       # activity-log = audit log ของบ้าน
-├── components/                   # 31 component (การ์ด alert, ปุ่ม, ฟอร์ม, dropdown)
+├── components/                   # 33 component (การ์ด alert, ปุ่ม, ฟอร์ม, dropdown)
 ├── contexts/                     # AuthContext, AlertsContext, DevicesContext
 ├── data/                         # ⚠️ hooks ที่คุยกับ Supabase ตรง ไม่ผ่าน Express API
 │   ├── supabaseClient.ts
-│   └── useAlerts · useDevices · useHouses · useContacts · useSystemAlerts · houseInvites
-├── lib/                          # api.ts (Express API), notifications.ts, pushNotifications.ts
+│   └── useAlerts · useDevices · useHouses (+ useMyHouseRoles) · useContacts · useSystemAlerts
+│       houseInvites · useHouseMembers · useAuditLog · useOwnerAccess (ซ่อนปุ่มของเจ้าของบ้าน)
+├── lib/                          # api.ts (Express API · แนบ token ของบัญชี), notifications.ts, pushNotifications.ts,
+│                                 # phone.ts · authErrors.ts · deviceStorage.ts (AsyncStorage/localStorage) · time.ts
 ├── types/alert.ts
 ├── fall_detection_backend/
 │   ├── express_api/              # Node.js + Express cloud API
