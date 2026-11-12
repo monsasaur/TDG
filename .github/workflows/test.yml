@@ -50,3 +50,25 @@ jobs:
             pytest==9.0.3
 
       - run: pytest
+
+  # แอปมือถือยังไม่มี unit test — อย่างน้อยให้ type check + lint ทุก PR
+  # (เปลี่ยนชนิดข้อมูลฝั่งหนึ่งแล้วลืมอีกฝั่ง หรือ import ผิด จะถูกจับก่อน merge)
+  mobile-app:
+    name: Mobile app (tsc + lint)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      # --ignore-scripts: ไม่ต้อง build native อะไร แค่ตรวจโค้ด
+      # --force: package.json มี lightningcss-darwin-arm64 เป็น dependency ตรง (ตัวสำหรับ Mac)
+      #          บน Linux npm ci จะล้มด้วย EBADPLATFORM — ข้ามการตรวจแพลตฟอร์ม ไฟล์นั้นไม่ได้ถูกใช้
+      - run: npm ci --ignore-scripts --force
+      - run: npx tsc --noEmit
+      - run: npm run lint

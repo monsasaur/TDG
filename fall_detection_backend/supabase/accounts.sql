@@ -5,6 +5,7 @@
 --    พอเปิด RLS แล้ว คนที่ไม่ได้ login จะไม่เห็นข้อมูลอะไรเลย และบ้านเดิมจะยังไม่มีเจ้าของ
 --    (ยกบ้านเดิมให้บัญชีแรกได้ด้วยคำสั่งท้ายไฟล์)
 -- ⚠️ Express API ต้องใช้ service_role key (ข้าม RLS) — ถ้าใช้ anon key จะเขียน fall_events / alerts ไม่ได้
+-- มี audit log ด้วย (ตาราง audit_logs · trigger audit_row) — ดูหัวข้อ "ประวัติการเปลี่ยนแปลง"
 --
 -- ลำดับ: schema.sql → accounts.sql → สมัครบัญชีแรกในแอป → คำสั่งท้ายไฟล์ (ครั้งเดียว)
 -- รันซ้ำได้ (create or replace · if not exists · drop policy if exists)
@@ -167,17 +168,35 @@ begin
   return inv.house_id;
 end $$;
 
+-- ── รายชื่อสมาชิกของทุกบ้านที่คนเรียกเป็นสมาชิกอยู่ ──────────────
+-- แอปอ่าน auth.users ตรงไม่ได้ (ชื่อที่แสดงกับเบอร์อยู่ในนั้น) — ฟังก์ชันนี้คืนให้เฉพาะคนในบ้านเดียวกัน
+-- ใช้กับหน้าสมาชิก (app/members.tsx · member-detail.tsx)
+create or replace function public.house_member_list()
+returns table (house_id text, house_name text, user_id uuid, role text, display_name text, phone text)
+language sql stable security definer set search_path = public as $$
+  select m.house_id, h.name, m.user_id, m.role,
+         coalesce(nullif(trim(u.raw_user_meta_data->>'name'), ''), '') as display_name,
+         u.phone
+  from house_members m
+  join houses h     on h.id = m.house_id
+  join auth.users u on u.id = m.user_id
+  where m.house_id in (select hm.house_id from house_members hm where hm.user_id = auth.uid())
+  order by h.created_at, m.joined_at
+$$;
+
 -- ฟังก์ชันเรียกได้เฉพาะคนที่ login (Postgres ให้ทุกคนเรียกได้เป็นค่าเริ่มต้น)
 revoke execute on function public.is_house_member(text)     from public, anon;
 revoke execute on function public.is_house_owner(text)      from public, anon;
 revoke execute on function public.create_house(text)        from public, anon;
 revoke execute on function public.create_house_invite(text) from public, anon;
 revoke execute on function public.join_house(text)          from public, anon;
+revoke execute on function public.house_member_list()       from public, anon;
 grant  execute on function public.is_house_member(text)     to authenticated;
 grant  execute on function public.is_house_owner(text)      to authenticated;
 grant  execute on function public.create_house(text)        to authenticated;
 grant  execute on function public.create_house_invite(text) to authenticated;
 grant  execute on function public.join_house(text)          to authenticated;
+grant  execute on function public.house_member_list()       to authenticated;
 
 -- ── เปิด RLS ─────────────────────────────────────────────────
 alter table houses             enable row level security;
@@ -267,6 +286,86 @@ create policy members_delete on house_members for delete to authenticated using 
 drop policy if exists invites_select on house_invites;
 create policy invites_select on house_invites for select to authenticated
   using (is_house_owner(house_id));
+
+-- ── ประวัติการเปลี่ยนแปลง (audit log) ──────────────────────────
+-- ฐานข้อมูลบันทึกเองด้วย trigger — แอปข้ามไม่ได้ และไม่มีใครแก้/ลบ log ได้ (ไม่มี policy เขียน)
+-- อ่านได้: คนที่ทำเอง · เจ้าของบ้านที่เกี่ยวข้อง · service_role (Express / dashboard)
+-- ไม่บันทึก fall_events / push_tokens (Express เขียนถี่ ไม่ใช่การกระทำของคน)
+create table if not exists audit_logs (
+  id         bigint generated always as identity primary key,
+  at         timestamptz not null default now(),
+  actor      uuid,                      -- auth.uid() · null = ระบบ (Express / SQL Editor)
+  house_ids  text[] not null default '{}',
+  entity     text not null,             -- ชื่อตาราง
+  entity_id  text,
+  action     text not null check (action in ('insert', 'update', 'delete')),
+  changes    jsonb                      -- insert/delete = ทั้งแถว · update = เฉพาะคอลัมน์ที่เปลี่ยน {col: {old, new}} + _label (ชื่อของแถว)
+);
+create index if not exists idx_audit_logs_at on audit_logs(at desc);
+create index if not exists idx_audit_logs_house on audit_logs using gin(house_ids);
+
+-- AFTER insert/update · BEFORE delete — ตอนลบผู้ติดต่อ แถว house_contacts ถูก cascade ลบไปก่อน AFTER trigger
+-- จะหาไม่เจอว่าผู้ติดต่อนั้นอยู่บ้านไหน เจ้าของบ้านจะมองไม่เห็นว่ามีคนลบเบอร์ฉุกเฉินของบ้านตัวเอง
+create or replace function public.audit_row() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  old_j  jsonb := case when tg_op in ('UPDATE', 'DELETE') then to_jsonb(old) end;
+  new_j  jsonb := case when tg_op in ('INSERT', 'UPDATE') then to_jsonb(new) end;
+  row_j  jsonb := coalesce(new_j, old_j);
+  diff   jsonb;
+  houses text[];
+begin
+  if tg_op = 'UPDATE' then
+    -- timeline / countdown ของ alerts Express เขียนใหม่ทุกขั้น — ไม่ใช่สิ่งที่คนเปลี่ยน
+    select jsonb_object_agg(k, jsonb_build_object('old', old_j -> k, 'new', new_j -> k))
+      into diff
+      from jsonb_object_keys(new_j) as k
+     where (old_j -> k) is distinct from (new_j -> k)
+       and k not in ('updated_at', 'timeline', 'countdown');
+    if diff is null then
+      return null;
+    end if;
+    -- แก้แค่เบอร์ก็ต้องรู้ว่าเป็นของใคร — เก็บชื่อของแถวไว้ด้วย
+    diff := diff || jsonb_build_object('_label', coalesce(new_j ->> 'name', new_j ->> 'title', ''));
+  else
+    diff := row_j;
+  end if;
+
+  houses := case
+    when tg_table_name = 'houses' then array[row_j ->> 'id']
+    when tg_table_name = 'emergency_contacts' then
+      coalesce((select array_agg(hc.house_id) from house_contacts hc where hc.contact_id = row_j ->> 'id'), '{}')
+    when row_j ? 'house_id' then array[row_j ->> 'house_id']
+    else '{}'
+  end;
+
+  insert into audit_logs (actor, house_ids, entity, entity_id, action, changes)
+  values (auth.uid(), houses, tg_table_name,
+          coalesce(row_j ->> 'id', row_j ->> 'code', row_j ->> 'contact_id', row_j ->> 'user_id'),
+          lower(tg_op), diff);
+
+  return case when tg_when = 'BEFORE' then old else null end;
+end $$;
+revoke execute on function public.audit_row() from public, anon, authenticated;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['houses', 'devices', 'alerts', 'emergency_contacts',
+                           'house_contacts', 'house_members', 'house_invites'] loop
+    execute format('drop trigger if exists audit_iu on %I', t);
+    execute format('drop trigger if exists audit_d on %I', t);
+    execute format('create trigger audit_iu after insert or update on %I for each row execute function audit_row()', t);
+    execute format('create trigger audit_d before delete on %I for each row execute function audit_row()', t);
+  end loop;
+end $$;
+
+alter table audit_logs enable row level security;
+drop policy if exists audit_select on audit_logs;
+create policy audit_select on audit_logs for select to authenticated using (
+  actor = auth.uid()
+  or exists (select 1 from unnest(house_ids) as h where is_house_owner(h))
+);
 
 -- ============================================================
 -- (ครั้งเดียว) ยกบ้านที่มีอยู่ก่อนเปิดระบบบัญชีให้บัญชีแรกเป็นเจ้าของ

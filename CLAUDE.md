@@ -12,7 +12,7 @@
 | Escalation / Acknowledge flow | ✅ | escalationService.js — timer in-memory, Twilio fallback |
 | Push token registration | ✅ | `POST /api/v1/push/register` |
 | Demo trigger endpoint | ✅ | `POST /api/v1/demo/fire` — ข้าม ML ไปยิง push ตรงๆ |
-| Mobile app (Expo) | ✅ | 31 หน้า — login/สมัคร/บ้าน/สมาชิก/ผู้ติดต่อฉุกเฉิน/อุปกรณ์/แจ้งเตือน · รับ push · รายการแจ้งเตือนดึงตาราง `alerts` ทุก 10 วิ · กดรับทราบผ่าน `AlertsContext.acknowledgeAlert` (แก้ 2026-11-12 — ตั้งแต่ 2 ก.ย. ปุ่มส่ง `alerts.id` แทน id ของ fall_events ได้ 404 แบบเงียบ กดแล้วระบบยังโทรฉุกเฉิน) |
+| Mobile app (Expo) | ✅ | 32 หน้า — login/สมัคร/บ้าน/สมาชิก/ผู้ติดต่อฉุกเฉิน/อุปกรณ์/แจ้งเตือน · รับ push · รายการแจ้งเตือนดึงตาราง `alerts` ทุก 10 วิ · กดรับทราบผ่าน `AlertsContext.acknowledgeAlert` (แก้ 2026-11-12 — ตั้งแต่ 2 ก.ย. ปุ่มส่ง `alerts.id` แทน id ของ fall_events ได้ 404 แบบเงียบ กดแล้วระบบยังโทรฉุกเฉิน) |
 | Supabase schema | ⚠️ | `schema.sql` ครบ แต่**ฐานข้อมูลจริงยังไม่ได้รันส่วนที่เพิ่มหลัง ก.ย.** — ดูแถว "ฐานข้อมูลจริง + Express ยังไม่ต่อกัน" |
 | ESP32 USB Serial mode | ✅ | csi_collector_serial.py @ 921600 baud |
 | End-to-end demo flow | ⚠️ | ESP32 → API → Push → Twilio ใช้ได้ · **รายการในแอปยังไม่เห็นเหตุการณ์จริง** จึงกดรับทราบจากรายการไม่ได้ (ตรวจ 2026-11-12 — ดูแถว "ฐานข้อมูลจริง + Express ยังไม่ต่อกัน") |
@@ -44,7 +44,7 @@ Hybrid AI-driven fall detection system using WiFi CSI (Channel State Information
 
 ```
 TDG/
-├── app/                          # React Native + Expo (expo-router) — 31 หน้า
+├── app/                          # React Native + Expo (expo-router) — 32 หน้า
 │   ├── _layout.tsx  index.tsx  welcome.tsx  home.tsx  settings.tsx
 │   ├── login.tsx  register.tsx                                    # เบอร์โทร + รหัสผ่าน (Supabase Auth)
 │   ├── houses.tsx  add-house.tsx  select-house.tsx  manage-home.tsx
@@ -54,7 +54,7 @@ TDG/
 │   ├── scan-qr.tsx  enter-code.tsx  invite-*.tsx                  # เชิญสมาชิกเข้าบ้าน (ไม่ใช่ PoP) · รหัส 6 ตัว/QR ของจริง · ต้องรัน accounts.sql
 │   ├── members.tsx  member-detail.tsx
 │   ├── emergency-contacts.tsx  add-external-contact.tsx  edit-contact.tsx
-│   └── notifications.tsx  clear-alerts.tsx
+│   └── notifications.tsx  clear-alerts.tsx  activity-log.tsx       # activity-log = audit log ของบ้าน
 ├── components/                   # 31 component (การ์ด alert, ปุ่ม, ฟอร์ม, dropdown)
 ├── contexts/                     # AuthContext, AlertsContext, DevicesContext
 ├── data/                         # ⚠️ hooks ที่คุยกับ Supabase ตรง ไม่ผ่าน Express API
@@ -570,6 +570,9 @@ Table: `push_tokens` — `token` PK · `device_id` · `platform` · `created_at`
 | `house_invites` | `code` (6 ตัว ไม่มี I O 0 1) · `house_id` · อายุ 15 นาที · ใช้ได้ครั้งเดียว (`used_by` / `used_at`) |
 | `create_house(p_name)` | สร้างบ้าน + ตั้งคนเรียกเป็น owner · เพดาน 5 บ้านต่อคน (นับทุกบ้านที่เป็นสมาชิก) — แอป insert `houses` ตรงไม่ได้แล้ว |
 | `create_house_invite(p_house_id)` / `join_house(p_code)` | owner สร้างรหัส · คนถูกเชิญเข้าเป็น caregiver · เพดาน 6 คนต่อบ้าน |
+| `house_member_list()` | สมาชิกของทุกบ้านที่คนเรียกอยู่ด้วย พร้อมชื่อ + เบอร์จาก `auth.users` (แอปอ่านตรงไม่ได้) — ใช้กับหน้าสมาชิก |
+| `push_tokens.user_id` | เครื่องนี้ login เป็นใคร — Express ส่ง push ของบ้านเฉพาะเครื่องสมาชิก |
+| `audit_logs` | ประวัติการเปลี่ยนแปลง — trigger `audit_row` บันทึกเอง (ใครทำ · บ้านไหน · ค่าเก่า/ใหม่) · เจ้าของบ้านอ่านของบ้านตัวเอง · ไม่มีใครแก้/ลบ log ได้ · หน้าในแอป: ตั้งค่า → ประวัติการเปลี่ยนแปลง (`app/activity-log.tsx`) |
 
 RLS เปิดทุกตารางกลุ่ม B + C · `fall_events` / `push_tokens` / `ml_models` เปิด RLS แบบไม่มี policy = เข้าได้เฉพาะ service_role
 → **Express ต้องใช้ service_role key** ไม่งั้นเขียนเหตุการณ์ไม่ได้แบบไม่มี error ชัด (`check_live_setup.js` เช็คให้)

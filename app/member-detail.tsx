@@ -16,8 +16,11 @@ import PageHeader from "../components/PageHeader";
 import { supabase } from "../data/supabaseClient";
 import { useContacts } from "../data/useContacts";
 import { House, useHouses } from "../data/useHouses";
+import { MemberHouse, removeHouseMember, useHouseMembers } from "../data/useHouseMembers";
+import { useAuth } from "../contexts/AuthContext";
 
-export default function MemberDetailScreen() {
+/** โหมดเดิม — สมาชิกจากผู้ติดต่อฉุกเฉิน (ก่อนเปิดระบบบัญชี) */
+function ContactMemberDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
 
@@ -166,6 +169,128 @@ export default function MemberDetailScreen() {
         </Text>
         <Text className="text-sm text-[#555] leading-5">
           คนที่ถูกลบออกจากบ้านนี้จะไม่สามารถเข้าถึงบริการของกลุ่มบ้านนี้อีกต่อไป
+        </Text>
+      </ConfirmModal>
+    </View>
+  );
+}
+
+/**
+ * สมาชิกมาจากหน้าสมาชิกแบบไหน — ?userId= = บัญชีผู้ใช้จริง (หลังรัน accounts.sql) · ?id= = ผู้ติดต่อแบบเดิม
+ */
+export default function MemberDetailScreen() {
+  const { userId } = useLocalSearchParams<{ userId?: string }>();
+  return userId ? <AccountMemberDetail memberId={userId} /> : <ContactMemberDetail />;
+}
+
+const ROLE_LABEL: Record<string, string> = { owner: "เจ้าของบ้าน", caregiver: "ผู้ดูแล" };
+
+/** สมาชิกที่เป็นบัญชีผู้ใช้ — เจ้าของบ้านนำผู้ดูแลออกจากบ้านของตัวเองได้ */
+function AccountMemberDetail({ memberId }: { memberId: string }) {
+  const router = useRouter();
+  const { user } = useAuth();
+  const { members, isLoading, refetch } = useHouseMembers(user?.id);
+  const [pending, setPending] = useState<MemberHouse | undefined>();
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const me = members?.find((m) => m.isMe);
+  const member = members?.find((m) => m.userId === memberId);
+
+  // นำออกได้เฉพาะผู้ดูแล ในบ้านที่เราเป็นเจ้าของ (ตรงกับ policy members_delete ใน accounts.sql)
+  const canRemove = (h: MemberHouse) =>
+    h.role === "caregiver" && !!me?.houses.some((x) => x.id === h.id && x.role === "owner");
+
+  const confirmRemove = async () => {
+    if (!pending || !member) return;
+    setIsDeleting(true);
+    const res = await removeHouseMember(pending.id, member.userId);
+    setIsDeleting(false);
+    setPending(undefined);
+    if (!res.ok) {
+      Alert.alert("นำสมาชิกออกไม่ได้", res.message ?? "กรุณาลองใหม่อีกครั้ง");
+      return;
+    }
+    // ไม่เหลือบ้านที่อยู่ด้วยกันแล้ว = ไม่มีอะไรให้ดูในหน้านี้ → กลับหน้าสมาชิก
+    if (member.houses.length <= 1) {
+      router.back();
+      return;
+    }
+    refetch();
+  };
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 bg-[#F2F2F2]">
+        <Stack.Screen options={{ animation: "slide_from_right" }} />
+        <PageHeader title="" onBack={() => router.back()} />
+        <ActivityIndicator className="mt-10" color="#FF3055" />
+      </View>
+    );
+  }
+
+  if (!member) {
+    return (
+      <View className="flex-1 bg-[#F2F2F2]">
+        <Stack.Screen options={{ animation: "slide_from_right" }} />
+        <PageHeader title="" onBack={() => router.back()} />
+        <Text className="text-sm text-[#888] px-5 mt-5">ไม่พบข้อมูลสมาชิก</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View className="flex-1 bg-[#F2F2F2]">
+      <Stack.Screen options={{ animation: "slide_from_right" }} />
+      <PageHeader title="" onBack={() => router.back()} />
+
+      <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+        <View className="bg-white mx-5 mt-2 rounded-2xl px-4 py-4 flex-row items-center">
+          <View className="flex-1">
+            <Text className="text-base font-semibold text-[#1A1A1A]">{member.name}</Text>
+            {member.phone ? (
+              <Text className="text-xs text-[#888] mt-1">เบอร์โทร : {member.phone}</Text>
+            ) : null}
+          </View>
+          <View className="w-10 h-10 rounded-full bg-[#FFE0E3] items-center justify-center ml-3">
+            <Text className="text-base font-semibold text-[#C45A66]">
+              {member.name.trim().charAt(0)}
+            </Text>
+          </View>
+        </View>
+
+        <Text className="text-sm text-[#1A1A1A] px-5 mt-5 mb-2">บ้านที่เป็นสมาชิกอยู่</Text>
+
+        {member.houses.map((h) => (
+          <View
+            key={h.id}
+            className="bg-white mx-5 mb-2 rounded-xl px-4 py-3 flex-row items-center justify-between"
+          >
+            <Text className="text-sm text-[#1A1A1A]">
+              {h.name}
+              <Text className="text-xs text-[#888888]">{`  ${ROLE_LABEL[h.role] ?? ""}`}</Text>
+            </Text>
+            {canRemove(h) ? (
+              <TouchableOpacity hitSlop={12} onPress={() => setPending(h)} testID={`remove-member-${h.id}`}>
+                <Ionicons name="close" size={18} color="#888" />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ))}
+      </ScrollView>
+
+      <ConfirmModal
+        visible={!!pending}
+        onClose={() => !isDeleting && setPending(undefined)}
+        onConfirm={confirmRemove}
+        title={`นำ ${member.name} ออกจาก${pending?.name ?? ""} ใช่ไหม`}
+        confirmLabel={isDeleting ? "กำลังนำออก..." : "นำบุคคลออก"}
+        cancelLabel="ยกเลิก"
+        titleAlign="left"
+        messageAlign="left"
+      >
+        <Text className="text-sm text-[#1A1A1A] mb-2">การดำเนินการนี้จะมีผลดังนี้</Text>
+        <Text className="text-sm text-[#555] leading-5">
+          คนที่ถูกลบออกจากบ้านนี้จะไม่เห็นการแจ้งเตือนและอุปกรณ์ของบ้านนี้อีก และเครื่องของเขาจะไม่ได้รับ push ของบ้านนี้
         </Text>
       </ConfirmModal>
     </View>
