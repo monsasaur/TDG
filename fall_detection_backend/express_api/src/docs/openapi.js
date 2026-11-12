@@ -95,8 +95,8 @@ module.exports = {
 | scope | header | เรียกอะไรได้ |
 |---|---|---|
 | device | \`x-api-key: DEVICE_API_KEY\` | \`POST /predict\` |
-| app | \`x-api-key: APP_API_KEY\` | \`/events\`, \`/alert/ack\`, \`/push/register\`, \`/push/tokens\` |
-| demo | \`x-api-key: DEMO_API_KEY\` | \`/demo/fire\`, \`/alert/test\`, \`/push/test\` |
+| app | \`x-api-key: APP_API_KEY\` (+ \`Authorization: Bearer\` ของบัญชีเมื่อ login) | \`/alert/ack\`, \`/push/register\` |
+| demo | \`x-api-key: DEMO_API_KEY\` | \`/demo/fire\`, \`/alert/test\`, \`/push/test\` · debug: \`/events\`, \`/push/tokens\` (คืนข้อมูลทุกบ้าน) |
 | admin | \`Authorization: Bearer <token>\` | \`/admin/*\` (ขอ token จาก \`POST /admin/login\`) |
 
 scope ไหนไม่ได้ตั้งคีย์เฉพาะไว้ จะถอยไปใช้ \`API_KEY\` ตัวเดิม
@@ -203,8 +203,9 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
 
     '/api/v1/events': {
       get: {
-        tags: ['Events'],
-        summary: 'ดู event ทั้งหมด',
+        tags: ['Demo'],
+        summary: 'ดู event ทั้งหมด (debug)',
+        description: 'ใช้ **DEMO_API_KEY** — คืนเหตุการณ์ของทุกบ้าน แอปไม่ได้ใช้เส้นนี้ (อ่านจากตาราง alerts ผ่าน RLS) จึงไม่ให้คีย์ของแอปเรียก',
         parameters: [
           { name: 'device_id', in: 'query', schema: { type: 'string' } },
           { name: 'limit', in: 'query', schema: { type: 'integer', default: 50 } },
@@ -231,8 +232,9 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
 
     '/api/v1/events/falls': {
       get: {
-        tags: ['Events'],
-        summary: 'ดูเฉพาะเหตุการณ์ล้ม',
+        tags: ['Demo'],
+        summary: 'ดูเฉพาะเหตุการณ์ล้ม (debug)',
+        description: 'ใช้ **DEMO_API_KEY** — คืนเหตุการณ์ของทุกบ้าน เหตุผลเดียวกับ GET /api/v1/events',
         parameters: [
           { name: 'device_id', in: 'query', schema: { type: 'string' } },
           { name: 'limit', in: 'query', schema: { type: 'integer', default: 50 } },

@@ -81,7 +81,8 @@ describe('auth — แยกคีย์ตาม scope', () => {
 
   test('เส้นทางถูกจับ scope ถูกต้อง', () => {
     expect(auth.scopeFor('/api/v1/predict')).toBe('device')
-    expect(auth.scopeFor('/api/v1/events/falls')).toBe('app')
+    // คืนเหตุการณ์ทุกบ้าน — คีย์ที่ฝังในแอปต้องอ่านไม่ได้
+    expect(auth.scopeFor('/api/v1/events/falls')).toBe('demo')
     expect(auth.scopeFor('/api/v1/alert/ack/e1')).toBe('app')
     expect(auth.scopeFor('/api/v1/push/register')).toBe('app')
     expect(auth.scopeFor('/api/v1/demo/fire')).toBe('demo')
@@ -101,7 +102,9 @@ describe('auth — แยกคีย์ตาม scope', () => {
     process.env.APP_API_KEY  = 'app-key'
     process.env.DEMO_API_KEY = 'demo-key'
 
-    expect(callAuth('/api/v1/events/falls', 'app-key').passed).toBe(true)
+    expect(callAuth('/api/v1/alert/ack/e1', 'app-key').passed).toBe(true)
+    expect(callAuth('/api/v1/events/falls', 'app-key').passed).toBe(false)
+    expect(callAuth('/api/v1/events/falls', 'demo-key').passed).toBe(true)
 
     // นี่คือช่องโหว่ที่งานนี้ปิด — คีย์ที่ฝังใน APK ต้องสั่งให้ระบบโทรออกไม่ได้
     const blocked = callAuth('/api/v1/demo/fire', 'app-key')
@@ -124,7 +127,7 @@ describe('auth — แยกคีย์ตาม scope', () => {
 
   test('ตั้งคีย์แยกบาง scope — scope ที่เหลือยังใช้ API_KEY เดิมได้', () => {
     process.env.DEMO_API_KEY = 'demo-key'
-    expect(callAuth('/api/v1/events/falls', 'shared-key').passed).toBe(true)
+    expect(callAuth('/api/v1/alert/ack/e1', 'shared-key').passed).toBe(true)
     // แต่ scope ที่ตั้งคีย์เฉพาะแล้ว จะไม่รับ API_KEY เดิมอีก
     expect(callAuth('/api/v1/demo/fire', 'shared-key').passed).toBe(false)
   })

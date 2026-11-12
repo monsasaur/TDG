@@ -14,8 +14,8 @@
 | scope | header | เรียกอะไรได้ |
 |---|---|---|
 | device | `x-api-key: DEVICE_API_KEY` | `POST /predict` |
-| app | `x-api-key: APP_API_KEY` | `/events`, `/alert/ack`, `/push/register`, `/push/tokens` |
-| demo | `x-api-key: DEMO_API_KEY` | `/demo/fire`, `/alert/test`, `/push/test` |
+| app | `x-api-key: APP_API_KEY` (+ `Authorization: Bearer` ของบัญชีเมื่อ login) | `/alert/ack`, `/push/register` |
+| demo | `x-api-key: DEMO_API_KEY` | `/demo/fire`, `/alert/test`, `/push/test` · debug: `/events`, `/push/tokens` (คืนข้อมูลทุกบ้าน) |
 | admin | `Authorization: Bearer <token>` | `/admin/*` (ขอ token จาก `POST /admin/login`) |
 
 scope ไหนไม่ได้ตั้งคีย์เฉพาะไว้ จะถอยไปใช้ `API_KEY` ตัวเดิม
@@ -37,8 +37,6 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
 
 **Events**
 
-- [`GET /api/v1/events`](#get-api-v1-events) — ดู event ทั้งหมด
-- [`GET /api/v1/events/falls`](#get-api-v1-events-falls) — ดูเฉพาะเหตุการณ์ล้ม
 - [`POST /api/v1/alert/ack/{event_id}`](#post-api-v1-alert-ack-event-id) — ผู้ดูแลกดรับทราบ — ยกเลิกการโทรฉุกเฉิน
 
 **Push**
@@ -47,6 +45,8 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
 
 **Demo**
 
+- [`GET /api/v1/events`](#get-api-v1-events) — ดู event ทั้งหมด (debug)
+- [`GET /api/v1/events/falls`](#get-api-v1-events-falls) — ดูเฉพาะเหตุการณ์ล้ม (debug)
 - [`POST /api/v1/alert/test`](#post-api-v1-alert-test) — ⚠️ ทดสอบ Twilio — ส่ง SMS และโทรออกจริงถ้า TWILIO_MODE=real
 - [`GET /api/v1/push/tokens`](#get-api-v1-push-tokens) — ดู token ที่ลงทะเบียนไว้ (debug)
 - [`POST /api/v1/push/test`](#post-api-v1-push-test) — ยิง push ทดสอบไปทุก token
@@ -148,50 +148,6 @@ _ESP32 ส่งข้อมูลเข้ามา_
 
 _ดูเหตุการณ์และกดรับทราบ_
 
-### `GET /api/v1/events`
-
-**ดู event ทั้งหมด**
-
-**สิทธิ์:** `x-api-key` — ใช้ `APP_API_KEY`
-
-**Query / Path parameters**
-
-| ชื่อ | อยู่ที่ | ชนิด | จำเป็น | คำอธิบาย |
-|---|---|---|:---:|---|
-| `device_id` | query | `string` |  |  |
-| `limit` | query | `integer` |  |  (ค่าเริ่มต้น `50`) |
-
-**Responses**
-
-| รหัส | ความหมาย |
-|---|---|
-| `200` | รายการ event |
-| `401` | ไม่ได้รับอนุญาต |
-
----
-
-### `GET /api/v1/events/falls`
-
-**ดูเฉพาะเหตุการณ์ล้ม**
-
-**สิทธิ์:** `x-api-key` — ใช้ `APP_API_KEY`
-
-**Query / Path parameters**
-
-| ชื่อ | อยู่ที่ | ชนิด | จำเป็น | คำอธิบาย |
-|---|---|---|:---:|---|
-| `device_id` | query | `string` |  |  |
-| `limit` | query | `integer` |  |  (ค่าเริ่มต้น `50`) |
-
-**Responses**
-
-| รหัส | ความหมาย |
-|---|---|
-| `200` | รายการเหตุการณ์ล้ม |
-| `401` | ไม่ได้รับอนุญาต |
-
----
-
 ### `POST /api/v1/alert/ack/{event_id}`
 
 **ผู้ดูแลกดรับทราบ — ยกเลิกการโทรฉุกเฉิน**
@@ -271,6 +227,54 @@ _Push notification_
 ## Demo
 
 _⚠️ ใช้สาธิต — สั่งให้ระบบโทรออกจริงได้_
+
+### `GET /api/v1/events`
+
+**ดู event ทั้งหมด (debug)**
+
+ใช้ **DEMO_API_KEY** — คืนเหตุการณ์ของทุกบ้าน แอปไม่ได้ใช้เส้นนี้ (อ่านจากตาราง alerts ผ่าน RLS) จึงไม่ให้คีย์ของแอปเรียก
+
+**สิทธิ์:** `x-api-key` — ใช้ `DEMO_API_KEY`
+
+**Query / Path parameters**
+
+| ชื่อ | อยู่ที่ | ชนิด | จำเป็น | คำอธิบาย |
+|---|---|---|:---:|---|
+| `device_id` | query | `string` |  |  |
+| `limit` | query | `integer` |  |  (ค่าเริ่มต้น `50`) |
+
+**Responses**
+
+| รหัส | ความหมาย |
+|---|---|
+| `200` | รายการ event |
+| `401` | ไม่ได้รับอนุญาต |
+
+---
+
+### `GET /api/v1/events/falls`
+
+**ดูเฉพาะเหตุการณ์ล้ม (debug)**
+
+ใช้ **DEMO_API_KEY** — คืนเหตุการณ์ของทุกบ้าน เหตุผลเดียวกับ GET /api/v1/events
+
+**สิทธิ์:** `x-api-key` — ใช้ `DEMO_API_KEY`
+
+**Query / Path parameters**
+
+| ชื่อ | อยู่ที่ | ชนิด | จำเป็น | คำอธิบาย |
+|---|---|---|:---:|---|
+| `device_id` | query | `string` |  |  |
+| `limit` | query | `integer` |  |  (ค่าเริ่มต้น `50`) |
+
+**Responses**
+
+| รหัส | ความหมาย |
+|---|---|
+| `200` | รายการเหตุการณ์ล้ม |
+| `401` | ไม่ได้รับอนุญาต |
+
+---
 
 ### `POST /api/v1/alert/test`
 

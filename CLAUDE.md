@@ -195,15 +195,15 @@ route จริงใน Express  →  openapi.js  →  API_REFERENCE.md
 
 All endpoints require `x-api-key` header.
 
-> **`x-api-key` แยกตาม scope แล้ว** — `DEVICE_API_KEY` (predict) · `APP_API_KEY` (events/ack/push) ·
-> `DEMO_API_KEY` (demo/fire, alert/test) · scope ไหนไม่ได้ตั้ง จะถอยไปใช้ `API_KEY` เดิม
+> **`x-api-key` แยกตาม scope แล้ว** — `DEVICE_API_KEY` (predict) · `APP_API_KEY` (ack · push/register) ·
+> `DEMO_API_KEY` (demo/fire, alert/test · debug: events, push/tokens ที่คืนข้อมูลทุกบ้าน) · scope ไหนไม่ได้ตั้ง จะถอยไปใช้ `API_KEY` เดิม
 > คีย์ที่ฝังใน APK จึงสั่งให้ระบบโทรออกไม่ได้ **เมื่อตั้งคีย์แยกจริง** · ดู `src/middleware/auth.js`
 > ⚠️ ตรวจ 2026-11-12: `.env` ของ express_api ตั้งแค่ `API_KEY` ตัวเดียว — ทุก scope ยังใช้คีย์เดียวกัน
 
 ### Core
 - `POST /api/v1/predict` — รับ CSI features จาก ESP32, เรียก ML service, trigger alert ถ้า fall
-- `GET  /api/v1/events` — list all events (`?device_id=&limit=50`)
-- `GET  /api/v1/events/falls` — falls only
+- `GET  /api/v1/events` — list all events (`?device_id=&limit=50`) · **DEMO_API_KEY** (คืนทุกบ้าน · แอปไม่ได้ใช้)
+- `GET  /api/v1/events/falls` — falls only · **DEMO_API_KEY**
 - `GET  /health`
 
 ### Push Notification

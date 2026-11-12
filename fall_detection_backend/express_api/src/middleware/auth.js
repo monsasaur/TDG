@@ -10,7 +10,8 @@
  *
  * แยกเป็น 3 scope คนละคีย์:
  *   device  — ESP32 ส่ง CSI เข้ามา          → POST /predict
- *   app     — แอปมือถือ                     → /events, /alert/ack, /push
+ *   app     — แอปมือถือ                     → /alert/ack, /push/register
+ *   (/events และ /push/tokens อยู่ใน demo — คืนข้อมูลทุกบ้าน คีย์ที่ฝังใน APK ต้องเรียกไม่ได้)
  *   demo    — ปุ่มสาธิต (iOS Shortcut ฯลฯ)  → /demo/fire, /alert/test
  *
  * คีย์ของแอปจึงสั่งให้ระบบโทรออกไม่ได้ และคีย์ที่หลุดจาก ESP32 ก็อ่าน event ไม่ได้
@@ -35,7 +36,7 @@ const SCOPE_RULES = [
   [/^\/api\/v1\/push\/tokens(\/|$)/, 'demo'],  // คืน push token ทุกเครื่อง — ไม่ใช่ของแอป
   [/^\/api\/v1\/predict(\/|$)/,    'device'],
   [/^\/api\/v1\/alert(\/|$)/,      'app'],
-  [/^\/api\/v1\/events(\/|$)/,     'app'],
+  [/^\/api\/v1\/events(\/|$)/,     'demo'],  // คืนเหตุการณ์ทุกบ้าน — แอปอ่านจากตาราง alerts ผ่าน RLS แทน
   [/^\/api\/v1\/push(\/|$)/,       'app'],
 ]
 

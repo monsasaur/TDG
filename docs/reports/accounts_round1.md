@@ -105,7 +105,7 @@ Authentication → Sign In / Providers → Phone → เปิด แล้ว *
 ⚠️ **หลังรัน accounts.sql ปุ่ม demo ต้องใช้อุปกรณ์ที่ผูกกับบ้านแล้ว** — `POST /demo/fire` ค่าเริ่มต้นคือ `esp32-demo-01`
 ซึ่งไม่ได้อยู่ในตาราง `devices` → จะไม่มี push · ส่ง `{"device_id": "ESP-B96AB8"}` (หรือรหัสที่ลงทะเบียนแล้ว) และ curl ที่กดรับทราบต้องแนบ token ด้วย
 
-**ยังเหลือ:** `GET /events` / `/events/falls` ยังคืนเหตุการณ์ทุกบ้านให้คีย์ของแอป (แอปไม่ได้ใช้ — อ่านจากตาราง `alerts` ผ่าน RLS) ควรย้ายไป scope demo หรือกรองตามบ้าน
+`GET /events` / `/events/falls` ย้ายไป **DEMO_API_KEY** แล้วเช่นกัน (คืนเหตุการณ์ทุกบ้าน · แอปไม่ได้ใช้ — อ่านจากตาราง `alerts` ผ่าน RLS · ลบ `fetchFallEvents` ที่ไม่มีใครเรียกออกจาก `lib/api.ts`)
 
 ทดสอบ: Express jest **169/169** (+26 เคส: `accountService` · `pushService` ครั้งแรก · `dbService` ฝั่ง Supabase) · SQL 14/14 · web 29/29 · tsc · lint
 

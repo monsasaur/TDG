@@ -28,23 +28,6 @@ const fallbackBaseUrl =
 export const API_BASE_URL = extra.apiBaseUrl ?? fallbackBaseUrl;
 export const API_KEY = extra.apiKey ?? "dev-secret-key-123";
 
-export type BackendFallEvent = {
-  id: string;
-  device_id: string;
-  timestamp: number;
-  location: string;
-  is_fall: boolean;
-  confidence: number;
-  acknowledged?: boolean;
-  acknowledged_at?: string | null;
-  acknowledged_by?: string | null;
-  escalated?: boolean;
-  escalated_at?: string | null;
-  sms_sent?: boolean;
-  call_made?: boolean;
-  created_at?: string;
-};
-
 const headers = {
   "x-api-key": API_KEY,
   "Content-Type": "application/json",
@@ -63,15 +46,6 @@ async function withUserToken(base: Record<string, string>): Promise<Record<strin
   } catch {
     return base;
   }
-}
-
-export async function fetchFallEvents(limit = 20): Promise<BackendFallEvent[]> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/events/falls?limit=${limit}`, {
-    headers,
-  });
-  if (!res.ok) throw new Error(`GET /events/falls ${res.status}`);
-  const data = await res.json();
-  return data.events || [];
 }
 
 /**
