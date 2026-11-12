@@ -1,6 +1,12 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import AddActionPill from "../components/AddActionPill";
 import DeviceStatusCard from "../components/DeviceStatusCard";
 import NetworkRow from "../components/NetworkRow";
@@ -12,6 +18,7 @@ import {
   disconnect,
   currentDeviceName,
   errorMessage,
+  isPopError,
 } from "../lib/provisioning";
 
 export default function ConnectDeviceScreen() {
@@ -19,13 +26,16 @@ export default function ConnectDeviceScreen() {
   const { device, deviceId, pop, houseId } = useLocalSearchParams<{
     device?: string;
     deviceId?: string;
-    pop?: string;   // Proof of Possession จาก QR / รหัสบนกล่อง
+    pop?: string;   // Proof of Possession จากหน้า device-pairing-code (QR / รหัสบนกล่อง)
     houseId?: string; // บ้านที่เลือกไว้ — ส่งผ่านไปถึง device-setup เพื่อ insert
   }>();
 
   const [scanning, setScanning] = useState(true);
   const [networks, setNetworks] = useState<string[]>([]);
   const [error, setError] = useState<string | undefined>();
+  // ล้มตอนเชื่อมต่อ (ไม่ใช่ตอนสแกน WiFi) → ให้ทางกลับไปแก้รหัสจับคู่
+  const [failedAtConnect, setFailedAtConnect] = useState(false);
+  const [popRejected, setPopRejected] = useState(false);
 
   // เชื่อมต่ออุปกรณ์ก่อน แล้วค่อยให้อุปกรณ์สแกน WiFi รอบตัวมันเอง
   // (ไม่ใช่ WiFi ที่มือถือเห็น — อุปกรณ์อาจอยู่คนละมุมบ้าน เจอคนละเครือข่ายกัน)
@@ -37,11 +47,17 @@ export default function ConnectDeviceScreen() {
     }
     setScanning(true);
     setError(undefined);
+    setFailedAtConnect(false);
+    setPopRejected(false);
+    let connected = false;
     try {
       if (currentDeviceName() !== device) await connect(device, pop);
+      connected = true;
       setNetworks(await scanWifi());
     } catch (err) {
       setError(errorMessage(err));
+      setFailedAtConnect(!connected);
+      setPopRejected(!connected && isPopError(err));
       setNetworks([]);
     } finally {
       setScanning(false);
@@ -99,7 +115,23 @@ export default function ConnectDeviceScreen() {
             <View className="bg-white rounded-xl p-4">
               <Text className="text-sm text-[#1A1A1A] mb-1">เชื่อมต่อไม่สำเร็จ</Text>
               <Text className="text-xs text-[#888] leading-5 mb-3">{error}</Text>
-              <PrimaryButton label="ลองใหม่" onPress={run} />
+              {/* รหัสผิด → ลองซ้ำด้วยรหัสเดิมก็ผิดอีก ให้ปุ่มหลักพากลับไปแก้รหัส
+                  (หน้ารหัสจับคู่ยังอยู่ใน stack ค่าที่กรอกไว้ยังอยู่) */}
+              <PrimaryButton
+                label={popRejected ? "กรอกรหัสจับคู่ใหม่" : "ลองใหม่"}
+                onPress={popRejected ? handleBack : run}
+              />
+              {failedAtConnect && (
+                <TouchableOpacity
+                  onPress={popRejected ? run : handleBack}
+                  hitSlop={8}
+                  className="items-center mt-3"
+                >
+                  <Text className="text-sm text-[#FF3055]">
+                    {popRejected ? "ลองใหม่ด้วยรหัสเดิม" : "กรอกรหัสจับคู่ใหม่"}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 

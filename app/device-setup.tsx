@@ -76,8 +76,9 @@ export default function DeviceSetupScreen() {
           ...(network ? { wifi_ssid: network } : {}),
         });
         setSystemAlerts((prev) => prev.filter((a) => a.deviceId !== deviceId));
-        // Pop scan-devices + connect-device + (wifi-password|add-network replaced by device-setup)
-        router.dismiss(3);
+        // Pop scan-devices + device-pairing-code + connect-device
+        //     + (wifi-password|add-network replaced by device-setup)
+        router.dismiss(4);
       } catch (e) {
         setError(
           e instanceof Error ? e.message : "บันทึกไม่สำเร็จ ลองอีกครั้ง"
@@ -147,8 +148,9 @@ export default function DeviceSetupScreen() {
         },
       ]);
 
-      // New device flow: pop select-house + scan-devices + connect-device + current
-      router.dismiss(4);
+      // New device flow: pop select-house + scan-devices + device-pairing-code
+      //     + connect-device + current
+      router.dismiss(5);
     } catch (e) {
       setError(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ ลองอีกครั้ง");
     } finally {

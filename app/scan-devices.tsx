@@ -138,9 +138,10 @@ export default function ScanDevicesScreen() {
     if (Platform.OS !== "web") Linking.openSettings();
   };
 
+  // ไปกรอกรหัสจับคู่ก่อน — firmware ใช้ Security 1 เชื่อมต่อโดยไม่มีรหัสจะถูกปฏิเสธ
   const selectDevice = (code: string) =>
     router.push(
-      `/connect-device?device=${encodeURIComponent(code)}${
+      `/device-pairing-code?device=${encodeURIComponent(code)}${
         deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""
       }${houseId ? `&houseId=${encodeURIComponent(houseId)}` : ""}` as never
     );

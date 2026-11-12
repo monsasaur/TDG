@@ -12,7 +12,7 @@
 | Escalation / Acknowledge flow | ✅ | escalationService.js — timer in-memory, Twilio fallback |
 | Push token registration | ✅ | `POST /api/v1/push/register` |
 | Demo trigger endpoint | ✅ | `POST /api/v1/demo/fire` — ข้าม ML ไปยิง push ตรงๆ |
-| Mobile app (Expo) | ✅ | 29 หน้า — บ้าน/สมาชิก/ผู้ติดต่อฉุกเฉิน/อุปกรณ์/แจ้งเตือน · รับ push · รายการแจ้งเตือนดึงตาราง `alerts` ทุก 10 วิ · กดรับทราบผ่าน `AlertsContext.acknowledgeAlert` (แก้ 2026-11-12 — ตั้งแต่ 2 ก.ย. ปุ่มส่ง `alerts.id` แทน id ของ fall_events ได้ 404 แบบเงียบ กดแล้วระบบยังโทรฉุกเฉิน) |
+| Mobile app (Expo) | ✅ | 30 หน้า — บ้าน/สมาชิก/ผู้ติดต่อฉุกเฉิน/อุปกรณ์/แจ้งเตือน · รับ push · รายการแจ้งเตือนดึงตาราง `alerts` ทุก 10 วิ · กดรับทราบผ่าน `AlertsContext.acknowledgeAlert` (แก้ 2026-11-12 — ตั้งแต่ 2 ก.ย. ปุ่มส่ง `alerts.id` แทน id ของ fall_events ได้ 404 แบบเงียบ กดแล้วระบบยังโทรฉุกเฉิน) |
 | Supabase schema | ⚠️ | `schema.sql` ครบ แต่**ฐานข้อมูลจริงยังไม่ได้รันส่วนที่เพิ่มหลัง ก.ย.** — ดูแถว "ฐานข้อมูลจริง + Express ยังไม่ต่อกัน" |
 | ESP32 USB Serial mode | ✅ | csi_collector_serial.py @ 921600 baud |
 | End-to-end demo flow | ⚠️ | ESP32 → API → Push → Twilio ใช้ได้ · **รายการในแอปยังไม่เห็นเหตุการณ์จริง** จึงกดรับทราบจากรายการไม่ได้ (ตรวจ 2026-11-12 — ดูแถว "ฐานข้อมูลจริง + Express ยังไม่ต่อกัน") |
@@ -24,7 +24,7 @@
 | Feature | Priority | หมายเหตุ |
 |---|---|---|
 | Threshold tuning | Med | หาแล้วสำหรับ RandomForest — แนะนำ 0.36 (recall 97.6%, false alarm 9.6%) เหลือแค่ตัดสินใจว่าจะเปลี่ยน production model ไหม |
-| BLE WiFi Provisioning | Med | ตรวจกับโค้ด 2026-11-12: ✅ build/flash บอร์ดจริง (13 ต.ค. · ESP-IDF v5.4 · บอร์ด 4MB · มือถือเห็น BLE) · ✅ บันทึกอุปกรณ์ลง Supabase + เลือกบ้านจริง (`device-setup` / `select-house` · ทำ 13 ต.ค. **ยังไม่ commit**) · เหลือ: 1) ส่ง WiFi ผ่าน BLE จนจบ + ปุ่ม BOOT ค้าง 5 วิ (ยังไม่เคยทดสอบทั้งคู่) 2) หน้าจอกรอก PoP — ใบงานทีมฟรอนต์ `docs/reports/frontend_req_device_pairing_code.md` (ห้ามใช้ `scan-qr`/`enter-code` ซึ่งเป็นหน้าเชิญเข้าบ้าน) 3) ขั้นตอนผลิต device code + PoP (default เป็นค่าเดียวกันทุกเครื่อง) |
+| BLE WiFi Provisioning | Med | ตรวจกับโค้ด 2026-11-12: ✅ build/flash บอร์ดจริง (13 ต.ค. · ESP-IDF v5.4 · บอร์ด 4MB · มือถือเห็น BLE) · ✅ บันทึกอุปกรณ์ลง Supabase + เลือกบ้านจริง (`device-setup` / `select-house`) · ✅ หน้ากรอกรหัสจับคู่ (PoP) `app/device-pairing-code.tsx` (2026-11-12 · สแกน QR หรือพิมพ์ · ทดสอบแบบกดจริงในโหมดจำลองแล้ว) · เหลือ: 1) จับคู่บอร์ดจริงจนจบ — ส่ง WiFi ผ่าน BLE + ปุ่ม BOOT ค้าง 5 วิ + สแกน QR ด้วยกล้องจริง (ยังไม่เคยทดสอบ ต้องมี dev client + firmware โหมด production) 2) ขั้นตอนผลิต device code + PoP + QR บนกล่อง (default เป็นค่าเดียวกันทุกเครื่อง · รูปแบบ QR ยังไม่ได้กำหนด แอปรับทั้งรหัสล้วนและ JSON ของ Espressif) |
 | One-class anomaly model | ✅ ตอบแล้ว | ลอง 4 ตัว ROC-AUC ดีสุด 0.70 เทียบ supervised 0.985 — ใช้แทนไม่ได้กับ feature ชุดนี้ |
 | เก็บ dataset ใหม่ (สลับคลาสใน session) | **High** | ✅ **เก็บครบ 5 คน 801 ไฟล์** (2026-11-11 · fall คนละ 80 · ไฟล์กดมาร์คพลาด 1 ไฟล์ย้ายไป `data/raw_excluded/` แล้วเก็บแทน) ไฟล์สะอาด แต่ลิงก์ noise สูงตลอดทุก session (กระตุก 8–12% vs ชุดแรก 3.6% · RSSI กระโดด 30–47% · ปิด Wi-Fi แมคแล้วไม่ช่วย) · **feature เดิมข้ามคนไม่ได้** (เทรน 4 คนทดสอบคนที่ 5: 54.5% ≈ เดาสุ่ม) · **feature แบบเหตุการณ์ + เลื่อนกรอบตอนเทรน** (`experiments/event_features.py`) ได้ **72.9%** (AUC 0.78 · สลับ label สูงสุด 54.5% · ไม่เลื่อนกรอบ 71.0%) · เทรนแค่ 2 คนแรกแล้วทดสอบ 3 คนที่ไม่เคยเห็น 71.7% · ตัวที่โมเดลใช้มากสุด = RSSI ที่สูงขึ้น ~6–7 dB หลังล้ม (ขึ้นกับตำแหน่งวางบอร์ด) · จุดอ่อน: ล้มข้างๆ จับได้ 60% · นอนลงบนพื้นแจ้งผิด 46% · ไซม่อน 63.5% · ตัวเลข+กราฟสไลด์: `experiments/presentation_numbers.py` → `make_figures.py` → `docs/reports/figures/dataset_2026_11/` · ⚠️ 72.9% วัดแบบรู้จังหวะเหตุการณ์ (กรอบอยู่ที่มาร์ค) · **แบบดูต่อเนื่อง (เลื่อนกรอบทุก 0.25 วิ · `experiments/streaming_eval.py`)** ได้แค่ **จับล้ม ~43% แจ้งผิด ~4/ชม.** ที่ threshold 0.4 ยืนยัน 5 กรอบ หลังเพิ่ม feature "นิ่งหลังเหตุการณ์" (เดิม 37% · ประมาณจากไฟล์สั้น · แจ้งผิดเกือบทั้งหมดมาจากตอนเดิน) · เทรนแล้วเป็น `rf_v2_event` (`experiments/train_rf_v2.py`) · ML service สลับด้วย `FALL_MODEL=rf_v2_event` · ตัวตรวจสด `data_collection/fall_monitor.py` · **เหลือ: ทดสอบสดตาม `docs/reports/live_test_rf_v2.md`** → แก้ลิงก์ก่อนเก็บรอบหน้า · ดู `docs/reports/collect_runbook.md` |
 | Unseen test scenario | **High** | test set ต้องเป็น session ที่ไม่เคยเห็น ไม่ใช่แค่ไฟล์ที่ไม่เคยเห็น |
@@ -43,13 +43,13 @@ Hybrid AI-driven fall detection system using WiFi CSI (Channel State Information
 
 ```
 TDG/
-├── app/                          # React Native + Expo (expo-router) — 29 หน้า
+├── app/                          # React Native + Expo (expo-router) — 30 หน้า
 │   ├── _layout.tsx  index.tsx  welcome.tsx  home.tsx  settings.tsx
 │   ├── houses.tsx  add-house.tsx  select-house.tsx  manage-home.tsx
 │   ├── devices.tsx  device-details.tsx
-│   ├── scan-devices.tsx  connect-device.tsx  add-network.tsx      # ← BLE provisioning flow
-│   ├── wifi-password.tsx  device-setup.tsx                        #   (UI เสร็จ ยังเป็น mock)
-│   ├── scan-qr.tsx  enter-code.tsx  invite-*.tsx                  # PoP / เชิญสมาชิก
+│   ├── scan-devices.tsx  device-pairing-code.tsx  connect-device.tsx  # ← BLE provisioning flow
+│   ├── add-network.tsx  wifi-password.tsx  device-setup.tsx       #   ต่อ BLE จริงแล้ว · ทดสอบได้แค่โหมดจำลอง
+│   ├── scan-qr.tsx  enter-code.tsx  invite-*.tsx                  # เชิญสมาชิกเข้าบ้าน (ไม่ใช่ PoP · ยังเป็น mock)
 │   ├── members.tsx  member-detail.tsx
 │   ├── emergency-contacts.tsx  add-external-contact.tsx  edit-contact.tsx
 │   └── notifications.tsx  clear-alerts.tsx
@@ -405,14 +405,14 @@ CONFIG_ESPTOOLPY_MONITOR_BAUD=921600
 | ส่วน | สถานะ |
 |---|:---:|
 | UI ทั้ง flow + permission (manifest และ runtime) | ✅ |
-| บันทึกอุปกรณ์ลง Supabase หลังตั้งค่าเสร็จ | ✅ `device-setup.tsx` (13 ต.ค. · ยังไม่ commit) · ไม่มีค่าสำรองปลอมแล้ว (12 พ.ย.) |
-| `select-house` ดึงบ้านจริง + ส่ง `house_id` ผ่าน flow | ✅ (13 ต.ค. · ยังไม่ commit) |
+| บันทึกอุปกรณ์ลง Supabase หลังตั้งค่าเสร็จ | ✅ `device-setup.tsx` · ไม่มีค่าสำรองปลอมแล้ว |
+| `select-house` ดึงบ้านจริง + ส่ง `house_id` ผ่าน flow | ✅ |
 | BLE library + Expo config plugin + `lib/provisioning.ts` | ✅ |
 | ต่อ 3 หน้าจอเข้ากับ BLE จริง | ✅ |
 | **ESP32 firmware — `wifi_provisioning` + `scheme_ble`** | ✅ เขียนแล้ว |
 | ปุ่ม reset กลับเข้าโหมดตั้งค่า | ✅ เขียนแล้ว · ⚠️ ยังไม่เคยทดสอบ |
 | build / flash / ทดสอบกับบอร์ดจริง | ✅ build + flash + มือถือเห็น BLE (13 ต.ค.) · ❌ ยังไม่เคยส่ง WiFi ผ่าน BLE จนจบ |
-| หน้าจอกรอก PoP ในแอป | ❌ ทีมฟรอนต์ — ใบงาน `docs/reports/frontend_req_device_pairing_code.md` |
+| หน้าจอกรอก PoP ในแอป | ✅ `app/device-pairing-code.tsx` (2026-11-12) — ใบงาน `docs/reports/frontend_req_device_pairing_code.md` ปิดแล้ว · ยังไม่เคยสแกน QR ด้วยกล้องจริง |
 
 ### สองโหมดใน firmware — เลือกใน menuconfig
 
