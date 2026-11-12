@@ -67,6 +67,8 @@ jobs:
           cache-dependency-path: package-lock.json
 
       # --ignore-scripts: ไม่ต้อง build native อะไร แค่ตรวจโค้ด
-      - run: npm ci --ignore-scripts
+      # --force: package.json มี lightningcss-darwin-arm64 เป็น dependency ตรง (ตัวสำหรับ Mac)
+      #          บน Linux npm ci จะล้มด้วย EBADPLATFORM — ข้ามการตรวจแพลตฟอร์ม ไฟล์นั้นไม่ได้ถูกใช้
+      - run: npm ci --ignore-scripts --force
       - run: npx tsc --noEmit
       - run: npm run lint
