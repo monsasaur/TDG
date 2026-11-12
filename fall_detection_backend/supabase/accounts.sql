@@ -167,17 +167,35 @@ begin
   return inv.house_id;
 end $$;
 
+-- ── รายชื่อสมาชิกของทุกบ้านที่คนเรียกเป็นสมาชิกอยู่ ──────────────
+-- แอปอ่าน auth.users ตรงไม่ได้ (ชื่อที่แสดงกับเบอร์อยู่ในนั้น) — ฟังก์ชันนี้คืนให้เฉพาะคนในบ้านเดียวกัน
+-- ใช้กับหน้าสมาชิก (app/members.tsx · member-detail.tsx)
+create or replace function public.house_member_list()
+returns table (house_id text, house_name text, user_id uuid, role text, display_name text, phone text)
+language sql stable security definer set search_path = public as $$
+  select m.house_id, h.name, m.user_id, m.role,
+         coalesce(nullif(trim(u.raw_user_meta_data->>'name'), ''), '') as display_name,
+         u.phone
+  from house_members m
+  join houses h     on h.id = m.house_id
+  join auth.users u on u.id = m.user_id
+  where m.house_id in (select hm.house_id from house_members hm where hm.user_id = auth.uid())
+  order by h.created_at, m.joined_at
+$$;
+
 -- ฟังก์ชันเรียกได้เฉพาะคนที่ login (Postgres ให้ทุกคนเรียกได้เป็นค่าเริ่มต้น)
 revoke execute on function public.is_house_member(text)     from public, anon;
 revoke execute on function public.is_house_owner(text)      from public, anon;
 revoke execute on function public.create_house(text)        from public, anon;
 revoke execute on function public.create_house_invite(text) from public, anon;
 revoke execute on function public.join_house(text)          from public, anon;
+revoke execute on function public.house_member_list()       from public, anon;
 grant  execute on function public.is_house_member(text)     to authenticated;
 grant  execute on function public.is_house_owner(text)      to authenticated;
 grant  execute on function public.create_house(text)        to authenticated;
 grant  execute on function public.create_house_invite(text) to authenticated;
 grant  execute on function public.join_house(text)          to authenticated;
+grant  execute on function public.house_member_list()       to authenticated;
 
 -- ── เปิด RLS ─────────────────────────────────────────────────
 alter table houses             enable row level security;

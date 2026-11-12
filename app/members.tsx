@@ -1,5 +1,5 @@
-import { Stack, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, View, ActivityIndicator } from "react-native";
 import AddActionPill from "../components/AddActionPill";
 import ContactCard from "../components/ContactCard";
@@ -10,6 +10,8 @@ import PageHeader from "../components/PageHeader";
 // 1. เปลี่ยนมา Import Hooks แทน mock data
 import { EmergencyContact, useContacts } from "../data/useContacts";
 import { useHouses } from "../data/useHouses";
+import { useHouseMembers } from "../data/useHouseMembers";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function MembersScreen() {
   const router = useRouter();
@@ -17,6 +19,26 @@ export default function MembersScreen() {
   // 2. ดึงข้อมูลจากฐานข้อมูล
   const { contacts, isLoading: loadingContacts } = useContacts();
   const { houses, isLoading: loadingHouses } = useHouses();
+
+  // สมาชิกจริงของบ้าน (บัญชีผู้ใช้) — null = ยังไม่ login / ยังไม่รัน accounts.sql → ใช้ผู้ติดต่อแบบเดิม
+  const { user } = useAuth();
+  const {
+    members: accountMembers,
+    isLoading: loadingMembers,
+    refetch: refetchMembers,
+  } = useHouseMembers(user?.id);
+
+  // กลับมาจากหน้ารายละเอียด (อาจเพิ่งนำสมาชิกออก) → ดึงใหม่
+  const firstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return;
+      }
+      refetchMembers();
+    }, [refetchMembers]),
+  );
 
   // 3. สร้างรายชื่อบ้านแบบไดนามิกจากฐานข้อมูล
   const HOUSES = houses.map((h) => h.name);
@@ -61,7 +83,19 @@ export default function MembersScreen() {
 
   const dropdownOptions = showAll ? ["ทั้งหมด", ...HOUSES] : [defaultLabel];
 
-  const isLoading = loadingContacts || loadingHouses;
+  // โหมดบัญชี: เรียงตัวเองก่อน ที่เหลือตามชื่อ
+  const accountList = useMemo(() => {
+    if (!accountMembers) return null;
+    const inScope = isAll
+      ? accountMembers
+      : accountMembers.filter((m) => m.houses.some((h) => h.name === selectedHouse));
+    const others = inScope
+      .filter((m) => !m.isMe)
+      .sort((a, b) => a.name.localeCompare(b.name, "th"));
+    return [...inScope.filter((m) => m.isMe), ...others];
+  }, [accountMembers, isAll, selectedHouse]);
+
+  const isLoading = loadingHouses || loadingMembers || (!accountMembers && loadingContacts);
 
   return (
     <View className="flex-1 bg-[#F2F2F2]">
@@ -82,6 +116,28 @@ export default function MembersScreen() {
         {/* แสดงตัวโหลดข้อมูล */}
         {isLoading ? (
           <ActivityIndicator className="my-10" color="#000" />
+        ) : accountList ? (
+          accountList.length === 0 ? (
+            <Text className="px-5 text-center text-gray-400 my-4">ไม่มีข้อมูลสมาชิก</Text>
+          ) : (
+            accountList.map((m) => (
+              <ContactCard
+                key={m.userId}
+                name={m.isMe ? `${m.name} (คุณ)` : m.name}
+                phone={m.phone}
+                tags={m.houses.map((h) => ({
+                  label: h.role === "owner" ? `${h.name} · เจ้าของบ้าน` : h.name,
+                  active: isAll || h.name === selectedHouse,
+                }))}
+                showChevron={!m.isMe}
+                onPress={
+                  m.isMe
+                    ? undefined
+                    : () => router.push(`/member-detail?userId=${encodeURIComponent(m.userId)}` as never)
+                }
+              />
+            ))
+          )
         ) : members.length === 0 ? (
           <Text className="px-5 text-center text-gray-400 my-4">ไม่มีข้อมูลสมาชิก</Text>
         ) : (
