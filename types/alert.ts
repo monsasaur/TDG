@@ -25,6 +25,8 @@ export type Alert = {
    * ข้อมูลตัวอย่างใน seed ไม่มี (null)
    */
   fallEventId?: string | null;
+  /** เวลาที่บันทึกแถวนี้ (ISO จากฐานข้อมูล) — ใช้คิดเวลาที่เหลือก่อนระบบโทรฉุกเฉิน */
+  createdAt?: string;
 };
 
 export type SystemAlert = {

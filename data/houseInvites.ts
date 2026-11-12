@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { houseRpcErrorMessage } from "../lib/authErrors";
+import { parseTimestamp } from "../lib/time";
 
 /**
  * เชิญเข้าบ้าน — ฝั่งเจ้าของบ้านสร้างรหัส ฝั่งคนถูกเชิญกรอกรหัสหรือสแกน QR
@@ -42,14 +43,6 @@ export async function joinHouse(code: string): Promise<JoinResult> {
   const houseId = String(data);
   const { data: house } = await supabase.from("houses").select("name").eq("id", houseId).maybeSingle();
   return { ok: true, houseId, houseName: house?.name ?? null };
-}
-
-/**
- * timestamptz จาก PostgREST มีเศษวินาทีถึง 6 หลัก (…:00.123456+00:00)
- * ตัดเหลือ 3 หลักก่อน parse — ไม่ต้องพึ่งว่า JS engine บนมือถือรับรูปแบบยาวได้
- */
-function parseTimestamp(value: string): number {
-  return Date.parse(value.replace(/(\.\d{3})\d+/, "$1"));
 }
 
 export type HouseInvite = {
