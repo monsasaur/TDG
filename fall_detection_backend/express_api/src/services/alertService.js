@@ -1,3 +1,4 @@
+const aiVoiceAgentService = require("./aiVoiceAgentService");
 require("dotenv").config();
 
 let client = null;
@@ -109,29 +110,51 @@ module.exports = {
   },
 
   // Voice Call — ใช้ตอน escalation
-  makeCall: async ({ location, event_id }) => {
+  // Voice Call — ใช้ตอน escalation
+  makeCall: async ({ location, event_id, event }) => {
+    // 👈 1. เปลี่ยนพารามิเตอร์มารับ event ทั้งก้อน
     const phones = recipients();
     if (phones.length === 0) return { skipped: true };
 
-    const voiceMessage = `ตรวจพบเหตุการณ์ล้มในบริเวณ ห้องผู้สูงอายุ ที่กลุ่มบ้าน บ้านไซม่อนคุง โปรดตรวจสอบความปลอดภัยและเข้าช่วยเหลือทันที `;
+    // 2. กำหนดข้อความและวิธีตั้งต้นเป็น Fallback
+    let escalationMethod = "fallback";
+    let voiceMessage = `ตรวจพบเหตุการณ์ล้มในบริเวณ ${location || "ไม่ทราบตำแหน่ง"} โปรดตรวจสอบความปลอดภัยและเข้าช่วยเหลือทันที`;
+
+    // 3. ลองเรียกใช้ AI ร่างข้อความตามบริบท
+    if (event) {
+      const aiMessage = await aiVoiceAgentService.generateCallMessage(event);
+      if (aiMessage) {
+        voiceMessage = aiMessage;
+        escalationMethod = "ai";
+      }
+    }
 
     // === Fake mode — log แทนการยิงจริง ===
     if (isFakeMode()) {
       for (const to of phones) {
-        fakeBox("📞 TWILIO VOICE CALL (simulated)", [
-          `From    : ${process.env.TWILIO_PHONE || "+1xxxxxxxxxx"}`,
-          `To      : ${to}`,
-          `Event   : ${event_id}`,
-          `Lang    : th-TH`,
-          "─── TwiML Say ───",
-          `"${voiceMessage}"`,
-          `(ซ้ำอีก 1 ครั้ง)`,
-        ]);
+        fakeBox(
+          `📞 TWILIO VOICE CALL (simulated) - Via: ${escalationMethod.toUpperCase()}`,
+          [
+            `From    : ${process.env.TWILIO_PHONE || "+1xxxxxxxxxx"}`,
+            `To      : ${to}`,
+            `Event   : ${event_id}`,
+            `Lang    : th-TH`,
+            "─── TwiML Say ───",
+            `"${voiceMessage}"`,
+            `(ซ้ำอีก 1 ครั้ง)`,
+          ],
+        );
       }
       console.log(
         `✅ Calls (fake) made ${phones.length}/${phones.length} (event=${event_id})`,
       );
-      return { made: phones.length, failed: 0, mode: "fake" };
+      // 👈 4. ส่ง method กลับไปด้วย
+      return {
+        made: phones.length,
+        failed: 0,
+        mode: "fake",
+        method: escalationMethod,
+      };
     }
 
     if (!twilioReady()) {
@@ -164,9 +187,13 @@ module.exports = {
     }
 
     const made = phones.length - failed.length;
-    if (process.env.DEMO_LOG !== 'true') {
-      console.log(`✅ Calls made ${made}/${phones.length} (event=${event_id})`);
+    if (process.env.DEMO_LOG !== "true") {
+      console.log(
+        `✅ Calls made ${made}/${phones.length} (event=${event_id}, via=${escalationMethod})`,
+      );
     }
-    return { made, failed: failed.length };
+
+    // 👈 5. ส่ง method กลับไปให้ escalationService รับไปบันทึก
+    return { made, failed: failed.length, method: escalationMethod };
   },
 };
