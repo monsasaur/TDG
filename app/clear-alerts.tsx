@@ -31,13 +31,13 @@ export default function ClearAlertsScreen() {
 
   const isAll = selectedHouse === "ทั้งหมด";
 
-  const fallCount = useMemo(
-    () =>
-      isAll
-        ? alerts.length
-        : alerts.filter((a) => a.houseName === selectedHouse).length,
+  // การ์ดที่ยังรอการรับทราบไม่ถูกลบ (AlertsContext.clearAlerts) — นับแยกให้ผู้ใช้เห็น
+  const inHouse = useMemo(
+    () => (isAll ? alerts : alerts.filter((a) => a.houseName === selectedHouse)),
     [alerts, selectedHouse, isAll]
   );
+  const fallCount = inHouse.filter((a) => a.status !== "active").length;
+  const activeCount = inHouse.length - fallCount;
   const systemCount = useMemo(
     () =>
       isAll
@@ -59,9 +59,11 @@ export default function ClearAlertsScreen() {
     setConfirmOpen(false);
   };
 
-  const confirmBody = isAll
-    ? "คุณต้องการลบข้อมูลทั้งหมดใช่ไหม"
-    : `คุณต้องการลบข้อมูล ${selectedHouse} ใช่ไหม`;
+  const confirmBody =
+    (isAll
+      ? "คุณต้องการลบข้อมูลทั้งหมดใช่ไหม"
+      : `คุณต้องการลบข้อมูล ${selectedHouse} ใช่ไหม`) +
+    "\n\nรายการจะหายจากเครื่องนี้ สมาชิกคนอื่นในบ้านยังเห็นอยู่ และประวัติเหตุการณ์ยังเก็บไว้ครบ";
 
   const dropdownOptions = showAll ? ["ทั้งหมด", ...HOUSES] : HOUSES;
 
@@ -84,7 +86,10 @@ export default function ClearAlertsScreen() {
       <View className="bg-white mt-2 px-5">
         <CheckRow
           label="ข้อความแจ้งเตือน"
-          sublabel={`${fallCount} การแจ้งเตือน จาก ข้อความแจ้งเตือน`}
+          sublabel={
+            `${fallCount} การแจ้งเตือน จาก ข้อความแจ้งเตือน` +
+            (activeCount > 0 ? ` · ไม่รวม ${activeCount} รายการที่ยังรอการรับทราบ` : "")
+          }
           checked={clearFall}
           onToggle={() => setClearFall((v) => !v)}
         />

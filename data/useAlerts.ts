@@ -48,6 +48,7 @@ export function useAlerts() {
               answeredBy: a.answered_by,
               timeline: a.timeline || [], // Timeline ที่เก็บเป็น JSON
               fallEventId: a.fall_event_id ?? null, // ใช้ตอนกดรับทราบ — ดู contexts/AlertsContext.tsx
+              createdAt: a.created_at, // นับถอยหลังจากเวลาจริง — ดู components/AlertCardActive.tsx
             };
           });
           setAlerts(formattedAlerts);

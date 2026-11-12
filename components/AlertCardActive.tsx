@@ -2,6 +2,24 @@ import { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Alert } from "../types/alert";
+import { parseTimestamp } from "../lib/time";
+
+/**
+ * วินาทีที่เหลือก่อนระบบโทรฉุกเฉิน ณ ตอนนี้
+ *
+ * เหตุการณ์จริง (มี fallEventId): backend เริ่มนับตั้งแต่บันทึกเหตุการณ์ — คิดจาก created_at
+ * ไม่งั้นเปิดแอปช้าไป 40 วิ หน้าจอจะบอกว่าเหลือ 60 วิ ทั้งที่อีก 20 วิระบบจะโทรแล้ว
+ * ข้อมูลตัวอย่าง (seed) ไม่มี timer ฝั่ง backend — นับจาก countdown เต็มเหมือนเดิม
+ * นาฬิกามือถือเพี้ยนได้ จึงบีบให้อยู่ในช่วง 0 ถึง countdown
+ */
+function remainingSeconds(alert: Alert): number {
+  const total = alert.countdown ?? 60;
+  if (alert.fallEventId && alert.createdAt) {
+    const elapsed = Math.floor((Date.now() - parseTimestamp(alert.createdAt)) / 1000);
+    if (Number.isFinite(elapsed)) return Math.max(0, Math.min(total, total - elapsed));
+  }
+  return total;
+}
 
 interface AlertCardActiveProps {
   alert: Alert;
@@ -10,14 +28,19 @@ interface AlertCardActiveProps {
 }
 
 export default function AlertCardActive({ alert, onConfirm, onTimeout }: AlertCardActiveProps) {
-  const [seconds, setSeconds] = useState(alert.countdown ?? 60);
+  // จำเส้นตายไว้แล้วคิดใหม่ทุกวินาที แทนการลบทีละ 1 — แอปถูกพักไว้เบื้องหลังแล้วกลับมา ตัวเลขยังตรง
+  const [deadline] = useState(() => Date.now() + remainingSeconds(alert) * 1000);
+  const [seconds, setSeconds] = useState(() => Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
   const [confirmed, setConfirmed] = useState(false);
 
   useEffect(() => {
     if (seconds <= 0) return;
-    const interval = setInterval(() => setSeconds((s) => s - 1), 1000);
+    const interval = setInterval(
+      () => setSeconds(Math.max(0, Math.ceil((deadline - Date.now()) / 1000))),
+      1000,
+    );
     return () => clearInterval(interval);
-  }, [seconds]);
+  }, [seconds, deadline]);
 
   useEffect(() => {
     if (seconds === 0 && !confirmed) {
