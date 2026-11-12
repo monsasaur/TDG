@@ -50,3 +50,23 @@ jobs:
             pytest==9.0.3
 
       - run: pytest
+
+  # แอปมือถือยังไม่มี unit test — อย่างน้อยให้ type check + lint ทุก PR
+  # (เปลี่ยนชนิดข้อมูลฝั่งหนึ่งแล้วลืมอีกฝั่ง หรือ import ผิด จะถูกจับก่อน merge)
+  mobile-app:
+    name: Mobile app (tsc + lint)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      # --ignore-scripts: ไม่ต้อง build native อะไร แค่ตรวจโค้ด
+      - run: npm ci --ignore-scripts
+      - run: npx tsc --noEmit
+      - run: npm run lint
