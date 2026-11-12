@@ -572,6 +572,7 @@ Table: `push_tokens` — `token` PK · `device_id` · `platform` · `created_at`
 | `create_house_invite(p_house_id)` / `join_house(p_code)` | owner สร้างรหัส · คนถูกเชิญเข้าเป็น caregiver · เพดาน 6 คนต่อบ้าน |
 | `house_member_list()` | สมาชิกของทุกบ้านที่คนเรียกอยู่ด้วย พร้อมชื่อ + เบอร์จาก `auth.users` (แอปอ่านตรงไม่ได้) — ใช้กับหน้าสมาชิก |
 | `push_tokens.user_id` | เครื่องนี้ login เป็นใคร — Express ส่ง push ของบ้านเฉพาะเครื่องสมาชิก |
+| `audit_logs` | ประวัติการเปลี่ยนแปลง — trigger `audit_row` บันทึกเอง (ใครทำ · บ้านไหน · ค่าเก่า/ใหม่) · เจ้าของบ้านอ่านของบ้านตัวเอง · ไม่มีใครแก้/ลบ log ได้ · ยังไม่มีหน้าในแอป |
 
 RLS เปิดทุกตารางกลุ่ม B + C · `fall_events` / `push_tokens` / `ml_models` เปิด RLS แบบไม่มี policy = เข้าได้เฉพาะ service_role
 → **Express ต้องใช้ service_role key** ไม่งั้นเขียนเหตุการณ์ไม่ได้แบบไม่มี error ชัด (`check_live_setup.js` เช็คให้)
