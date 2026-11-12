@@ -9,6 +9,7 @@ import {
 import { Alert, SystemAlert, TimelineStep } from "../types/alert";
 import { supabase } from "../data/supabaseClient";
 import { acknowledgeEvent } from "../lib/api";
+import { readItem, writeItem } from "../lib/deviceStorage";
 import { useAuth } from "./AuthContext";
 
 // เปลี่ยนชื่อตอน Import เพื่อไม่ให้ชื่อชนกับ Context Hook ด้านล่าง
@@ -20,6 +21,14 @@ type ClearOptions = {
   clearFall: boolean;
   clearSystem: boolean;
 };
+
+/**
+ * "ลบการแจ้งเตือน" = ซ่อนจากรายการของบัญชีนี้บนเครื่องนี้ ไม่ได้ลบจากฐานข้อมูล
+ * (เดิมแค่กรองออกจาก state แล้วรอบดึงซ้ำ 10 วิพากลับมา)
+ * สมาชิกคนอื่นในบ้านยังเห็น · ประวัติเหตุการณ์ยังอยู่ครบ
+ * การ์ดที่ยังรอการรับทราบ (active) ไม่ถูกซ่อนเด็ดขาด — ห้ามให้เหตุฉุกเฉินที่ยังนับถอยหลังหายจากจอ
+ */
+const hiddenKey = (userId: string | null) => `hidden_alerts:${userId ?? "anon"}`;
 
 /** ผลของการกดรับทราบ — หน้าจอใช้เลือกข้อความที่จะบอกผู้ใช้ */
 export type AckResult = "acknowledged" | "already_escalated" | "not_allowed" | "failed";
@@ -103,6 +112,26 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
   const { systemAlerts: fetchedSystemAlerts, isLoading: isLoadingSystem } =
     useFetchSystemAlerts();
 
+  // รายการที่ผู้ใช้ซ่อนไว้ — แยกตามบัญชี · เปลี่ยนบัญชีแล้วโหลดชุดของบัญชีนั้น
+  const hidden = useRef<Set<string>>(new Set());
+  const [hiddenVersion, setHiddenVersion] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    readItem(hiddenKey(userId)).then((raw) => {
+      if (!alive) return;
+      try {
+        hidden.current = new Set(raw ? (JSON.parse(raw) as string[]) : []);
+      } catch {
+        hidden.current = new Set();
+      }
+      setHiddenVersion((v) => v + 1);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [userId]);
+  const saveHidden = () => writeItem(hiddenKey(userId), JSON.stringify([...hidden.current]));
+
   // 2. สร้าง State ภายใน Context เหมือนเดิม เริ่มต้นเป็น Array ว่างๆ
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [systemAlerts, setSystemAlerts] = useState<SystemAlert[]>([]);
@@ -121,7 +150,7 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
     if (isLoadingAlerts) return;
     const now = Date.now();
     setAlerts(
-      fetchedAlerts.map((a) => {
+      fetchedAlerts.filter((a) => a.status === "active" || !hidden.current.has(a.id)).map((a) => {
         const h = held.current.get(a.id);
         if (!h) return a;
         // ฐานข้อมูลตามทันแล้ว (หรือมีสถานะอื่นมาแทน เช่นโทรออกไปแล้ว) หรือถือนานพอแล้ว → ใช้ของจริง
@@ -132,13 +161,24 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
         return h.alert;
       }),
     );
-  }, [fetchedAlerts, isLoadingAlerts]);
+  }, [fetchedAlerts, isLoadingAlerts, hiddenVersion]);
 
   useEffect(() => {
-    if (!isLoadingSystem) {
-      setSystemAlerts(fetchedSystemAlerts);
+    if (isLoadingSystem) return;
+    // แจ้งเตือนระบบคือ "สถานะ" (อุปกรณ์หลุดอยู่) ไม่ใช่เหตุการณ์ — อุปกรณ์กลับมาต่อได้แล้ว (หายจากรายการ)
+    // ให้ลืมว่าเคยซ่อน จะได้ขึ้นใหม่ถ้าหลุดอีกครั้ง
+    const present = new Set(fetchedSystemAlerts.map((a) => a.id));
+    let pruned = false;
+    for (const id of [...hidden.current]) {
+      if (id.startsWith("sa-") && !present.has(id)) {
+        hidden.current.delete(id);
+        pruned = true;
+      }
     }
-  }, [fetchedSystemAlerts, isLoadingSystem]);
+    if (pruned) void saveHidden();
+    setSystemAlerts(fetchedSystemAlerts.filter((a) => !hidden.current.has(a.id)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- saveHidden อ่าน userId ล่าสุดอยู่แล้ว
+  }, [fetchedSystemAlerts, isLoadingSystem, hiddenVersion]);
 
   /**
    * กดรับทราบ: แสดงผลทันทีแล้วค่อยบันทึก — บันทึกไม่สำเร็จจะย้อนกลับ
@@ -198,19 +238,23 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
   };
 
   const clearAlerts = ({ house, clearFall, clearSystem }: ClearOptions) => {
+    const inScope = (houseName: string) => !house || houseName === house;
+    const ids: string[] = [];
     if (clearFall) {
-      setAlerts((prev) =>
-        house ? prev.filter((a) => a.houseName !== house) : [],
-      );
+      for (const a of alertsRef.current) {
+        if (inScope(a.houseName) && a.status !== "active") ids.push(a.id);
+      }
     }
     if (clearSystem) {
-      setSystemAlerts((prev) =>
-        house ? prev.filter((a) => a.houseName !== house) : [],
-      );
+      for (const a of systemAlerts) if (inScope(a.houseName)) ids.push(a.id);
     }
+    if (ids.length === 0) return;
 
-    // หมายเหตุ: ในอนาคต ถ้าคุณอยากให้การกด Clear ตรงนี้ ลบข้อมูลในฐานข้อมูลจริงๆ ด้วย
-    // คุณสามารถเพิ่มโค้ด supabase.from('alerts').delete().eq(...) ลงไปในนี้ได้เลยครับ!
+    for (const id of ids) hidden.current.add(id);
+    void saveHidden();
+    const gone = new Set(ids);
+    setAlerts((prev) => prev.filter((a) => !gone.has(a.id)));
+    setSystemAlerts((prev) => prev.filter((a) => !gone.has(a.id)));
   };
 
   const isLoading = isLoadingAlerts || isLoadingSystem;
