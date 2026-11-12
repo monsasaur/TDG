@@ -1,5 +1,5 @@
-import { Stack, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollView, View } from "react-native";
 import ConfirmModal from "../components/ConfirmModal";
 import HousePicker from "../components/HousePicker";
@@ -11,7 +11,19 @@ import { useHouses } from "../data/useHouses";
 export default function InviteSelectHouseScreen() {
   const router = useRouter();
   const { contacts } = useContacts();
-  const { houses, isLoading } = useHouses();
+  const { houses, isLoading, refetch } = useHouses();
+
+  // ปุ่มเพิ่มบ้านพาไปหน้า /houses — กลับมาแล้วดึงใหม่ให้เห็นบ้านที่เพิ่งเพิ่ม
+  const firstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return;
+      }
+      refetch();
+    }, [refetch]),
+  );
 
   const houseNames = houses.map((h) => h.name);
   const [selected, setSelected] = useState<string>("");
@@ -37,7 +49,11 @@ export default function InviteSelectHouseScreen() {
       setMemberLimitModal(true);
       return;
     }
-    router.push(`/invite-send?house=${encodeURIComponent(selected)}` as never);
+    // ส่ง id ไปด้วย — รหัสเชิญสร้างจาก id ของบ้าน (ชื่อซ้ำกันได้) · ชื่อใช้แสดงผลอย่างเดียว
+    const houseId = houses.find((h) => h.name === selected)?.id ?? "";
+    router.push(
+      `/invite-send?houseId=${encodeURIComponent(houseId)}&house=${encodeURIComponent(selected)}` as never,
+    );
   };
 
   return (

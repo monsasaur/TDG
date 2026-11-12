@@ -11,26 +11,18 @@ import {
 import { useRouter } from "expo-router";
 import SpinningLogo from "../components/SpinningLogo";
 import PhoneInput from "../components/PhoneInput";
+import { rememberedPhone, rememberPhone, sanitizePhoneInput, toE164TH } from "../lib/phone";
 
 const RING_SIZE = 180;
-const VALID_FIRST_DIGITS = ["0", "6", "8", "9"];
 
 export default function WelcomeScreen() {
   const router = useRouter();
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(rememberedPhone);
   const [error, setError] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const formatPhone = (input: string): string => {
-    const digits = input.replace(/\D/g, "");
-    if (digits.length === 0) return "";
-    if (!VALID_FIRST_DIGITS.includes(digits[0])) return phone;
-    const maxLen = digits[0] === "0" ? 10 : 9;
-    return digits.slice(0, maxLen);
-  };
-
   const handleChange = (text: string) => {
-    setPhone(formatPhone(text));
+    setPhone(sanitizePhoneInput(text, phone));
     if (error) setError("");
   };
 
@@ -38,25 +30,23 @@ export default function WelcomeScreen() {
     if (phone.length === 0) setError("กรุณากรอกเบอร์โทรศัพท์");
   };
 
-  const validatePhone = (value: string): boolean => {
-    const stripped = value.startsWith("0") ? value.slice(1) : value;
-    if (stripped.length !== 9) return false;
-    if (!["6", "8", "9"].includes(stripped[0])) return false;
-    return true;
-  };
-
   const handleSubmit = () => {
     if (phone.length === 0) {
       setError("กรุณากรอกเบอร์โทรศัพท์");
       return;
     }
-    if (!validatePhone(phone)) {
+    if (!toE164TH(phone)) {
       setError("เบอร์โทรศัพท์ไม่ถูกต้อง");
       return;
     }
     setError("");
-    router.replace("/home" as any);
+    rememberPhone(phone);
+    router.push("/login" as any);
   };
+
+  // ทางลัดตอนพัฒนา — เข้าแอปโดยไม่มีบัญชี (ใช้ได้จนกว่าจะรัน accounts.sql · หลังจากนั้นจะไม่เห็นข้อมูลอะไร)
+  // ไม่มีในแอปที่ build ออกไปจริง (__DEV__ เป็น false)
+  const skipLogin = () => router.replace("/home" as any);
 
   const isButtonActive = phone.length > 0;
 
@@ -97,6 +87,12 @@ export default function WelcomeScreen() {
         >
           <Text className="text-base font-semibold text-white">ถัดไป</Text>
         </TouchableOpacity>
+
+        {__DEV__ && (
+          <TouchableOpacity onPress={skipLogin} hitSlop={12} className="items-center mt-6">
+            <Text className="text-xs text-[#AAAAAA]">ข้ามการเข้าสู่ระบบ (เฉพาะตอนพัฒนา)</Text>
+          </TouchableOpacity>
+        )}
       </View>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>

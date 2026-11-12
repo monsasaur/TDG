@@ -12,12 +12,13 @@
 | Escalation / Acknowledge flow | ✅ | escalationService.js — timer in-memory, Twilio fallback |
 | Push token registration | ✅ | `POST /api/v1/push/register` |
 | Demo trigger endpoint | ✅ | `POST /api/v1/demo/fire` — ข้าม ML ไปยิง push ตรงๆ |
-| Mobile app (Expo) | ✅ | 30 หน้า — บ้าน/สมาชิก/ผู้ติดต่อฉุกเฉิน/อุปกรณ์/แจ้งเตือน · รับ push · รายการแจ้งเตือนดึงตาราง `alerts` ทุก 10 วิ · กดรับทราบผ่าน `AlertsContext.acknowledgeAlert` (แก้ 2026-11-12 — ตั้งแต่ 2 ก.ย. ปุ่มส่ง `alerts.id` แทน id ของ fall_events ได้ 404 แบบเงียบ กดแล้วระบบยังโทรฉุกเฉิน) |
+| Mobile app (Expo) | ✅ | 32 หน้า — login/สมัคร/บ้าน/สมาชิก/ผู้ติดต่อฉุกเฉิน/อุปกรณ์/แจ้งเตือน · รับ push · รายการแจ้งเตือนดึงตาราง `alerts` ทุก 10 วิ · กดรับทราบผ่าน `AlertsContext.acknowledgeAlert` (แก้ 2026-11-12 — ตั้งแต่ 2 ก.ย. ปุ่มส่ง `alerts.id` แทน id ของ fall_events ได้ 404 แบบเงียบ กดแล้วระบบยังโทรฉุกเฉิน) |
 | Supabase schema | ⚠️ | `schema.sql` ครบ แต่**ฐานข้อมูลจริงยังไม่ได้รันส่วนที่เพิ่มหลัง ก.ย.** — ดูแถว "ฐานข้อมูลจริง + Express ยังไม่ต่อกัน" |
 | ESP32 USB Serial mode | ✅ | csi_collector_serial.py @ 921600 baud |
 | End-to-end demo flow | ⚠️ | ESP32 → API → Push → Twilio ใช้ได้ · **รายการในแอปยังไม่เห็นเหตุการณ์จริง** จึงกดรับทราบจากรายการไม่ได้ (ตรวจ 2026-11-12 — ดูแถว "ฐานข้อมูลจริง + Express ยังไม่ต่อกัน") |
 | Admin Client API | ✅ | 6 endpoints + auth แยกจาก x-api-key — ดู `docs/reports/admin_api_progress.md` |
 | Escalation timer persistence | ✅ | สร้าง timer ใหม่จาก DB ตอน boot + sweeper ทุก 60 วิ ไม่ใช้ Redis |
+| บัญชีผู้ใช้ รอบแรก | ⚠️ | login เบอร์โทร + รหัสผ่าน (Supabase Auth) · สิทธิ์ owner/caregiver ด้วย RLS · เชิญเข้าบ้านด้วยรหัส 6 ตัว/QR ของจริง · ทดสอบแล้ว (SQL 14/14 · web 29/29) **แต่ยังไม่เปิดบนฐานจริง** — ต้องเปิด Phone provider + รัน `accounts.sql` **หลัง**ทดสอบสด · dev client ต้อง build ใหม่ (AsyncStorage) · ดู `docs/reports/accounts_round1.md` |
 
 ### 🔲 ยังค้าง (Pending)
 
@@ -43,21 +44,22 @@ Hybrid AI-driven fall detection system using WiFi CSI (Channel State Information
 
 ```
 TDG/
-├── app/                          # React Native + Expo (expo-router) — 30 หน้า
+├── app/                          # React Native + Expo (expo-router) — 32 หน้า
 │   ├── _layout.tsx  index.tsx  welcome.tsx  home.tsx  settings.tsx
+│   ├── login.tsx  register.tsx                                    # เบอร์โทร + รหัสผ่าน (Supabase Auth)
 │   ├── houses.tsx  add-house.tsx  select-house.tsx  manage-home.tsx
 │   ├── devices.tsx  device-details.tsx
 │   ├── scan-devices.tsx  device-pairing-code.tsx  connect-device.tsx  # ← BLE provisioning flow
 │   ├── add-network.tsx  wifi-password.tsx  device-setup.tsx       #   ต่อ BLE จริงแล้ว · ทดสอบได้แค่โหมดจำลอง
-│   ├── scan-qr.tsx  enter-code.tsx  invite-*.tsx                  # เชิญสมาชิกเข้าบ้าน (ไม่ใช่ PoP · ยังเป็น mock)
+│   ├── scan-qr.tsx  enter-code.tsx  invite-*.tsx                  # เชิญสมาชิกเข้าบ้าน (ไม่ใช่ PoP) · รหัส 6 ตัว/QR ของจริง · ต้องรัน accounts.sql
 │   ├── members.tsx  member-detail.tsx
 │   ├── emergency-contacts.tsx  add-external-contact.tsx  edit-contact.tsx
 │   └── notifications.tsx  clear-alerts.tsx
 ├── components/                   # 31 component (การ์ด alert, ปุ่ม, ฟอร์ม, dropdown)
-├── contexts/                     # AlertsContext, DevicesContext
+├── contexts/                     # AuthContext, AlertsContext, DevicesContext
 ├── data/                         # ⚠️ hooks ที่คุยกับ Supabase ตรง ไม่ผ่าน Express API
 │   ├── supabaseClient.ts
-│   └── useAlerts · useDevices · useHouses · useContacts · useSystemAlerts
+│   └── useAlerts · useDevices · useHouses · useContacts · useSystemAlerts · houseInvites
 ├── lib/                          # api.ts (Express API), notifications.ts, pushNotifications.ts
 ├── types/alert.ts
 ├── fall_detection_backend/
@@ -81,7 +83,7 @@ TDG/
 │   │   ├── data/sessions/        # manifest ของแต่ละรอบเก็บข้อมูล
 │   │   └── models/               # rf_v1.pkl (ใช้จริง), lstm_v3_binary_99acc.h5 (NOT in git)
 │   ├── ESP32-CSI-Tool/           # ESP32 firmware submodule
-│   └── supabase/                 # schema.sql (backend) + seed.sql (mock ของแอป)
+│   └── supabase/                 # schema.sql · accounts.sql (บัญชี + RLS · ยังไม่รันบนฐานจริง) · seed.sql (mock ของแอป)
 ├── docs/reports/                 # สเปค · รายงานผลโมเดล · audit ข้อมูล
 └── backend/                      # legacy server แยกต่างหาก ไม่เกี่ยวกับ express_api
 
@@ -241,7 +243,7 @@ PORT=3000
 API_KEY=...
 ML_SERVICE_URL=http://localhost:8000
 SUPABASE_URL=...
-SUPABASE_KEY=...
+SUPABASE_KEY=...              # service_role ไม่ใช่ anon — จำเป็นหลังรัน accounts.sql (RLS)
 TWILIO_ACCOUNT_SID=...
 TWILIO_AUTH_TOKEN=...
 TWILIO_PHONE=...
@@ -516,6 +518,7 @@ PUSH_MODE=real              # real = ยิง FCM จริง | fake = log con
 - `fall_detection_backend/ESP32-CSI-Tool/` **ไม่ใช่ submodule** — เป็นโฟลเดอร์ธรรมดาในรีโปหลัก (ไม่มี `.gitmodules` ไม่มี `.git` ข้างใน · git ติดตามไฟล์ในนั้น 50 ไฟล์) แก้ตรงได้เลย
 - **`lib/api.ts`** — URL/คีย์ย้ายไป `app.config.js` แล้ว ตั้งผ่าน `EXPO_PUBLIC_API_BASE_URL` / `EXPO_PUBLIC_API_KEY` · แต่คีย์ยังเป็นตัวเดียวกับ ESP32 อยู่ ดูหัวข้อ Deploy
 - **ฐานข้อมูลจริงยังไม่ได้รัน `schema.sql`** (ตรวจ 2026-11-12 แบบอ่านอย่างเดียว) — ไม่มี `alerts.fall_event_id` (Express สร้าง alert ในแอปไม่ได้) · `devices.last_seen_at`/`is_active`/`installed_at` (หน้า Admin พัง) · ตาราง `ml_models` · แก้: วาง `schema.sql` ทั้งไฟล์ใน Supabase SQL Editor แล้วรัน (ทุกคำสั่งเป็น IF NOT EXISTS รันซ้ำได้)
+- **`accounts.sql` รันหลังทดสอบสด และหลังลงแอปที่มีหน้า login แล้วเท่านั้น** — เปิด RLS แล้วแอปที่ไม่ได้ login ไม่เห็นอะไรเลย · Express ต้องใช้ service_role ก่อน · ลำดับเต็มใน `docs/reports/accounts_round1.md`
 - Express `.env` ยังไม่ได้ตั้ง `SUPABASE_URL`/`SUPABASE_KEY` → `dbService` ใช้ mock store ในหน่วยความจำ เหตุการณ์ไม่ลงฐานข้อมูลและหายเมื่อรีสตาร์ต — แอปเห็นแค่ push ไม่เห็นในรายการ
 - escalationService เก็บ timer ใน memory แต่กู้คืนได้ — ตอน boot อ่านเหตุการณ์ที่ยัง pending จาก DB มาตั้ง timer ใหม่ด้วยเวลาที่เหลือจริง และมี sweeper เช็คซ้ำทุก 60 วิ (เหตุการณ์ที่เลยกำหนดเกิน 1 ชม. จะไม่โทร แต่ปิดสถานะไว้ไม่ให้ค้าง pending)
 - Twilio Trial accounts can only send to verified numbers — verify caregiver numbers first
@@ -547,7 +550,7 @@ Table: `fall_events` — Express API เขียนเมื่อ ESP32 ตร
 
 Table: `push_tokens` — `token` PK · `device_id` · `platform` · `created_at` / `updated_at`
 
-**กลุ่ม B — แอปมือถือ** (❗ **ไม่มี `CREATE TABLE` ในรีโปเลย** รู้โครงสร้างได้จาก `seed.sql` กับโค้ดใน `data/` เท่านั้น)
+**กลุ่ม B — แอปมือถือ** (`CREATE TABLE IF NOT EXISTS` อยู่ต้น `schema.sql` แล้ว 12 พ.ย. — เขียนตามโค้ดใน `data/` กับ `seed.sql` · ฐานจริงมีตารางอยู่ก่อน คำสั่งนี้จึงไม่แก้ตารางเดิม)
 
 | ตาราง | คอลัมน์ที่ใช้จริง |
 |---|---|
@@ -556,6 +559,19 @@ Table: `push_tokens` — `token` PK · `device_id` · `platform` · `created_at`
 | `emergency_contacts` | ผู้ติดต่อฉุกเฉิน (self / member / external) |
 | `house_contacts` | เชื่อม contact กับบ้าน (many-to-many) |
 | `alerts` | `id` · `house_id` · `title` · `description` · `location` · `status` · `answered_by` · `countdown` · `timeline` (JSON) · **+ `fall_event_id`** → ผูกกับ `fall_events` (เพิ่มโดย `schema.sql` — ฐานข้อมูลจริงยังไม่มี ณ 2026-11-12) |
+
+**กลุ่ม C — บัญชีผู้ใช้** (`accounts.sql` · ⚠️ ยังไม่ได้รันบนฐานจริง — ลำดับและเหตุผลใน `docs/reports/accounts_round1.md`)
+
+| ตาราง / ฟังก์ชัน | |
+|---|---|
+| `house_members` | `house_id` · `user_id` → `auth.users` · `role` (`owner` / `caregiver`) |
+| `house_invites` | `code` (6 ตัว ไม่มี I O 0 1) · `house_id` · อายุ 15 นาที · ใช้ได้ครั้งเดียว (`used_by` / `used_at`) |
+| `create_house(p_name)` | สร้างบ้าน + ตั้งคนเรียกเป็น owner · เพดาน 5 บ้านต่อคน (นับทุกบ้านที่เป็นสมาชิก) — แอป insert `houses` ตรงไม่ได้แล้ว |
+| `create_house_invite(p_house_id)` / `join_house(p_code)` | owner สร้างรหัส · คนถูกเชิญเข้าเป็น caregiver · เพดาน 6 คนต่อบ้าน |
+
+RLS เปิดทุกตารางกลุ่ม B + C · `fall_events` / `push_tokens` / `ml_models` เปิด RLS แบบไม่มี policy = เข้าได้เฉพาะ service_role
+→ **Express ต้องใช้ service_role key** ไม่งั้นเขียนเหตุการณ์ไม่ได้แบบไม่มี error ชัด (`check_live_setup.js` เช็คให้)
+`emergency_contacts` ได้คอลัมน์ `created_by` เพิ่ม (คนสร้างต้องเห็นแถวของตัวเองก่อนผูกกับบ้าน)
 
 ### ✅ ตัดสินใจแล้ว 2026-09-01 — `fall_events.device_id` ↔ `devices.code`
 
@@ -609,9 +625,11 @@ Table: `push_tokens` — `token` PK · `device_id` · `platform` · `created_at`
 ### เส้นทางข้อมูลของแอป
 
 ```
-data/*.ts hooks  ──Supabase client ตรง (anon key)──►  houses · devices · alerts · contacts
+data/*.ts hooks  ──Supabase client ตรง (anon key + session ของคนที่ login)──►  houses · devices · alerts · contacts
   useAlerts ดึงตาราง alerts ซ้ำทุก 10 วิ                 (แถวจริงเขียนโดย Express · ที่เหลือเป็น seed)
+  หลังรัน accounts.sql: RLS กรองให้เห็นเฉพาะบ้านที่เป็นสมาชิก · เปลี่ยนบัญชีแล้ว Alerts/Devices ดึงใหม่เอง
 
+contexts/AuthContext ──► Supabase Auth (เบอร์โทร + รหัสผ่าน · session เก็บใน AsyncStorage)
 lib/api.ts  ──► Express API  /alert/ack/:event_id · /push/register · /health
 ```
 

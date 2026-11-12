@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -22,7 +22,19 @@ export default function HousesScreen() {
   const router = useRouter();
 
   // 1. ดึงข้อมูลจาก Hook จริง
-  const { houses, isLoading } = useHouses();
+  const { houses, isLoading, refetch } = useHouses();
+
+  // กลับมาจากหน้าเพิ่มบ้าน / กรอกรหัสบ้าน → ดึงใหม่ (เปิดหน้าครั้งแรก hook ดึงให้แล้ว)
+  const firstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return;
+      }
+      refetch();
+    }, [refetch]),
+  );
 
   // สร้าง State ย่อยมาเก็บข้อมูลบ้านไว้แสดงผล
   // (เพื่อให้เวลาพอกดลบปุ๊บ เราสามารถอัปเดตเอาออกจากหน้าจอได้ทันทีโดยไม่ต้องรอโหลดใหม่)
@@ -52,12 +64,18 @@ export default function HousesScreen() {
 
     try {
       // ลบจาก Supabase (ใช้ ID อ้างอิง)
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("houses")
         .delete()
-        .eq("id", pendingRemove.id);
+        .eq("id", pendingRemove.id)
+        .select("id");
 
       if (error) throw error;
+      // RLS ปฏิเสธแบบเงียบได้ — ไม่มี error แต่ไม่มีแถวไหนถูกลบ (accounts.sql ให้ลบได้เฉพาะเจ้าของบ้าน)
+      if (!data || data.length === 0) {
+        Alert.alert("ลบบ้านไม่ได้", "เฉพาะเจ้าของบ้านที่ลบบ้านได้");
+        return;
+      }
 
       // ลบออกจากหน้าจอทันที
       setLocalHouses((prev) => prev.filter((h) => h.id !== pendingRemove.id));

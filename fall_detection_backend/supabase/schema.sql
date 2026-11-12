@@ -1,5 +1,61 @@
 -- Fall Detection — Binary + Acknowledge System
--- Run in Supabase SQL Editor
+-- Run in Supabase SQL Editor · รันซ้ำได้ทั้งไฟล์ (ทุกคำสั่งเป็น IF NOT EXISTS)
+-- ระบบบัญชีผู้ใช้ + สิทธิ์รายบ้านอยู่แยกใน accounts.sql (รันทีหลัง ดูหัวไฟล์นั้น)
+
+-- ============================================================
+-- ตารางฝั่งแอปมือถือ (กลุ่ม B)
+--
+-- เดิมสร้างจากฝั่งแอปใน Supabase โดยไม่มี CREATE TABLE ในรีโป — สร้างโปรเจกต์ใหม่ไม่ได้
+-- ถอดโครงสร้างจากฐานข้อมูลจริง 2026-11-12 (คอลัมน์ + ชนิดข้อมูลจากแถวจริง · seed.sql · โค้ดใน data/)
+-- บนฐานข้อมูลที่มีตารางอยู่แล้ว คำสั่งชุดนี้ไม่ทำอะไร
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS houses (
+  id          TEXT PRIMARY KEY,                     -- 'h1' หรือ 'h<timestamp>' จากแอป
+  name        TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS devices (
+  id          TEXT PRIMARY KEY,                     -- 'd1' หรือ 'd<timestamp>' จากแอป
+  house_id    TEXT NOT NULL REFERENCES houses(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,                        -- ชื่อห้อง (1 อุปกรณ์ = 1 ห้อง)
+  code        TEXT NOT NULL,                        -- 'ESP-0001A' = fall_events.device_id = ชื่อ BLE
+  wifi_ssid   TEXT,
+  status      TEXT NOT NULL DEFAULT 'disconnected', -- 'connected' | 'disconnected' (ฝั่งแอปตั้งเอง)
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS emergency_contacts (
+  id            TEXT PRIMARY KEY,
+  name          TEXT NOT NULL,
+  phone         TEXT NOT NULL,
+  contact_type  TEXT NOT NULL DEFAULT 'external',   -- 'self' | 'member' | 'external'
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS house_contacts (
+  house_id    TEXT NOT NULL REFERENCES houses(id) ON DELETE CASCADE,
+  contact_id  TEXT NOT NULL REFERENCES emergency_contacts(id) ON DELETE CASCADE,
+  PRIMARY KEY (house_id, contact_id)
+);
+
+CREATE TABLE IF NOT EXISTS alerts (
+  id           TEXT PRIMARY KEY,                    -- seed 'a1' · Express ใช้ UUID
+  house_id     TEXT NOT NULL REFERENCES houses(id) ON DELETE CASCADE,
+  title        TEXT NOT NULL,
+  description  TEXT,
+  location     TEXT,
+  status       TEXT NOT NULL DEFAULT 'active',      -- active | completed | in_progress | no_response
+  answered_by  TEXT,
+  countdown    INTEGER,
+  timeline     JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================
+-- ตารางฝั่ง CSI pipeline (กลุ่ม A)
+-- ============================================================
 
 CREATE TABLE IF NOT EXISTS fall_events (
   id                UUID DEFAULT gen_random_uuid() PRIMARY KEY,

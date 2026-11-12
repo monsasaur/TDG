@@ -24,8 +24,13 @@ const warn = (msg, fix) => console.log(`⚠️  ${msg}${fix ? `\n    → ${fix}`
 const fail = (msg, fix) => { failed++; console.log(`❌ ${msg}${fix ? `\n    → ${fix}` : ''}`) }
 const info = (msg)      => console.log(`   ${msg}`)
 
-/** role ใน JWT ของคีย์ Supabase (anon / service_role) — ถอดเฉพาะส่วน payload ไม่ได้ตรวจลายเซ็น */
+/**
+ * role ของคีย์ Supabase (anon / service_role)
+ * คีย์แบบใหม่ไม่ใช่ JWT ดูจากคำนำหน้า · คีย์แบบเก่าถอดส่วน payload ของ JWT (ไม่ได้ตรวจลายเซ็น)
+ */
 function keyRole(key) {
+  if (key.startsWith('sb_secret_')) return 'service_role'
+  if (key.startsWith('sb_publishable_')) return 'anon'
   try {
     const payload = JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString('utf8'))
     return payload.role || null
@@ -52,10 +57,18 @@ async function checkSupabase() {
   const role = keyRole(key)
   if (role === 'service_role') ok('SUPABASE_KEY เป็น service_role')
   else warn(`SUPABASE_KEY เป็น ${role || 'คีย์ที่อ่าน role ไม่ได้'} ไม่ใช่ service_role`,
-            'ตอนนี้ใช้ได้เพราะฐานข้อมูลยังไม่เปิด RLS แต่ฝั่งเซิร์ฟเวอร์ควรใช้ service_role')
+            'ใช้ได้เฉพาะตอนที่ยังไม่รัน accounts.sql · ฝั่งเซิร์ฟเวอร์ควรใช้ service_role')
 
   const { createClient } = require('@supabase/supabase-js')
   const db = createClient(url, key)
+
+  // รัน accounts.sql แล้วหรือยัง (ดูจากตาราง house_members) — รันแล้ว RLS เปิด คีย์ที่ไม่ใช่ service_role เขียนอะไรไม่ได้
+  const hm = await db.from('house_members').select('user_id', { count: 'exact', head: true })
+  if (missing(hm.error)) info('ยังไม่ได้รัน accounts.sql — ยังไม่มีระบบบัญชี ทุกคนเห็นทุกบ้าน')
+  else if (hm.error) warn(`เช็คตาราง house_members ไม่ได้: ${hm.error.message}`)
+  else if (role === 'service_role') ok('รัน accounts.sql แล้ว · Express ใช้ service_role ข้าม RLS ได้')
+  else fail('รัน accounts.sql แล้ว (เปิด RLS) แต่ SUPABASE_KEY ไม่ใช่ service_role',
+            'Express จะเขียน fall_events / alerts ไม่ได้ · ใช้ service_role key (Supabase → Project Settings → API)')
 
   const fe = await db.from('fall_events').select('id', { count: 'exact', head: true })
   if (fe.error) {

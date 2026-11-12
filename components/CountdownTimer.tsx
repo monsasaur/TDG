@@ -51,7 +51,13 @@ export default function CountdownTimer({
 
   return (
     <View className="items-center">
-      <Text className="text-sm text-[#1A1A1A]">( {remaining}s )</Text>
+      <Text className="text-sm text-[#1A1A1A]">( {formatRemaining(remaining)} )</Text>
     </View>
   );
+}
+
+/** ไม่ถึงนาทีแสดง "45s" แบบเดิม · ตั้งแต่ 1 นาทีขึ้นไปแสดง "14:59" (รหัสเชิญอายุ 15 นาที) */
+function formatRemaining(sec: number): string {
+  if (sec < 60) return `${sec}s`;
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 }

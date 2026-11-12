@@ -9,6 +9,7 @@ import {
 import { Alert, SystemAlert, TimelineStep } from "../types/alert";
 import { supabase } from "../data/supabaseClient";
 import { acknowledgeEvent } from "../lib/api";
+import { useAuth } from "./AuthContext";
 
 // เปลี่ยนชื่อตอน Import เพื่อไม่ให้ชื่อชนกับ Context Hook ด้านล่าง
 import { useAlerts as useFetchAlerts } from "../data/useAlerts";
@@ -31,14 +32,16 @@ type AlertsContextType = {
   clearAlerts: (opts: ClearOptions) => void;
   acknowledgeAlert: (id: string) => Promise<AckResult>;
   isLoading: boolean; // เพิ่มสถานะ Loading เข้าไปให้หน้า UI รู้ว่ากำลังดึงข้อมูล
+  /** ดึงใหม่ทันทีไม่รอรอบ 10 วิ — เช่นหลังเข้าร่วมบ้าน */
+  refresh: () => Promise<void>;
 };
 
 /**
- * ชื่อที่บันทึกว่าใครกดรับทราบ — ยังเป็นค่าคงที่เพราะแอปยังไม่มีระบบบัญชีผู้ใช้
- * (ข้อ E3 ใน docs/reports/app_completion_plan.md) · ใช้คำเดียวกับค่าเริ่มต้นของ backend
- * (appAlertService.markAcknowledged) หน้าจอจะได้ไม่เปลี่ยนคำหลังดึงข้อมูลรอบถัดไป
+ * ชื่อที่บันทึกว่าใครกดรับทราบ = ชื่อที่แสดงของบัญชีที่ login อยู่ (AuthContext.displayName)
+ * ยังไม่ login ใช้คำนี้แทน — คำเดียวกับค่าเริ่มต้นของ backend (appAlertService.markAcknowledged)
+ * ⚠️ ชื่อยังส่งจากแอป backend ไม่ได้ตรวจกับ token (ข้อ E3 ใน docs/reports/app_completion_plan.md)
  */
-const ACK_BY = "ผู้ดูแล";
+const DEFAULT_ACK_BY = "ผู้ดูแล";
 
 /** ต้องตรงกับ STEP_APP ใน fall_detection_backend/express_api/src/services/appAlertService.js */
 const STEP_APP = "แจ้งเตือนผู้ดูแลในแอป";
@@ -52,24 +55,24 @@ const STEP_APP = "แจ้งเตือนผู้ดูแลในแอ�
 const HOLD_MS = 30_000;
 
 /** หน้าตาของ alert หลังกดรับทราบ — ให้ตรงกับที่ backend เขียนลงฐานข้อมูล */
-function toAcknowledged(a: Alert): Alert {
+function toAcknowledged(a: Alert, who: string): Alert {
   const hasAppStep = a.timeline.some((s) => s.label === STEP_APP);
   const timeline: TimelineStep[] = hasAppStep
     ? a.timeline.map((s) =>
         s.label === STEP_APP
-          ? { ...s, detail: `รับทราบโดย : ${ACK_BY}`, status: "success" as const }
+          ? { ...s, detail: `รับทราบโดย : ${who}`, status: "success" as const }
           : s,
       )
     : // ข้อมูลตัวอย่างใน seed ไม่มี step นี้ — แทรกต่อจาก step แรกแบบที่หน้า home ทำมาตลอด
       [
         ...a.timeline.slice(0, 1),
-        { label: "ยืนยันการตรวจสอบ", detail: `โดย : ${ACK_BY}`, status: "success" as const },
+        { label: "ยืนยันการตรวจสอบ", detail: `โดย : ${who}`, status: "success" as const },
         ...a.timeline.slice(1),
       ];
   return {
     ...a,
     status: "completed",
-    answeredBy: ACK_BY,
+    answeredBy: who,
     countdown: undefined,
     timeline,
   };
@@ -79,8 +82,24 @@ const AlertsContext = createContext<AlertsContextType | undefined>(undefined);
 
 export function AlertsProvider({ children }: { children: ReactNode }) {
   // 1. ดึงข้อมูลจริงจาก Supabase ผ่าน Hooks ที่เราเพิ่งสร้าง
-  const { alerts: fetchedAlerts, isLoading: isLoadingAlerts } =
-    useFetchAlerts();
+  const {
+    alerts: fetchedAlerts,
+    isLoading: isLoadingAlerts,
+    refetch: refetchAlerts,
+  } = useFetchAlerts();
+
+  // เปลี่ยนบัญชี = บ้านที่เห็นเปลี่ยน ดึงใหม่ทันที ไม่รอรอบ 10 วิ
+  const { user, displayName } = useAuth();
+  const userId = user?.id ?? null;
+  useEffect(() => {
+    refetchAlerts();
+  }, [userId, refetchAlerts]);
+
+  // ชื่อคนกดรับทราบ — เก็บใน ref เพราะ acknowledgeAlert ถูกเรียกจาก closure เก่าได้
+  const whoRef = useRef(DEFAULT_ACK_BY);
+  useEffect(() => {
+    whoRef.current = user ? displayName : DEFAULT_ACK_BY;
+  }, [user, displayName]);
   const { systemAlerts: fetchedSystemAlerts, isLoading: isLoadingSystem } =
     useFetchSystemAlerts();
 
@@ -134,13 +153,14 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
       held.current.set(id, { alert: a, until: Date.now() + HOLD_MS });
       setAlerts((prev) => prev.map((x) => (x.id === id ? a : x)));
     };
-    const after = toAcknowledged(before);
+    const who = whoRef.current;
+    const after = toAcknowledged(before, who);
     show(after);
 
     try {
       if (before.fallEventId) {
         // เหตุการณ์จริง — ต้องส่งถึง backend ถึงจะยกเลิกการโทรฉุกเฉินได้
-        const result = await acknowledgeEvent(before.fallEventId, ACK_BY);
+        const result = await acknowledgeEvent(before.fallEventId, who);
         if (result === "already_escalated") {
           show({ ...before, status: "in_progress", countdown: undefined });
           return "already_escalated";
@@ -152,7 +172,7 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
           .from("alerts")
           .update({
             status: after.status,
-            answered_by: ACK_BY,
+            answered_by: who,
             countdown: null,
             timeline: after.timeline,
           })
@@ -199,6 +219,7 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
         clearAlerts,
         acknowledgeAlert,
         isLoading,
+        refresh: refetchAlerts,
       }}
     >
       {children}

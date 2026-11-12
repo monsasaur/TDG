@@ -7,19 +7,33 @@ import {
 } from "react";
 import { Device, useDevices as useFetchDevices } from "../data/useDevices"; // เปลี่ยนจาก mockDevices เป็น Hook และเปลี่ยนชื่อเพื่อไม่ให้ชนกัน
 import { supabase } from "../data/supabaseClient";
+import { useAuth } from "./AuthContext";
 
 type DevicesContextType = {
   devices: Device[];
   setDevices: React.Dispatch<React.SetStateAction<Device[]>>;
   updateDevice: (id: string, updates: Partial<Device>) => Promise<void>;
   isLoading: boolean; // เพิ่ม Loading ให้หน้า UI รู้
+  /** ดึงใหม่ทันที — เช่นหลังเข้าร่วมบ้าน (บ้านที่เห็นเปลี่ยนแต่บัญชีเดิม) */
+  refresh: () => Promise<void>;
 };
 
 const DevicesContext = createContext<DevicesContextType | undefined>(undefined);
 
 export function DevicesProvider({ children }: { children: ReactNode }) {
   // 1. ดึงข้อมูลจาก Supabase ผ่าน Hook
-  const { devices: fetchedDevices, isLoading: isFetching } = useFetchDevices();
+  const {
+    devices: fetchedDevices,
+    isLoading: isFetching,
+    refetch,
+  } = useFetchDevices();
+
+  // เปลี่ยนบัญชี (login / logout) = ชุดอุปกรณ์ที่มีสิทธิ์เห็นเปลี่ยน ต้องดึงใหม่
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+  useEffect(() => {
+    refetch();
+  }, [userId, refetch]);
 
   // 2. สร้าง State ภายใน Context (เริ่มต้นเป็น Array ว่าง)
   const [devices, setDevices] = useState<Device[]>([]);
@@ -43,21 +57,28 @@ export function DevicesProvider({ children }: { children: ReactNode }) {
     const { houseName, ...patch } = updates;
     if (Object.keys(patch).length === 0) return;
 
-    const { error } = await supabase.from("devices").update(patch).eq("id", id);
+    const { data, error } = await supabase
+      .from("devices")
+      .update(patch)
+      .eq("id", id)
+      .select("id");
 
-    if (error) {
+    // RLS ปฏิเสธแบบเงียบได้ — ไม่มี error แต่ไม่มีแถวไหนถูกแก้
+    // (เช่น caregiver แก้อุปกรณ์ ซึ่ง accounts.sql ให้ทำได้เฉพาะ owner)
+    const denied = !error && (!data || data.length === 0);
+    if (error || denied) {
       // เขียนไม่สำเร็จ = ย้อน state กลับ ไม่ปล่อยให้ UI โชว์สิ่งที่ไม่ได้บันทึก
       if (before) {
         setDevices((prev) => prev.map((d) => (d.id === id ? before : d)));
       }
-      console.error("Error updating device in Supabase:", error);
-      throw new Error(error.message);
+      console.error("Error updating device in Supabase:", error ?? "no row updated");
+      throw new Error(error ? error.message : "เฉพาะเจ้าของบ้านที่แก้ไขอุปกรณ์ได้");
     }
   };
 
   return (
     <DevicesContext.Provider
-      value={{ devices, setDevices, updateDevice, isLoading: isFetching }}
+      value={{ devices, setDevices, updateDevice, isLoading: isFetching, refresh: refetch }}
     >
       {children}
     </DevicesContext.Provider>

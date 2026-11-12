@@ -3,6 +3,7 @@ import { Stack, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import { AlertsProvider } from "../contexts/AlertsContext";
+import { AuthProvider } from "../contexts/AuthContext";
 import { DevicesProvider } from "../contexts/DevicesContext";
 
 export default function RootLayout() {
@@ -40,10 +41,12 @@ export default function RootLayout() {
   }, [router]);
 
   return (
-    <DevicesProvider>
-      <AlertsProvider>
-        <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
-      </AlertsProvider>
-    </DevicesProvider>
+    <AuthProvider>
+      <DevicesProvider>
+        <AlertsProvider>
+          <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
+        </AlertsProvider>
+      </DevicesProvider>
+    </AuthProvider>
   );
 }

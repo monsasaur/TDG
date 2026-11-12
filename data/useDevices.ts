@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 
 export type DeviceStatus = "connected" | "disconnected";
@@ -16,8 +16,8 @@ export function useDevices() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchDevices() {
+  // เรียกซ้ำได้ — DevicesContext ใช้ดึงใหม่ตอนเปลี่ยนบัญชี (แต่ละบัญชีเห็นอุปกรณ์ไม่เหมือนกัน)
+  const fetchDevices = useCallback(async () => {
       try {
         const { data, error } = await supabase
           .from("devices")
@@ -48,10 +48,11 @@ export function useDevices() {
       } finally {
         setIsLoading(false);
       }
-    }
-
-    fetchDevices();
   }, []);
 
-  return { devices, isLoading };
+  useEffect(() => {
+    fetchDevices();
+  }, [fetchDevices]);
+
+  return { devices, isLoading, refetch: fetchDevices };
 }
