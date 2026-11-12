@@ -19,6 +19,7 @@ import PageHeader from "../components/PageHeader";
 import { supabase } from "../data/supabaseClient";
 import { MAX_EXTERNAL_PER_HOUSE, useContacts } from "../data/useContacts";
 import { useHouses } from "../data/useHouses";
+import { useOwnerAccess } from "../data/useOwnerAccess";
 
 const NAME_MAX = 20;
 const PHONE_MAX = 20;
@@ -40,7 +41,13 @@ export default function AddExternalContactScreen() {
   const { contacts, isLoading: loadingContacts } = useContacts();
 
   // สร้าง Array รายชื่อบ้านแบบ Dynamic
-  const HOUSES = useMemo(() => dbHouses.map((h) => h.name), [dbHouses]);
+  // ผูกผู้ติดต่อกับบ้านได้เฉพาะบ้านที่เราเป็นเจ้าของ (RLS house_contacts_insert)
+  // ไม่กรอง = ผู้ดูแลเพิ่มแล้วผูกบ้านไม่ผ่าน เหลือผู้ติดต่อค้างที่ไม่อยู่บ้านไหน
+  const { enforced, isOwner } = useOwnerAccess();
+  const HOUSES = useMemo(
+    () => dbHouses.filter((h) => isOwner(h.id)).map((h) => h.name),
+    [dbHouses, isOwner],
+  );
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -169,7 +176,11 @@ export default function AddExternalContactScreen() {
                 onSelect={setHouse}
               />
             ) : (
-              <Text className="text-xs text-[#888]">ยังไม่มีบ้านในระบบ</Text>
+              <Text className="text-xs text-[#888]">
+                {enforced && dbHouses.length > 0
+                  ? "เฉพาะเจ้าของบ้านที่เพิ่มผู้ติดต่อฉุกเฉินของบ้านได้"
+                  : "ยังไม่มีบ้านในระบบ"}
+              </Text>
             )}
             <Text className="text-xs text-[#888] mt-1">
               เลือกกลุ่มบ้านที่ใช้อยากให้คนนี้ได้รับการแจ้งเตือนเมื่อตรวจพบการล้ม

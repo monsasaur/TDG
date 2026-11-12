@@ -13,6 +13,8 @@ type DevicesContextType = {
   devices: Device[];
   setDevices: React.Dispatch<React.SetStateAction<Device[]>>;
   updateDevice: (id: string, updates: Partial<Device>) => Promise<void>;
+  /** ลบอุปกรณ์จากฐานข้อมูล — RLS ปฏิเสธ (ไม่ใช่เจ้าของบ้าน) จะ throw */
+  deleteDevice: (id: string) => Promise<void>;
   isLoading: boolean; // เพิ่ม Loading ให้หน้า UI รู้
   /** ดึงใหม่ทันที — เช่นหลังเข้าร่วมบ้าน (บ้านที่เห็นเปลี่ยนแต่บัญชีเดิม) */
   refresh: () => Promise<void>;
@@ -54,7 +56,10 @@ export function DevicesProvider({ children }: { children: ReactNode }) {
 
     // houseName เป็นค่าที่ join มาจากตาราง houses ไม่ใช่คอลัมน์ของ devices
     // ส่งขึ้นไปจะทำให้ Supabase ปฏิเสธทั้งคำสั่ง — ตัดออกก่อน
-    const { houseName, ...patch } = updates;
+    // houseId ในแอปคือคอลัมน์ house_id
+    const { houseName, houseId, ...rest } = updates;
+    const patch: Record<string, unknown> = { ...rest };
+    if (houseId !== undefined) patch.house_id = houseId;
     if (Object.keys(patch).length === 0) return;
 
     const { data, error } = await supabase
@@ -76,9 +81,17 @@ export function DevicesProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const deleteDevice = async (id: string) => {
+    const { data, error } = await supabase.from("devices").delete().eq("id", id).select("id");
+    if (error) throw new Error(error.message);
+    // RLS ปฏิเสธแบบเงียบ — ไม่มี error แต่ไม่มีแถวถูกลบ
+    if (!data || data.length === 0) throw new Error("เฉพาะเจ้าของบ้านที่ลบอุปกรณ์ได้");
+    setDevices((prev) => prev.filter((d) => d.id !== id));
+  };
+
   return (
     <DevicesContext.Provider
-      value={{ devices, setDevices, updateDevice, isLoading: isFetching, refresh: refetch }}
+      value={{ devices, setDevices, updateDevice, deleteDevice, isLoading: isFetching, refresh: refetch }}
     >
       {children}
     </DevicesContext.Provider>

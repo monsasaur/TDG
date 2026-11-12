@@ -16,6 +16,7 @@ import PageHeader from "../components/PageHeader";
 
 import { useContacts } from "../data/useContacts";
 import { useHouses } from "../data/useHouses";
+import { useOwnerAccess } from "../data/useOwnerAccess";
 import { supabase } from "../data/supabaseClient";
 
 const NAME_MAX = 20;
@@ -36,7 +37,12 @@ export default function EditContactScreen() {
 
   const { contacts } = useContacts();
   const { houses: dbHouses } = useHouses();
-  const HOUSES = useMemo(() => dbHouses.map((h) => h.name), [dbHouses]);
+  // เลือก/ถอดบ้านได้เฉพาะบ้านที่เราเป็นเจ้าของ · การผูกกับบ้านของคนอื่นคงไว้ตามเดิม (RLS house_contacts)
+  const { enforced, isOwner } = useOwnerAccess();
+  const HOUSES = useMemo(
+    () => dbHouses.filter((h) => isOwner(h.id)).map((h) => h.name),
+    [dbHouses, isOwner],
+  );
 
   const contact = useMemo(() => contacts?.find((c) => c.id === id), [id, contacts]);
 
@@ -50,17 +56,32 @@ export default function EditContactScreen() {
     if (contact) {
       setName(contact.name);
       setPhone(contact.phone);
-      setHouses(contact.houses);
+      // เก็บเฉพาะบ้านที่เลือก/ถอดได้ — บ้านที่ล็อกไว้แยกอยู่ใน lockedHouses
+      setHouses(contact.houses.filter((h) => HOUSES.includes(h)));
     }
-  }, [contact]);
+  }, [contact, HOUSES]);
 
   const isSelf = contact?.type === "self";
-  const canDelete = contact?.type === "external";
+
+  // บ้านที่ผู้ติดต่อนี้ผูกอยู่แต่เราไม่ได้เป็นเจ้าของ — แก้การผูกไม่ได้ แต่ยังนับว่าผูกอยู่
+  const lockedHouses = useMemo(
+    () =>
+      dbHouses
+        .filter((h) => contact?.houses.includes(h.name) && !isOwner(h.id))
+        .map((h) => h.name),
+    [dbHouses, contact, isOwner],
+  );
+  // แก้ได้ถ้าผูกกับบ้านที่เราเป็นเจ้าของ หรือยังไม่ผูกกับบ้านไหน (น่าจะเป็นคนสร้างเอง)
+  // ใกล้เคียง RLS contacts_update (คนสร้าง หรือเจ้าของบ้านที่ผูกอยู่) — ฐานข้อมูลเป็นตัวตัดสินจริง
+  const linkedCount = contact?.houses.length ?? 0;
+  const canEdit = !enforced || linkedCount === 0 || lockedHouses.length < linkedCount;
+  const canDelete = contact?.type === "external" && canEdit;
 
   const canSave =
+    canEdit &&
     name.trim().length > 0 &&
     phone.trim().length > 0 &&
-    (isSelf || houses.length > 0) &&
+    (isSelf || houses.length + lockedHouses.length > 0) &&
     !isSaving &&
     !isDeleting;
 
@@ -76,21 +97,31 @@ export default function EditContactScreen() {
     setIsSaving(true);
     try {
       // 1. อัปเดตข้อมูลส่วนตัว
-      const { error: updateError } = await supabase
+      const { data: updated, error: updateError } = await supabase
         .from("emergency_contacts")
         .update({ name: name.trim(), phone: phone.trim() })
-        .eq("id", contact.id);
+        .eq("id", contact.id)
+        .select("id");
 
       if (updateError) throw updateError;
+      // RLS ปฏิเสธแบบเงียบ — ไม่มี error แต่ไม่มีแถวถูกแก้
+      if (!updated || updated.length === 0) throw new Error("ไม่มีสิทธิ์แก้ผู้ติดต่อนี้");
 
       // 2. ถ้าไม่ใช่ self ต้องอัปเดตบ้านด้วย
       if (!isSelf) {
-        // ลบความสัมพันธ์เดิมออกให้หมด
-        await supabase.from("house_contacts").delete().eq("contact_id", contact.id);
+        // ลบความสัมพันธ์เดิมเฉพาะบ้านที่เราเป็นเจ้าของ — ของบ้านคนอื่นคงไว้
+        const manageableIds = dbHouses.filter((h) => HOUSES.includes(h.name)).map((h) => h.id);
+        if (manageableIds.length > 0) {
+          await supabase
+            .from("house_contacts")
+            .delete()
+            .eq("contact_id", contact.id)
+            .in("house_id", manageableIds);
+        }
 
         // หา ID ของบ้านใหม่ที่ถูกเลือก
         const selectedHouseIds = dbHouses
-          .filter((h) => houses.includes(h.name))
+          .filter((h) => houses.includes(h.name) && HOUSES.includes(h.name))
           .map((h) => ({ house_id: h.id, contact_id: contact.id }));
 
         // Insert เข้าไปใหม่
@@ -104,7 +135,7 @@ export default function EditContactScreen() {
       goBack();
     } catch (error) {
       console.error("Error updating contact:", error);
-      Alert.alert("เกิดข้อผิดพลาด", "ไม่สามารถบันทึกได้");
+      Alert.alert("บันทึกไม่ได้", error instanceof Error ? error.message : "ไม่สามารถบันทึกได้");
     } finally {
       setIsSaving(false);
     }
@@ -114,16 +145,18 @@ export default function EditContactScreen() {
     if (!contact) return;
     setIsDeleting(true);
     try {
-      const { error } = await supabase
+      const { data: removed, error } = await supabase
         .from("emergency_contacts")
         .delete()
-        .eq("id", contact.id);
-      
+        .eq("id", contact.id)
+        .select("id");
+
       if (error) throw error;
+      if (!removed || removed.length === 0) throw new Error("ไม่มีสิทธิ์ลบผู้ติดต่อนี้");
       goBack();
     } catch (error) {
       console.error("Error deleting contact:", error);
-      Alert.alert("เกิดข้อผิดพลาด", "ไม่สามารถลบได้");
+      Alert.alert("ลบไม่ได้", error instanceof Error ? error.message : "ไม่สามารถลบได้");
     } finally {
       setIsDeleting(false);
     }
@@ -160,6 +193,7 @@ export default function EditContactScreen() {
             onChangeText={(t) => setName(sanitizeName(t))}
             maxLength={NAME_MAX}
             containerClassName="px-5 mt-5"
+            readOnly={!canEdit}
           />
 
           <LabeledTextField
@@ -168,9 +202,16 @@ export default function EditContactScreen() {
             onChangeText={(t) => setPhone(sanitizePhone(t))}
             keyboardType="number-pad"
             maxLength={PHONE_MAX}
+            readOnly={!canEdit}
           />
 
-          {!isSelf && (
+          {!canEdit && (
+            <Text className="text-xs text-[#888] px-5 mt-3 leading-5">
+              คุณเป็นผู้ดูแลของบ้านที่ผู้ติดต่อนี้อยู่ — เฉพาะเจ้าของบ้านที่แก้หรือลบได้
+            </Text>
+          )}
+
+          {!isSelf && canEdit && (
             <View className="px-5 mt-4">
               <Text className="text-sm text-[#1A1A1A] mb-2">กลุ่มบ้านที่ดูแล</Text>
               <HousePillGroup
@@ -182,6 +223,11 @@ export default function EditContactScreen() {
               <Text className="text-xs text-[#888] mt-1">
                 เลือกกลุ่มบ้านที่ใช้อยากให้คนนี้ได้รับการแจ้งเตือนเมื่อตรวจพบการล้ม
               </Text>
+              {lockedHouses.length > 0 && (
+                <Text className="text-xs text-[#888] mt-1">
+                  ผูกกับ {lockedHouses.join(", ")} ด้วย — แก้ได้เฉพาะเจ้าของบ้านนั้น
+                </Text>
+              )}
             </View>
           )}
         </ScrollView>

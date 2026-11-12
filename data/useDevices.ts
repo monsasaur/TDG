@@ -10,6 +10,8 @@ export interface Device {
   wifi_ssid: string; // เปลี่ยนจาก wifi เฉยๆ เพื่อให้ตรงกับ Database
   status: DeviceStatus;
   houseName?: string; // จะได้มาจากการ Join
+  /** devices.house_id — ใช้เช็คว่าเป็นเจ้าของบ้านของอุปกรณ์นี้ไหม และตอนย้ายบ้าน */
+  houseId?: string | null;
 }
 
 export function useDevices() {
@@ -27,6 +29,7 @@ export function useDevices() {
             code, 
             wifi_ssid, 
             status, 
+            house_id,
             houses(name)
           `);
 
@@ -40,6 +43,7 @@ export function useDevices() {
             wifi_ssid: d.wifi_ssid || "",
             status: d.status,
             houseName: d.houses?.name || "ไม่ระบุ",
+            houseId: d.house_id ?? null,
           }));
           setDevices(formattedDevices);
         }
