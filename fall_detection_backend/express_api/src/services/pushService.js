@@ -1,6 +1,11 @@
 /**
  * pushService.js
- * ส่ง Expo Push Notification ไปทุก device ที่ลงทะเบียนไว้
+ * ส่ง Expo Push Notification ให้ผู้ดูแล
+ *
+ * ผู้รับ (recipientsFor):
+ *   ยังไม่เปิดระบบบัญชี (ยังไม่รัน accounts.sql) → ทุกเครื่องที่ลงทะเบียน แบบเดิม
+ *   เปิดแล้ว → เฉพาะเครื่องที่ login เป็นสมาชิกของบ้านที่อุปกรณ์ติดตั้งอยู่
+ *   การโทรฉุกเฉินเมื่อไม่มีใครกดรับทราบไม่ขึ้นกับ push — ยังทำงานตามปกติ
  *
  * Modes:
  *   - real (default) → ยิงผ่าน Expo Push API จริง
@@ -37,19 +42,42 @@ function fakeBox(title, lines) {
 const dbService = require('./dbService')
 
 /**
- * ยิง push เมื่อตรวจพบ fall — เรียกจาก predict.js
+ * เครื่องที่ควรได้ push ของเหตุการณ์นี้
+ * @param {object} event
+ * @param {{ audience?: 'house'|'all' }} opts  'all' = ทุกเครื่อง (ใช้กับ POST /push/test เท่านั้น)
+ * @returns {Promise<{ tokens: object[], scope: 'all'|'house'|'unlinked' }>}
+ */
+async function recipientsFor(event, { audience = 'house' } = {}) {
+  if (audience === 'all' || !(await dbService.accountsEnabled())) {
+    return { tokens: await dbService.getAllPushTokens(), scope: 'all' }
+  }
+
+  // อุปกรณ์ที่ไม่ได้ผูกกับบ้าน = ไม่มีเจ้าของ · ส่งให้ทุกเครื่องเท่ากับส่งให้คนแปลกหน้า
+  const ctx = await dbService.getDeviceContext(event.device_id)
+  if (!ctx?.house_id) return { tokens: [], scope: 'unlinked' }
+
+  const members = await dbService.getHouseMemberIds(ctx.house_id)
+  return { tokens: await dbService.getPushTokensForUsers(members), scope: 'house' }
+}
+
+/**
+ * ยิง push เมื่อตรวจพบ fall — เรียกจาก predict.js / demo.js
  * fire-and-forget (ไม่ throw ออกไปที่ HTTP response)
  */
-async function sendFallAlert(event) {
+async function sendFallAlert(event, opts = {}) {
   const { id: event_id, device_id, location, confidence } = event
 
   try {
-    const tokens = await dbService.getAllPushTokens()
+    const { tokens, scope } = await recipientsFor(event, opts)
     if (tokens.length === 0) {
-      if (process.env.DEMO_LOG !== 'true') {
+      if (scope === 'unlinked') {
+        console.warn(`⚠️  device="${device_id}" ยังไม่ได้ผูกกับบ้าน — ไม่ส่ง push (event=${event_id} · การโทรฉุกเฉินยังทำงาน)`)
+      } else if (scope === 'house') {
+        console.warn(`⚠️  ไม่มีเครื่องของสมาชิกบ้านลงทะเบียน push — ไม่ส่ง push (event=${event_id} · การโทรฉุกเฉินยังทำงาน)`)
+      } else if (process.env.DEMO_LOG !== 'true') {
         console.log(`⚠️  no push tokens registered — skip push (event=${event_id})`)
       }
-      return { sent: 0, failed: 0, skipped: true }
+      return { sent: 0, failed: 0, skipped: true, scope }
     }
 
     const title = '🚨 ตรวจพบการล้ม!'
@@ -144,4 +172,5 @@ async function sendFallAlert(event) {
 
 module.exports = {
   sendFallAlert,
+  recipientsFor,
 }

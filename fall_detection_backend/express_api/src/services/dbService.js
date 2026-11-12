@@ -23,6 +23,13 @@ function getClient() {
   return supabase
 }
 
+// ตารางยังไม่มี (42P01 / PGRST205) · คอลัมน์ยังไม่มี (42703 / PGRST204)
+const isMissingTable  = (e) => ['42P01', 'PGRST205'].includes(e?.code)
+const isMissingColumn = (e) => ['42703', 'PGRST204'].includes(e?.code)
+
+const ACCOUNTS_CACHE_MS = 60_000
+let accountsCache = null           // { at, value } — ผลของ accountsEnabled()
+
 // ตรงกับสถานะที่หน้า admin ใช้ filter
 function matchStatus(event, status) {
   switch (status) {
@@ -156,24 +163,40 @@ module.exports = {
   },
 
   // ----- Expo push tokens -----
-  registerPushToken: async ({ token, device_id, platform }) => {
+  /**
+   * user_id = บัญชีที่ login อยู่บนเครื่องนั้น (null = ไม่ได้ login / ออกจากระบบแล้ว)
+   * ไม่ส่ง user_id มาเลย (undefined) = ไม่แตะค่าเดิม
+   */
+  registerPushToken: async ({ token, device_id, platform, user_id }) => {
     const client = getClient()
     const now = new Date().toISOString()
 
     if (!client) {
-      mockStore.set(`push:${token}`, { token, device_id, platform, updated_at: now })
+      const prev = mockStore.get(`push:${token}`) || {}
+      const row = { token, device_id, platform, updated_at: now,
+                    user_id: user_id === undefined ? (prev.user_id ?? null) : user_id }
+      mockStore.set(`push:${token}`, row)
       console.log(`📝 [DB mock] registerPushToken token=${token.slice(0, 24)}... device=${device_id}`)
-      return { token, device_id, platform }
+      return row
     }
 
-    const { data, error } = await client
+    const row = { token, device_id, platform, updated_at: now }
+    if (user_id !== undefined) row.user_id = user_id
+
+    const upsert = (r) => client
       .from('push_tokens')
-      .upsert(
-        [{ token, device_id, platform, updated_at: now }],
-        { onConflict: 'token' }
-      )
+      .upsert([r], { onConflict: 'token' })
       .select()
       .single()
+
+    let { data, error } = await upsert(row)
+
+    // ฐานข้อมูลยังไม่ได้รัน accounts.sql — ยังไม่มีคอลัมน์ user_id · ลงทะเบียนแบบเดิมไปก่อน
+    if (error && 'user_id' in row && isMissingColumn(error)) {
+      console.warn('⚠️  push_tokens ยังไม่มีคอลัมน์ user_id (ยังไม่รัน accounts.sql) — ลงทะเบียนโดยไม่ผูกบัญชี')
+      const { user_id: _drop, ...legacy } = row
+      ;({ data, error } = await upsert(legacy))
+    }
 
     if (error) throw new Error(`DB error: ${error.message}`)
     return data
@@ -193,6 +216,80 @@ module.exports = {
 
     if (error) throw new Error(`DB error: ${error.message}`)
     return data || []
+  },
+
+  /** push token ของเครื่องที่ login เป็นบัญชีเหล่านี้ */
+  getPushTokensForUsers: async (user_ids) => {
+    if (!user_ids || user_ids.length === 0) return []
+    const client = getClient()
+    if (!client) {
+      return Array.from(mockStore.entries())
+        .filter(([k, v]) => k.startsWith('push:') && user_ids.includes(v.user_id))
+        .map(([, v]) => v)
+    }
+
+    const { data, error } = await client
+      .from('push_tokens')
+      .select('token, device_id, platform, user_id')
+      .in('user_id', user_ids)
+
+    if (error) throw new Error(`DB error: ${error.message}`)
+    return data || []
+  },
+
+  // ----- บัญชีผู้ใช้ (supabase/accounts.sql) -----
+
+  /**
+   * เปิดระบบบัญชีแล้วหรือยัง = มีตาราง house_members (รัน accounts.sql แล้ว)
+   * ยังไม่เปิด → ทุกอย่างทำงานแบบเดิม (push ทุกเครื่อง · กดรับทราบไม่ต้องยืนยันตัวตน)
+   * จำผลไว้ 60 วิ ไม่ต้องถามฐานข้อมูลทุกครั้ง · ไม่มีฐานข้อมูล (mock) = ยังไม่เปิดเสมอ
+   */
+  accountsEnabled: async () => {
+    const client = getClient()
+    if (!client) return false
+    const now = Date.now()
+    if (accountsCache && now - accountsCache.at < ACCOUNTS_CACHE_MS) return accountsCache.value
+
+    const { error } = await client.from('house_members').select('user_id', { head: true }).limit(1)
+    if (error && !isMissingTable(error)) {
+      // ถามไม่สำเร็จด้วยเหตุอื่น (เน็ต / คีย์) — ไม่จำผล ไม่เดา · ถือว่ายังไม่เปิดรอบนี้แล้วถามใหม่ครั้งหน้า
+      console.error(`❌ เช็คระบบบัญชีไม่ได้: ${error.message}`)
+      return false
+    }
+    accountsCache = { at: now, value: !error }
+    return accountsCache.value
+  },
+
+  /** user_id ของสมาชิกทุกคนในบ้าน */
+  getHouseMemberIds: async (house_id) => {
+    const client = getClient()
+    if (!client || !house_id) return []
+    const { data, error } = await client.from('house_members').select('user_id').eq('house_id', house_id)
+    if (error) throw new Error(`DB error: ${error.message}`)
+    return (data || []).map((r) => r.user_id)
+  },
+
+  isHouseMember: async (house_id, user_id) => {
+    const client = getClient()
+    if (!client || !house_id || !user_id) return false
+    const { data, error } = await client
+      .from('house_members').select('user_id')
+      .eq('house_id', house_id).eq('user_id', user_id)
+      .maybeSingle()
+    if (error) throw new Error(`DB error: ${error.message}`)
+    return Boolean(data)
+  },
+
+  /**
+   * ตรวจ access token ของผู้ใช้กับ Supabase Auth
+   * @returns user · null = token ใช้ไม่ได้ (หมดอายุ / ปลอม) · undefined = ไม่มีฐานข้อมูลให้ตรวจ (mock)
+   */
+  getUserFromToken: async (jwt) => {
+    const client = getClient()
+    if (!client) return undefined
+    const { data, error } = await client.auth.getUser(jwt)
+    if (error || !data?.user) return null
+    return data.user
   },
 
   removePushToken: async (token) => {
@@ -432,5 +529,114 @@ module.exports = {
   },
 
   // 'supabase' = ต่อจริง | 'memory' = fallback in-memory (restart แล้วหาย)
-  mode: () => (getClient() ? 'supabase' : 'memory')
+  mode: () => (getClient() ? 'supabase' : 'memory'),
+
+  // ============================================================
+  // ml_models — ทะเบียนเวอร์ชันโมเดล (หน้า Admin → Models)
+  //
+  // ⚠️ เมทาดาทาอย่างเดียว — การตั้ง active ที่นี่ไม่ได้ทำให้ ML service
+  //    เปลี่ยนไปใช้โมเดลนั้นจริง (app/predict.py ยัง hardcode path)
+  // ============================================================
+
+  listModels: async () => {
+    const client = getClient()
+    if (!client) {
+      return Array.from(mockStore.entries())
+        .filter(([k]) => k.startsWith('model:'))
+        .map(([, v]) => v)
+        .sort((a, b) => (a.uploaded_at < b.uploaded_at ? 1 : -1))
+    }
+
+    const { data, error } = await client
+      .from('ml_models')
+      .select('*')
+      .order('uploaded_at', { ascending: false })
+
+    if (error) throw new Error(`DB error: ${error.message}`)
+    return data || []
+  },
+
+  getModel: async (version) => {
+    const client = getClient()
+    if (!client) return mockStore.get(`model:${version}`) || null
+
+    const { data, error } = await client
+      .from('ml_models').select('*').eq('version', version).maybeSingle()
+
+    if (error) throw new Error(`DB error: ${error.message}`)
+    return data || null
+  },
+
+  createModel: async ({ version, notes }) => {
+    const client = getClient()
+    const now = new Date().toISOString()
+    const row = {
+      version, notes,
+      status: 'testing', tested: false,
+      uploaded_at: now, updated_at: now
+    }
+
+    if (!client) {
+      if (mockStore.has(`model:${version}`)) {
+        throw new Error('duplicate version')
+      }
+      mockStore.set(`model:${version}`, row)
+      return row
+    }
+
+    const { data, error } = await client
+      .from('ml_models').insert([row]).select().single()
+
+    // 23505 = unique violation — เวอร์ชันซ้ำ ไม่ใช่ระบบพัง
+    if (error) {
+      if (error.code === '23505') throw new Error('duplicate version')
+      throw new Error(`DB error: ${error.message}`)
+    }
+    return data
+  },
+
+  updateModel: async (version, patch) => {
+    const client = getClient()
+    const now = new Date().toISOString()
+
+    if (!client) {
+      const prev = mockStore.get(`model:${version}`)
+      if (!prev) return null
+      const updated = { ...prev, ...patch, updated_at: now }
+      mockStore.set(`model:${version}`, updated)
+      return updated
+    }
+
+    const { data, error } = await client
+      .from('ml_models')
+      .update({ ...patch, updated_at: now })
+      .eq('version', version)
+      .select()
+      .single()
+
+    if (error) throw new Error(`DB error: ${error.message}`)
+    return data
+  },
+
+  /**
+   * ตั้ง active ให้เวอร์ชันเดียว — ตัวอื่นที่เคย active กลายเป็น inactive
+   *
+   * ปลด active เก่าก่อนแล้วค่อยตั้งใหม่ เพราะ unique index กันไม่ให้มี
+   * active สองตัวพร้อมกัน ถ้าตั้งใหม่ก่อนจะชน constraint
+   *
+   * คืน previous_active มาด้วยเพื่อให้หน้า Admin ทำ rollback ได้
+   * โดยไม่ต้องจำสถานะเองฝั่งเบราว์เซอร์ (รีเฟรชแล้วหาย)
+   */
+  activateModel: async (version) => {
+    const models = await module.exports.listModels()
+    const previous = models.find(m => m.status === 'active') || null
+
+    for (const m of models) {
+      if (m.status === 'active' && m.version !== version) {
+        await module.exports.updateModel(m.version, { status: 'inactive' })
+      }
+    }
+    const updated = await module.exports.updateModel(version, { status: 'active' })
+    return { model: updated, previous_active: previous ? previous.version : null }
+  }
 }

@@ -26,6 +26,18 @@ const TIMELINE_STEP = {
   },
 }
 
+const ML_MODEL = {
+  type: 'object',
+  properties: {
+    version:     { type: 'string', example: '2.4.0', description: 'x.y.z — ตรงกับ fall_events.model_version' },
+    status:      { type: 'string', enum: ['active', 'testing', 'inactive'] },
+    tested:      { type: 'boolean', description: 'มีคนกดทดสอบแล้วหรือยัง — ไม่ใช่ผลการวัดคุณภาพโมเดลจริง' },
+    notes:       { type: 'string', maxLength: 240 },
+    uploaded_at: { type: 'string', format: 'date-time' },
+    updated_at:  { type: 'string', format: 'date-time' },
+  },
+}
+
 const FALL_EVENT = {
   type: 'object',
   properties: {
@@ -35,6 +47,12 @@ const FALL_EVENT = {
     location:        { type: 'string', example: 'ห้องนอน' },
     is_fall:         { type: 'boolean' },
     confidence:      { type: 'number', format: 'float', example: 0.97 },
+    model_name:      { type: 'string', nullable: true, example: 'RandomForest',
+                       description: 'โมเดลที่ตัดสินเหตุการณ์นี้ — null ถ้า ML service รุ่นเก่าไม่ส่งมา' },
+    model_version:   { type: 'string', nullable: true, example: 'rf_v1',
+                       description: 'ชื่อไฟล์โมเดล (ไม่มีนามสกุล) — ต้องเปลี่ยนทุกครั้งที่เปลี่ยนโมเดล' },
+    risk_score:      { type: 'integer', nullable: true, minimum: 0, maximum: 100, example: 97,
+                       description: 'ความน่าจะเป็นว่าล้ม เป็นเปอร์เซ็นต์เต็มจำนวน · ⚠️ ไม่ใช่ตัวชี้วัดอิสระจาก confidence — เป็นค่าเดียวกันคนละหน่วย แต่ชี้ไปทาง fall เสมอ ต่างจาก confidence ที่เป็นความมั่นใจของคำตอบที่เลือก' },
     acknowledged:    { type: 'boolean' },
     acknowledged_at: { type: 'string', format: 'date-time', nullable: true },
     acknowledged_by: { type: 'string', nullable: true },
@@ -77,8 +95,8 @@ module.exports = {
 | scope | header | เรียกอะไรได้ |
 |---|---|---|
 | device | \`x-api-key: DEVICE_API_KEY\` | \`POST /predict\` |
-| app | \`x-api-key: APP_API_KEY\` | \`/events\`, \`/alert/ack\`, \`/push/register\`, \`/push/tokens\` |
-| demo | \`x-api-key: DEMO_API_KEY\` | \`/demo/fire\`, \`/alert/test\`, \`/push/test\` |
+| app | \`x-api-key: APP_API_KEY\` (+ \`Authorization: Bearer\` ของบัญชีเมื่อ login) | \`/alert/ack\`, \`/push/register\` |
+| demo | \`x-api-key: DEMO_API_KEY\` | \`/demo/fire\`, \`/alert/test\`, \`/push/test\` · debug: \`/events\`, \`/push/tokens\` (คืนข้อมูลทุกบ้าน) |
 | admin | \`Authorization: Bearer <token>\` | \`/admin/*\` (ขอ token จาก \`POST /admin/login\`) |
 
 scope ไหนไม่ได้ตั้งคีย์เฉพาะไว้ จะถอยไปใช้ \`API_KEY\` ตัวเดิม
@@ -110,8 +128,12 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
     securitySchemes: {
       apiKey:     { type: 'apiKey', in: 'header', name: 'x-api-key' },
       adminToken: { type: 'http', scheme: 'bearer', description: 'token จาก POST /api/v1/admin/login' },
+      userToken:  {
+        type: 'http', scheme: 'bearer',
+        description: 'access token ของบัญชีผู้ใช้ (Supabase Auth) — ส่งคู่กับ x-api-key · ใช้กับ /alert/ack และ /push/register',
+      },
     },
-    schemas: { FallEvent: FALL_EVENT, AdminEvent: ADMIN_EVENT, TimelineStep: TIMELINE_STEP },
+    schemas: { FallEvent: FALL_EVENT, AdminEvent: ADMIN_EVENT, TimelineStep: TIMELINE_STEP, MlModel: ML_MODEL },
   },
 
   security: [{ apiKey: [] }],
@@ -181,8 +203,9 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
 
     '/api/v1/events': {
       get: {
-        tags: ['Events'],
-        summary: 'ดู event ทั้งหมด',
+        tags: ['Demo'],
+        summary: 'ดู event ทั้งหมด (debug)',
+        description: 'ใช้ **DEMO_API_KEY** — คืนเหตุการณ์ของทุกบ้าน แอปไม่ได้ใช้เส้นนี้ (อ่านจากตาราง alerts ผ่าน RLS) จึงไม่ให้คีย์ของแอปเรียก',
         parameters: [
           { name: 'device_id', in: 'query', schema: { type: 'string' } },
           { name: 'limit', in: 'query', schema: { type: 'integer', default: 50 } },
@@ -209,8 +232,9 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
 
     '/api/v1/events/falls': {
       get: {
-        tags: ['Events'],
-        summary: 'ดูเฉพาะเหตุการณ์ล้ม',
+        tags: ['Demo'],
+        summary: 'ดูเฉพาะเหตุการณ์ล้ม (debug)',
+        description: 'ใช้ **DEMO_API_KEY** — คืนเหตุการณ์ของทุกบ้าน เหตุผลเดียวกับ GET /api/v1/events',
         parameters: [
           { name: 'device_id', in: 'query', schema: { type: 'string' } },
           { name: 'limit', in: 'query', schema: { type: 'integer', default: 50 } },
@@ -223,7 +247,11 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
       post: {
         tags: ['Events'],
         summary: 'ผู้ดูแลกดรับทราบ — ยกเลิกการโทรฉุกเฉิน',
-        description: 'ยกเลิก escalation timer และอัปเดต alert ที่แอปแสดงเป็น completed',
+        description:
+          'ยกเลิก escalation timer และอัปเดต alert ที่แอปแสดงเป็น completed · ' +
+          'ส่ง `Authorization: Bearer <access token ของบัญชี>` มาด้วยเมื่อ login อยู่ → "รับทราบโดย" ใช้ชื่อจากบัญชี ไม่ใช้ `acknowledged_by` · ' +
+          '**หลังรัน accounts.sql ต้องส่ง token และต้องเป็นสมาชิกบ้านของอุปกรณ์นี้** (ไม่งั้น 401 / 403)',
+        security: [{ apiKey: [], userToken: [] }, { apiKey: [] }],
         parameters: [{ name: 'event_id', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: {
           content: {
@@ -243,7 +271,8 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
           },
           404: ERR('ไม่พบ event'),
           409: ERR('หมดเวลาไปแล้ว ระบบ escalate ไปเรียบร้อย — กดรับทราบไม่ได้อีก'),
-          401: ERR('ไม่ได้รับอนุญาต'),
+          401: ERR('ไม่ได้รับอนุญาต · token ของบัญชีหมดอายุ · หรือเปิดระบบบัญชีแล้วแต่ไม่ได้ login'),
+          403: ERR('เปิดระบบบัญชีแล้ว และบัญชีนี้ไม่ใช่สมาชิกบ้านของอุปกรณ์'),
         },
       },
     },
@@ -261,6 +290,10 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
       post: {
         tags: ['Push'],
         summary: 'ลงทะเบียน Expo push token',
+        description:
+          'ส่ง `Authorization: Bearer <access token ของบัญชี>` มาด้วยเมื่อ login อยู่ → ผูกเครื่องกับบัญชี · ' +
+          'ไม่ส่ง = ปลดการผูก (หลังออกจากระบบ) · หลังรัน accounts.sql push ของบ้านส่งเฉพาะเครื่องของสมาชิกบ้านนั้น',
+        security: [{ apiKey: [], userToken: [] }, { apiKey: [] }],
         requestBody: {
           required: true,
           content: {
@@ -277,15 +310,16 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
             },
           },
         },
-        responses: { 200: { description: 'ลงทะเบียนแล้ว' }, 400: ERR('ไม่มี token'), 401: ERR('ไม่ได้รับอนุญาต') },
+        responses: { 200: { description: 'ลงทะเบียนแล้ว (`user_linked` บอกว่าผูกกับบัญชีไหม)' }, 400: ERR('ไม่มี token'), 401: ERR('ไม่ได้รับอนุญาต หรือ token ของบัญชีหมดอายุ') },
       },
     },
 
     '/api/v1/push/tokens': {
       get: {
-        tags: ['Push'],
+        tags: ['Demo'],
         summary: 'ดู token ที่ลงทะเบียนไว้ (debug)',
-        responses: { 200: { description: 'รายการ token' }, 401: ERR('ไม่ได้รับอนุญาต') },
+        description: 'ใช้ **DEMO_API_KEY** — คืน push token ทุกเครื่อง ใครได้ token ไปก็ยิง push ปลอมใส่มือถือคนอื่นได้ จึงไม่ให้คีย์ของแอปเรียก',
+        responses: { 200: { description: 'รายการ token' }, 401: ERR('ต้องใช้ DEMO_API_KEY') },
       },
     },
 
@@ -461,6 +495,84 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
       },
     },
 
+    '/api/v1/admin/models': {
+      get: {
+        tags: ['Admin'],
+        summary: 'รายการเวอร์ชันโมเดล',
+        description: 'ทะเบียนเวอร์ชันโมเดล — **เมทาดาทาอย่างเดียว** ไม่ได้อัปโหลดไฟล์ ไม่ได้ deploy และไม่ได้ทดสอบคุณภาพโมเดลจริง ตั้ง active ที่นี่แล้วยังต้องมีคนไปเปลี่ยนไฟล์ใน ml_service เอง',
+        security: [{ adminToken: [] }],
+        responses: {
+          200: {
+            description: 'รายการเวอร์ชัน เรียงตามเวลาอัปโหลดใหม่ไปเก่า',
+            content: { 'application/json': { example: {
+              models: [
+                { version: '2.4.0', status: 'active',  tested: true,  notes: 'ปรับปรุงการตรวจจับในห้องสัญญาณอ่อน', uploaded_at: '2026-09-06T04:00:00.000Z', updated_at: '2026-09-06T04:00:00.000Z' },
+                { version: '2.5.0', status: 'testing', tested: false, notes: 'รุ่นทดสอบที่ปรับการกรองสัญญาณรบกวน', uploaded_at: '2026-09-08T04:00:00.000Z', updated_at: '2026-09-08T04:00:00.000Z' },
+              ],
+              active_version: '2.4.0', has_data: true, calculated_at: '2026-09-09T04:00:00.000Z',
+            } } },
+          },
+          401: ERR('token ไม่ถูกต้องหรือหมดอายุ'),
+        },
+      },
+      post: {
+        tags: ['Admin'],
+        summary: 'ลงทะเบียนเวอร์ชันใหม่',
+        description: 'เวอร์ชันใหม่เริ่มที่ status=testing, tested=false เสมอ · ไม่ได้รับไฟล์โมเดล',
+        security: [{ adminToken: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: {
+            type: 'object', required: ['version', 'notes'],
+            properties: {
+              version: { type: 'string', pattern: '^\\d+\\.\\d+\\.\\d+$', example: '2.5.0' },
+              notes:   { type: 'string', minLength: 1, maxLength: 240 },
+            },
+          } } },
+        },
+        responses: {
+          201: { description: 'ลงทะเบียนแล้ว', content: { 'application/json': { schema: { $ref: '#/components/schemas/MlModel' } } } },
+          400: ERR('versionError = รูปแบบเวอร์ชันผิด · notesError = notes ว่างหรือเกิน 240 ตัว'),
+          401: ERR('token ไม่ถูกต้องหรือหมดอายุ'),
+          409: ERR('versionError — เวอร์ชันนี้มีอยู่แล้ว'),
+        },
+      },
+    },
+    '/api/v1/admin/models/{version}/test': {
+      post: {
+        tags: ['Admin'],
+        summary: 'ทำเครื่องหมายว่าทดสอบแล้ว',
+        description: '⚠️ ไม่ได้รันการทดสอบใด ๆ — บันทึกว่ามีคนทดสอบแล้วเท่านั้น · ต้อง tested=true ก่อนถึงจะ activate ได้',
+        security: [{ adminToken: [] }],
+        parameters: [{ name: 'version', in: 'path', required: true, schema: { type: 'string' }, example: '2.5.0' }],
+        responses: {
+          200: { description: 'อัปเดตแล้ว', content: { 'application/json': { schema: { $ref: '#/components/schemas/MlModel' } } } },
+          401: ERR('token ไม่ถูกต้องหรือหมดอายุ'),
+          404: ERR('notFound — ไม่พบเวอร์ชันนี้'),
+        },
+      },
+    },
+    '/api/v1/admin/models/{version}/activate': {
+      post: {
+        tags: ['Admin'],
+        summary: 'ตั้งเป็นเวอร์ชันใช้งาน (rollback ใช้เส้นนี้เหมือนกัน)',
+        description: 'active ได้ทีละเวอร์ชันเดียว ตัวเดิมกลายเป็น inactive · response คืน previous_active มาให้ ไม่ต้องจำสถานะไว้ในเบราว์เซอร์',
+        security: [{ adminToken: [] }],
+        parameters: [{ name: 'version', in: 'path', required: true, schema: { type: 'string' }, example: '2.5.0' }],
+        responses: {
+          200: {
+            description: 'เปลี่ยนแล้ว',
+            content: { 'application/json': { example: {
+              model: { version: '2.5.0', status: 'active', tested: true, notes: '...', uploaded_at: '2026-09-08T04:00:00.000Z', updated_at: '2026-09-09T04:00:00.000Z' },
+              previous_active: '2.4.0',
+            } } },
+          },
+          401: ERR('token ไม่ถูกต้องหรือหมดอายุ'),
+          404: ERR('notFound — ไม่พบเวอร์ชันนี้'),
+          409: ERR('testedRequired — ต้องกดทดสอบก่อนถึงจะตั้งเป็นเวอร์ชันใช้งานได้'),
+        },
+      },
+    },
     '/api/v1/admin/devices': {
       get: {
         tags: ['Admin'],
@@ -478,7 +590,7 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
               'application/json': {
                 example: {
                   devices: [{ device_id: 'ESP-0001A', label: 'Esp32 - ห้องนอน', owner_name: 'บ้านแม่', location: null, last_seen_at: '2026-09-02T03:59:00.000Z', is_active: true, installed_at: null, status: 'online', events: { total: 3, falls: 3, escalated: 1, last_fall_at: '2026-09-02T03:00:00.000Z' } }],
-                  offline_after_minutes: 15,
+                  offline_after_minutes: 5,
                   has_data: true,
                   calculated_at: '2026-09-02T04:00:00.000Z',
                 },

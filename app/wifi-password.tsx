@@ -17,10 +17,11 @@ const MIN_PASSWORD = 8;
 
 export default function WifiPasswordScreen() {
   const router = useRouter();
-  const { ssid, device, deviceId } = useLocalSearchParams<{
+  const { ssid, device, deviceId, houseId } = useLocalSearchParams<{
     ssid?: string;
     device?: string;
     deviceId?: string;
+    houseId?: string; // บ้านที่เลือกไว้ — ส่งผ่านไปถึง device-setup เพื่อ insert
   }>();
 
   const [password, setPassword] = useState("");
@@ -43,7 +44,7 @@ export default function WifiPasswordScreen() {
           device ?? ""
         )}&ssid=${encodeURIComponent(wifiName)}${
           deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""
-        }` as never
+        }${houseId ? `&houseId=${encodeURIComponent(houseId)}` : ""}` as never
       );
     } catch (err) {
       setError(errorMessage(err));

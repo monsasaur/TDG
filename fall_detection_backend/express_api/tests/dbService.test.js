@@ -84,3 +84,109 @@ describe('dbService — mock store fallback (no SUPABASE config)', () => {
     expect(falls[0].is_fall).toBe(true)
   })
 })
+
+// ── Supabase จริง (จำลอง client) — บัญชีผู้ใช้ + push token ──────────────
+function fakeSupabase(h) {
+  const calls = { upserts: [], selects: [] }
+  const client = {
+    from(table) {
+      return {
+        upsert(rows) {
+          calls.upserts.push(rows[0])
+          const res = h.upsert ? h.upsert(rows[0], calls.upserts.length) : { data: rows[0], error: null }
+          return { select: () => ({ single: async () => res }) }
+        },
+        select() {
+          calls.selects.push(table)
+          const res = h.select ? h.select(table) : { data: [], error: null }
+          return { limit: async () => res }
+        },
+      }
+    },
+    auth: { getUser: async (jwt) => h.getUser(jwt) },
+  }
+  return { client, calls }
+}
+
+function loadWithSupabase(h) {
+  const fake = fakeSupabase(h)
+  jest.resetModules()
+  jest.doMock('@supabase/supabase-js', () => ({ createClient: () => fake.client }))
+  process.env.SUPABASE_URL = 'http://supabase.test'
+  process.env.SUPABASE_KEY = 'service-role'
+  const db = require('../src/services/dbService')
+  return { db, calls: fake.calls }
+}
+
+describe('dbService — บัญชีผู้ใช้ (Supabase)', () => {
+  afterEach(() => {
+    jest.dontMock('@supabase/supabase-js')
+    delete process.env.SUPABASE_URL
+    delete process.env.SUPABASE_KEY
+  })
+
+  test('registerPushToken ผูก user_id กับเครื่อง', async () => {
+    const { db, calls } = loadWithSupabase({})
+    await db.registerPushToken({ token: 't1', device_id: null, platform: 'android', user_id: 'u-1' })
+    expect(calls.upserts).toHaveLength(1)
+    expect(calls.upserts[0].user_id).toBe('u-1')
+  })
+
+  test('registerPushToken: ยังไม่มีคอลัมน์ user_id (ยังไม่รัน accounts.sql) → ลงทะเบียนแบบเดิมแทนที่จะพัง', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const { db, calls } = loadWithSupabase({
+      upsert: (row, n) => n === 1
+        ? { data: null, error: { code: 'PGRST204', message: "Could not find the 'user_id' column" } }
+        : { data: row, error: null },
+    })
+    const saved = await db.registerPushToken({ token: 't1', device_id: null, platform: 'android', user_id: 'u-1' })
+    expect(calls.upserts).toHaveLength(2)
+    expect('user_id' in calls.upserts[1]).toBe(false)
+    expect(saved.token).toBe('t1')
+  })
+
+  test('registerPushToken ไม่ส่ง user_id มา → ไม่แตะคอลัมน์นั้น', async () => {
+    const { db, calls } = loadWithSupabase({})
+    await db.registerPushToken({ token: 't1', device_id: null, platform: 'ios' })
+    expect('user_id' in calls.upserts[0]).toBe(false)
+  })
+
+  test('accountsEnabled: ไม่มีตาราง house_members → false · มี → true และจำผลไว้', async () => {
+    let missing = true
+    const { db, calls } = loadWithSupabase({
+      select: () => (missing ? { data: null, error: { code: 'PGRST205', message: 'not found' } } : { data: [], error: null }),
+    })
+    expect(await db.accountsEnabled()).toBe(false)
+
+    const again = loadWithSupabase({ select: () => ({ data: [], error: null }) })
+    expect(await again.db.accountsEnabled()).toBe(true)
+    expect(await again.db.accountsEnabled()).toBe(true)
+    expect(again.calls.selects).toHaveLength(1)   // ครั้งที่สองใช้ผลที่จำไว้
+    missing = false
+    expect(calls.selects).toHaveLength(1)
+  })
+
+  test('accountsEnabled: ถามไม่สำเร็จด้วยเหตุอื่น → false และไม่จำผล', async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {})
+    const { db, calls } = loadWithSupabase({ select: () => ({ data: null, error: { code: 'XX000', message: 'network' } }) })
+    expect(await db.accountsEnabled()).toBe(false)
+    expect(await db.accountsEnabled()).toBe(false)
+    expect(calls.selects).toHaveLength(2)
+  })
+
+  test('getUserFromToken: token เสีย → null · ใช้ได้ → user', async () => {
+    const { db } = loadWithSupabase({
+      getUser: async (jwt) => (jwt === 'good'
+        ? { data: { user: { id: 'u-1' } }, error: null }
+        : { data: { user: null }, error: { message: 'invalid JWT' } }),
+    })
+    expect(await db.getUserFromToken('bad')).toBeNull()
+    expect(await db.getUserFromToken('good')).toEqual({ id: 'u-1' })
+  })
+
+  test('getUserFromToken ตอนไม่มีฐานข้อมูล → undefined (ตรวจไม่ได้ ≠ token เสีย)', async () => {
+    const db = loadService()
+    expect(await db.getUserFromToken('anything')).toBeUndefined()
+    expect(await db.accountsEnabled()).toBe(false)
+  })
+})

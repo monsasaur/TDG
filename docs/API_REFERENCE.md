@@ -14,8 +14,8 @@
 | scope | header | เรียกอะไรได้ |
 |---|---|---|
 | device | `x-api-key: DEVICE_API_KEY` | `POST /predict` |
-| app | `x-api-key: APP_API_KEY` | `/events`, `/alert/ack`, `/push/register`, `/push/tokens` |
-| demo | `x-api-key: DEMO_API_KEY` | `/demo/fire`, `/alert/test`, `/push/test` |
+| app | `x-api-key: APP_API_KEY` (+ `Authorization: Bearer` ของบัญชีเมื่อ login) | `/alert/ack`, `/push/register` |
+| demo | `x-api-key: DEMO_API_KEY` | `/demo/fire`, `/alert/test`, `/push/test` · debug: `/events`, `/push/tokens` (คืนข้อมูลทุกบ้าน) |
 | admin | `Authorization: Bearer <token>` | `/admin/*` (ขอ token จาก `POST /admin/login`) |
 
 scope ไหนไม่ได้ตั้งคีย์เฉพาะไว้ จะถอยไปใช้ `API_KEY` ตัวเดิม
@@ -37,18 +37,18 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
 
 **Events**
 
-- [`GET /api/v1/events`](#get-api-v1-events) — ดู event ทั้งหมด
-- [`GET /api/v1/events/falls`](#get-api-v1-events-falls) — ดูเฉพาะเหตุการณ์ล้ม
 - [`POST /api/v1/alert/ack/{event_id}`](#post-api-v1-alert-ack-event-id) — ผู้ดูแลกดรับทราบ — ยกเลิกการโทรฉุกเฉิน
 
 **Push**
 
 - [`POST /api/v1/push/register`](#post-api-v1-push-register) — ลงทะเบียน Expo push token
-- [`GET /api/v1/push/tokens`](#get-api-v1-push-tokens) — ดู token ที่ลงทะเบียนไว้ (debug)
 
 **Demo**
 
+- [`GET /api/v1/events`](#get-api-v1-events) — ดู event ทั้งหมด (debug)
+- [`GET /api/v1/events/falls`](#get-api-v1-events-falls) — ดูเฉพาะเหตุการณ์ล้ม (debug)
 - [`POST /api/v1/alert/test`](#post-api-v1-alert-test) — ⚠️ ทดสอบ Twilio — ส่ง SMS และโทรออกจริงถ้า TWILIO_MODE=real
+- [`GET /api/v1/push/tokens`](#get-api-v1-push-tokens) — ดู token ที่ลงทะเบียนไว้ (debug)
 - [`POST /api/v1/push/test`](#post-api-v1-push-test) — ยิง push ทดสอบไปทุก token
 - [`POST /api/v1/demo/fire`](#post-api-v1-demo-fire) — ⚠️ จำลองการล้ม — ข้าม ML ไปสร้าง event จริง
 
@@ -59,6 +59,10 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
 - [`GET /api/v1/admin/summary`](#get-api-v1-admin-summary) — ตัวเลขสรุปของ Dashboard
 - [`GET /api/v1/admin/events`](#get-api-v1-admin-events) — event ทุกอุปกรณ์ พร้อมตัวกรองและแบ่งหน้า
 - [`GET /api/v1/admin/events/{id}`](#get-api-v1-admin-events-id) — รายละเอียด event พร้อมไทม์ไลน์
+- [`GET /api/v1/admin/models`](#get-api-v1-admin-models) — รายการเวอร์ชันโมเดล
+- [`POST /api/v1/admin/models`](#post-api-v1-admin-models) — ลงทะเบียนเวอร์ชันใหม่
+- [`POST /api/v1/admin/models/{version}/test`](#post-api-v1-admin-models-version-test) — ทำเครื่องหมายว่าทดสอบแล้ว
+- [`POST /api/v1/admin/models/{version}/activate`](#post-api-v1-admin-models-version-activate) — ตั้งเป็นเวอร์ชันใช้งาน (rollback ใช้เส้นนี้เหมือนกัน)
 - [`GET /api/v1/admin/devices`](#get-api-v1-admin-devices) — รายการอุปกรณ์พร้อมสถานะ online/offline
 
 **System**
@@ -144,55 +148,11 @@ _ESP32 ส่งข้อมูลเข้ามา_
 
 _ดูเหตุการณ์และกดรับทราบ_
 
-### `GET /api/v1/events`
-
-**ดู event ทั้งหมด**
-
-**สิทธิ์:** `x-api-key` — ใช้ `APP_API_KEY`
-
-**Query / Path parameters**
-
-| ชื่อ | อยู่ที่ | ชนิด | จำเป็น | คำอธิบาย |
-|---|---|---|:---:|---|
-| `device_id` | query | `string` |  |  |
-| `limit` | query | `integer` |  |  (ค่าเริ่มต้น `50`) |
-
-**Responses**
-
-| รหัส | ความหมาย |
-|---|---|
-| `200` | รายการ event |
-| `401` | ไม่ได้รับอนุญาต |
-
----
-
-### `GET /api/v1/events/falls`
-
-**ดูเฉพาะเหตุการณ์ล้ม**
-
-**สิทธิ์:** `x-api-key` — ใช้ `APP_API_KEY`
-
-**Query / Path parameters**
-
-| ชื่อ | อยู่ที่ | ชนิด | จำเป็น | คำอธิบาย |
-|---|---|---|:---:|---|
-| `device_id` | query | `string` |  |  |
-| `limit` | query | `integer` |  |  (ค่าเริ่มต้น `50`) |
-
-**Responses**
-
-| รหัส | ความหมาย |
-|---|---|
-| `200` | รายการเหตุการณ์ล้ม |
-| `401` | ไม่ได้รับอนุญาต |
-
----
-
 ### `POST /api/v1/alert/ack/{event_id}`
 
 **ผู้ดูแลกดรับทราบ — ยกเลิกการโทรฉุกเฉิน**
 
-ยกเลิก escalation timer และอัปเดต alert ที่แอปแสดงเป็น completed
+ยกเลิก escalation timer และอัปเดต alert ที่แอปแสดงเป็น completed · ส่ง `Authorization: Bearer <access token ของบัญชี>` มาด้วยเมื่อ login อยู่ → "รับทราบโดย" ใช้ชื่อจากบัญชี ไม่ใช้ `acknowledged_by` · **หลังรัน accounts.sql ต้องส่ง token และต้องเป็นสมาชิกบ้านของอุปกรณ์นี้** (ไม่งั้น 401 / 403)
 
 **สิทธิ์:** `x-api-key` — ใช้ `APP_API_KEY`
 
@@ -213,7 +173,8 @@ _ดูเหตุการณ์และกดรับทราบ_
 | รหัส | ความหมาย |
 |---|---|
 | `200` | รับทราบแล้ว |
-| `401` | ไม่ได้รับอนุญาต |
+| `401` | ไม่ได้รับอนุญาต · token ของบัญชีหมดอายุ · หรือเปิดระบบบัญชีแล้วแต่ไม่ได้ login |
+| `403` | เปิดระบบบัญชีแล้ว และบัญชีนี้ไม่ใช่สมาชิกบ้านของอุปกรณ์ |
 | `404` | ไม่พบ event |
 | `409` | หมดเวลาไปแล้ว ระบบ escalate ไปเรียบร้อย — กดรับทราบไม่ได้อีก |
 
@@ -241,6 +202,8 @@ _Push notification_
 
 **ลงทะเบียน Expo push token**
 
+ส่ง `Authorization: Bearer <access token ของบัญชี>` มาด้วยเมื่อ login อยู่ → ผูกเครื่องกับบัญชี · ไม่ส่ง = ปลดการผูก (หลังออกจากระบบ) · หลังรัน accounts.sql push ของบ้านส่งเฉพาะเครื่องของสมาชิกบ้านนั้น
+
 **สิทธิ์:** `x-api-key` — ใช้ `APP_API_KEY`
 
 **Request body** (JSON) — จำเป็น
@@ -255,30 +218,63 @@ _Push notification_
 
 | รหัส | ความหมาย |
 |---|---|
-| `200` | ลงทะเบียนแล้ว |
+| `200` | ลงทะเบียนแล้ว (`user_linked` บอกว่าผูกกับบัญชีไหม) |
 | `400` | ไม่มี token |
-| `401` | ไม่ได้รับอนุญาต |
-
----
-
-### `GET /api/v1/push/tokens`
-
-**ดู token ที่ลงทะเบียนไว้ (debug)**
-
-**สิทธิ์:** `x-api-key` — ใช้ `APP_API_KEY`
-
-**Responses**
-
-| รหัส | ความหมาย |
-|---|---|
-| `200` | รายการ token |
-| `401` | ไม่ได้รับอนุญาต |
+| `401` | ไม่ได้รับอนุญาต หรือ token ของบัญชีหมดอายุ |
 
 ---
 
 ## Demo
 
 _⚠️ ใช้สาธิต — สั่งให้ระบบโทรออกจริงได้_
+
+### `GET /api/v1/events`
+
+**ดู event ทั้งหมด (debug)**
+
+ใช้ **DEMO_API_KEY** — คืนเหตุการณ์ของทุกบ้าน แอปไม่ได้ใช้เส้นนี้ (อ่านจากตาราง alerts ผ่าน RLS) จึงไม่ให้คีย์ของแอปเรียก
+
+**สิทธิ์:** `x-api-key` — ใช้ `DEMO_API_KEY`
+
+**Query / Path parameters**
+
+| ชื่อ | อยู่ที่ | ชนิด | จำเป็น | คำอธิบาย |
+|---|---|---|:---:|---|
+| `device_id` | query | `string` |  |  |
+| `limit` | query | `integer` |  |  (ค่าเริ่มต้น `50`) |
+
+**Responses**
+
+| รหัส | ความหมาย |
+|---|---|
+| `200` | รายการ event |
+| `401` | ไม่ได้รับอนุญาต |
+
+---
+
+### `GET /api/v1/events/falls`
+
+**ดูเฉพาะเหตุการณ์ล้ม (debug)**
+
+ใช้ **DEMO_API_KEY** — คืนเหตุการณ์ของทุกบ้าน เหตุผลเดียวกับ GET /api/v1/events
+
+**สิทธิ์:** `x-api-key` — ใช้ `DEMO_API_KEY`
+
+**Query / Path parameters**
+
+| ชื่อ | อยู่ที่ | ชนิด | จำเป็น | คำอธิบาย |
+|---|---|---|:---:|---|
+| `device_id` | query | `string` |  |  |
+| `limit` | query | `integer` |  |  (ค่าเริ่มต้น `50`) |
+
+**Responses**
+
+| รหัส | ความหมาย |
+|---|---|
+| `200` | รายการเหตุการณ์ล้ม |
+| `401` | ไม่ได้รับอนุญาต |
+
+---
 
 ### `POST /api/v1/alert/test`
 
@@ -293,6 +289,23 @@ _⚠️ ใช้สาธิต — สั่งให้ระบบโทร�
 | รหัส | ความหมาย |
 |---|---|
 | `200` | ยิงแล้ว — ดูผลใน sms/call |
+| `401` | ต้องใช้ DEMO_API_KEY |
+
+---
+
+### `GET /api/v1/push/tokens`
+
+**ดู token ที่ลงทะเบียนไว้ (debug)**
+
+ใช้ **DEMO_API_KEY** — คืน push token ทุกเครื่อง ใครได้ token ไปก็ยิง push ปลอมใส่มือถือคนอื่นได้ จึงไม่ให้คีย์ของแอปเรียก
+
+**สิทธิ์:** `x-api-key` — ใช้ `DEMO_API_KEY`
+
+**Responses**
+
+| รหัส | ความหมาย |
+|---|---|
+| `200` | รายการ token |
 | `401` | ต้องใช้ DEMO_API_KEY |
 
 ---
@@ -551,6 +564,146 @@ _หน้าเว็บ admin (ใช้ Bearer token คนละชั้น
 
 ---
 
+### `GET /api/v1/admin/models`
+
+**รายการเวอร์ชันโมเดล**
+
+ทะเบียนเวอร์ชันโมเดล — **เมทาดาทาอย่างเดียว** ไม่ได้อัปโหลดไฟล์ ไม่ได้ deploy และไม่ได้ทดสอบคุณภาพโมเดลจริง ตั้ง active ที่นี่แล้วยังต้องมีคนไปเปลี่ยนไฟล์ใน ml_service เอง
+
+**สิทธิ์:** `Authorization: Bearer` — token จาก `POST /api/v1/admin/login`
+
+**Responses**
+
+| รหัส | ความหมาย |
+|---|---|
+| `200` | รายการเวอร์ชัน เรียงตามเวลาอัปโหลดใหม่ไปเก่า |
+| `401` | token ไม่ถูกต้องหรือหมดอายุ |
+
+<details><summary>ตัวอย่าง response</summary>
+
+```json
+{
+  "models": [
+    {
+      "version": "2.4.0",
+      "status": "active",
+      "tested": true,
+      "notes": "ปรับปรุงการตรวจจับในห้องสัญญาณอ่อน",
+      "uploaded_at": "2026-09-06T04:00:00.000Z",
+      "updated_at": "2026-09-06T04:00:00.000Z"
+    },
+    {
+      "version": "2.5.0",
+      "status": "testing",
+      "tested": false,
+      "notes": "รุ่นทดสอบที่ปรับการกรองสัญญาณรบกวน",
+      "uploaded_at": "2026-09-08T04:00:00.000Z",
+      "updated_at": "2026-09-08T04:00:00.000Z"
+    }
+  ],
+  "active_version": "2.4.0",
+  "has_data": true,
+  "calculated_at": "2026-09-09T04:00:00.000Z"
+}
+```
+
+</details>
+
+---
+
+### `POST /api/v1/admin/models`
+
+**ลงทะเบียนเวอร์ชันใหม่**
+
+เวอร์ชันใหม่เริ่มที่ status=testing, tested=false เสมอ · ไม่ได้รับไฟล์โมเดล
+
+**สิทธิ์:** `Authorization: Bearer` — token จาก `POST /api/v1/admin/login`
+
+**Request body** (JSON) — จำเป็น
+
+| field | ชนิด | จำเป็น | คำอธิบาย |
+|---|---|:---:|---|
+| `version` | `string` | ✔ | เช่น `2.5.0` |
+| `notes` | `string` | ✔ |  |
+
+**Responses**
+
+| รหัส | ความหมาย |
+|---|---|
+| `201` | ลงทะเบียนแล้ว |
+| `400` | versionError = รูปแบบเวอร์ชันผิด · notesError = notes ว่างหรือเกิน 240 ตัว |
+| `401` | token ไม่ถูกต้องหรือหมดอายุ |
+| `409` | versionError — เวอร์ชันนี้มีอยู่แล้ว |
+
+---
+
+### `POST /api/v1/admin/models/{version}/test`
+
+**ทำเครื่องหมายว่าทดสอบแล้ว**
+
+⚠️ ไม่ได้รันการทดสอบใด ๆ — บันทึกว่ามีคนทดสอบแล้วเท่านั้น · ต้อง tested=true ก่อนถึงจะ activate ได้
+
+**สิทธิ์:** `Authorization: Bearer` — token จาก `POST /api/v1/admin/login`
+
+**Query / Path parameters**
+
+| ชื่อ | อยู่ที่ | ชนิด | จำเป็น | คำอธิบาย |
+|---|---|---|:---:|---|
+| `version` | path | `string` | ✔ |  |
+
+**Responses**
+
+| รหัส | ความหมาย |
+|---|---|
+| `200` | อัปเดตแล้ว |
+| `401` | token ไม่ถูกต้องหรือหมดอายุ |
+| `404` | notFound — ไม่พบเวอร์ชันนี้ |
+
+---
+
+### `POST /api/v1/admin/models/{version}/activate`
+
+**ตั้งเป็นเวอร์ชันใช้งาน (rollback ใช้เส้นนี้เหมือนกัน)**
+
+active ได้ทีละเวอร์ชันเดียว ตัวเดิมกลายเป็น inactive · response คืน previous_active มาให้ ไม่ต้องจำสถานะไว้ในเบราว์เซอร์
+
+**สิทธิ์:** `Authorization: Bearer` — token จาก `POST /api/v1/admin/login`
+
+**Query / Path parameters**
+
+| ชื่อ | อยู่ที่ | ชนิด | จำเป็น | คำอธิบาย |
+|---|---|---|:---:|---|
+| `version` | path | `string` | ✔ |  |
+
+**Responses**
+
+| รหัส | ความหมาย |
+|---|---|
+| `200` | เปลี่ยนแล้ว |
+| `401` | token ไม่ถูกต้องหรือหมดอายุ |
+| `404` | notFound — ไม่พบเวอร์ชันนี้ |
+| `409` | testedRequired — ต้องกดทดสอบก่อนถึงจะตั้งเป็นเวอร์ชันใช้งานได้ |
+
+<details><summary>ตัวอย่าง response</summary>
+
+```json
+{
+  "model": {
+    "version": "2.5.0",
+    "status": "active",
+    "tested": true,
+    "notes": "...",
+    "uploaded_at": "2026-09-08T04:00:00.000Z",
+    "updated_at": "2026-09-09T04:00:00.000Z"
+  },
+  "previous_active": "2.4.0"
+}
+```
+
+</details>
+
+---
+
 ### `GET /api/v1/admin/devices`
 
 **รายการอุปกรณ์พร้อมสถานะ online/offline**
@@ -596,7 +749,7 @@ online/offline คำนวณจาก last_seen_at ฝั่งเซิร์
       }
     }
   ],
-  "offline_after_minutes": 15,
+  "offline_after_minutes": 5,
   "has_data": true,
   "calculated_at": "2026-09-02T04:00:00.000Z"
 }

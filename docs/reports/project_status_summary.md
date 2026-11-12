@@ -1,6 +1,10 @@
 # สรุปสถานะโครงการ: Fall Detection System
 
-**วันที่:** 2026-08-25
+**วันที่:** 2026-08-25 · **แก้ตัวเลขโมเดล 2026-09-06**
+
+> ตัวเลขในหัวข้อ 2 เดิมเขียนว่า accuracy 97.9% / fall recall 98.5% ซึ่งหาต้นทางในรีโปไม่เจอ
+> `models/report_v3.json` ของ LSTM v3 บันทึกไว้ 99.72% / recall 100% (วัดด้วย split ที่ข้อมูลรั่ว)
+> และโมเดลที่ ML service โหลดจริงคือ RandomForest ไม่ใช่ LSTM — แก้ให้ตรงกับไฟล์แล้ว
 
 ---
 
@@ -24,7 +28,7 @@
 
 | ส่วน | สถานะ | ผลลัพธ์ |
 |---|---|---|
-| LSTM v3 model | ✅ | Accuracy 97.9%, Fall Recall 98.5% |
+| โมเดลตรวจจับการล้ม | ⚠️ | ML service ใช้ **RandomForest `rf_v1.pkl`** — 95.6% / fall recall 96.6% (grouped 5-fold) · LSTM v3 เทรนไว้แต่ไม่ได้ใช้ serving |
 | Express API (core) | ✅ | endpoint predict / events / alert ใช้งานได้ |
 | Push Notification | ✅ | FCM V1 ผ่าน Expo SDK ยิงจริงได้ |
 | Escalation / Acknowledge flow | ✅ | timer ทำงาน (in-memory) พร้อม fallback โทร Twilio |

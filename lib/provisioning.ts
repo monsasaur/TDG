@@ -100,6 +100,11 @@ export async function searchDevices(): Promise<string[]> {
 export async function connect(name: string, proofOfPossession?: string): Promise<void> {
   if (isMock) {
     await wait(MOCK_DELAY_MS);
+    // จำลอง Security 1: ไม่มีรหัสจับคู่ = อุปกรณ์ปฏิเสธ
+    // พิมพ์ "wrong" เพื่อลองกรณีรหัสผิดโดยไม่ต้องมีฮาร์ดแวร์ (แบบเดียวกับ provision)
+    if (!proofOfPossession || proofOfPossession === "wrong") {
+      throw new Error("Invalid proof of possession");
+    }
     current = { name, device: null };
     return;
   }
@@ -155,13 +160,48 @@ export function disconnect(): void {
   current = null;
 }
 
+/**
+ * อ่านรหัสจับคู่ (Proof of Possession) จาก QR บนกล่อง
+ *
+ * ยังไม่ได้กำหนดว่าตอนผลิตจะพิมพ์ QR แบบไหน จึงรับได้ 2 แบบ
+ *  - ข้อความรหัสล้วน ๆ
+ *  - JSON มาตรฐานของ Espressif (แบบที่แอป ESP BLE Provisioning อ่านได้)
+ *    {"ver":"v1","name":"ESP-B96AB8","pop":"<รหัส>","transport":"ble"}
+ *
+ * ตัดช่องว่างหัวท้ายเท่านั้น ห้ามแปลงตัวพิมพ์ — รหัสแยกตัวเล็กตัวใหญ่
+ * ไม่ตรวจว่ารหัสถูกไหม อุปกรณ์เป็นคนตัดสินตอนเชื่อมต่อ
+ * @returns null ถ้าไม่มีรหัสให้ใช้ (QR ว่าง หรือ JSON ที่ไม่มี pop)
+ */
+export function parsePairingQr(data: string): { pop: string; name?: string } | null {
+  const text = data.trim();
+  if (!text) return null;
+  if (text.startsWith("{")) {
+    try {
+      const obj = JSON.parse(text);
+      const pop = typeof obj?.pop === "string" ? obj.pop.trim() : "";
+      if (!pop) return null;
+      return { pop, name: typeof obj.name === "string" ? obj.name : undefined };
+    } catch {
+      // ขึ้นต้นด้วย { แต่ไม่ใช่ JSON — ถือเป็นรหัสล้วน
+    }
+  }
+  return { pop: text };
+}
+
+/** อุปกรณ์ปฏิเสธรหัสจับคู่ — หน้าจอใช้ตัดสินว่าควรพาผู้ใช้กลับไปกรอกรหัสใหม่ */
+export function isPopError(err: unknown): boolean {
+  const raw = err instanceof Error ? err.message : String(err ?? "");
+  const lower = raw.toLowerCase();
+  return lower.includes("proof") || lower.includes("pop") || lower.includes("auth");
+}
+
 /** แปลง error จาก native ให้เป็นข้อความไทยที่ผู้ใช้ทำอะไรต่อได้ */
 export function errorMessage(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err ?? "");
   const lower = raw.toLowerCase();
 
-  if (lower.includes("proof") || lower.includes("pop") || lower.includes("auth"))
-    return "รหัสอุปกรณ์ไม่ถูกต้อง ลองสแกน QR บนกล่องอีกครั้ง";
+  if (isPopError(err))
+    return "รหัสจับคู่ไม่ถูกต้อง ตรวจรหัสบนกล่องแล้วกรอกใหม่อีกครั้ง";
   if (lower.includes("password") || lower.includes("passphrase"))
     return "รหัสผ่าน Wi-Fi ไม่ถูกต้อง";
   if (lower.includes("not found") || lower.includes("ssid"))

@@ -1,5 +1,61 @@
 -- Fall Detection — Binary + Acknowledge System
--- Run in Supabase SQL Editor
+-- Run in Supabase SQL Editor · รันซ้ำได้ทั้งไฟล์ (ทุกคำสั่งเป็น IF NOT EXISTS)
+-- ระบบบัญชีผู้ใช้ + สิทธิ์รายบ้านอยู่แยกใน accounts.sql (รันทีหลัง ดูหัวไฟล์นั้น)
+
+-- ============================================================
+-- ตารางฝั่งแอปมือถือ (กลุ่ม B)
+--
+-- เดิมสร้างจากฝั่งแอปใน Supabase โดยไม่มี CREATE TABLE ในรีโป — สร้างโปรเจกต์ใหม่ไม่ได้
+-- ถอดโครงสร้างจากฐานข้อมูลจริง 2026-11-12 (คอลัมน์ + ชนิดข้อมูลจากแถวจริง · seed.sql · โค้ดใน data/)
+-- บนฐานข้อมูลที่มีตารางอยู่แล้ว คำสั่งชุดนี้ไม่ทำอะไร
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS houses (
+  id          TEXT PRIMARY KEY,                     -- 'h1' หรือ 'h<timestamp>' จากแอป
+  name        TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS devices (
+  id          TEXT PRIMARY KEY,                     -- 'd1' หรือ 'd<timestamp>' จากแอป
+  house_id    TEXT NOT NULL REFERENCES houses(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,                        -- ชื่อห้อง (1 อุปกรณ์ = 1 ห้อง)
+  code        TEXT NOT NULL,                        -- 'ESP-0001A' = fall_events.device_id = ชื่อ BLE
+  wifi_ssid   TEXT,
+  status      TEXT NOT NULL DEFAULT 'disconnected', -- 'connected' | 'disconnected' (ฝั่งแอปตั้งเอง)
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS emergency_contacts (
+  id            TEXT PRIMARY KEY,
+  name          TEXT NOT NULL,
+  phone         TEXT NOT NULL,
+  contact_type  TEXT NOT NULL DEFAULT 'external',   -- 'self' | 'member' | 'external'
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS house_contacts (
+  house_id    TEXT NOT NULL REFERENCES houses(id) ON DELETE CASCADE,
+  contact_id  TEXT NOT NULL REFERENCES emergency_contacts(id) ON DELETE CASCADE,
+  PRIMARY KEY (house_id, contact_id)
+);
+
+CREATE TABLE IF NOT EXISTS alerts (
+  id           TEXT PRIMARY KEY,                    -- seed 'a1' · Express ใช้ UUID
+  house_id     TEXT NOT NULL REFERENCES houses(id) ON DELETE CASCADE,
+  title        TEXT NOT NULL,
+  description  TEXT,
+  location     TEXT,
+  status       TEXT NOT NULL DEFAULT 'active',      -- active | completed | in_progress | no_response
+  answered_by  TEXT,
+  countdown    INTEGER,
+  timeline     JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================
+-- ตารางฝั่ง CSI pipeline (กลุ่ม A)
+-- ============================================================
 
 CREATE TABLE IF NOT EXISTS fall_events (
   id                UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -64,6 +120,21 @@ CREATE INDEX IF NOT EXISTS idx_push_device_id ON push_tokens(device_id);
 -- ส่วน `code` คือรหัสที่พิมพ์อยู่บนตัวเครื่อง ซึ่ง BLE provisioning เขียนลง NVS
 -- และผู้ใช้สแกน QR ได้อยู่แล้ว — log กับหน้า admin ก็อ่านรู้เรื่องด้วย
 
+-- ── ที่มาของการทำนาย (เพิ่ม 2026-09-09 สำหรับหน้า Admin) ────────────────
+-- บันทึกว่าเหตุการณ์นี้ตัดสินด้วยโมเดลตัวไหน เพื่อให้ย้อนตรวจได้ว่า
+-- ตอนเปลี่ยนโมเดลแล้วผลเปลี่ยนไปยังไง
+ALTER TABLE fall_events ADD COLUMN IF NOT EXISTS model_name    TEXT;
+ALTER TABLE fall_events ADD COLUMN IF NOT EXISTS model_version TEXT;
+
+-- risk_score = confidence × 100 ปัดเป็นจำนวนเต็ม 0-100
+--
+-- ⚠️ ไม่ใช่ข้อมูลใหม่ — เป็น confidence ตัวเดิมในหน่วยเปอร์เซ็นต์
+--    ระบบยังไม่มีโมเดลประเมินความเสี่ยงแยกต่างหาก
+--    เก็บเป็นคอลัมน์เพราะหน้า Admin ต้องใช้ และถ้าวันหลังมีโมเดลจริง
+--    จะเปลี่ยนที่มาได้โดยไม่ต้องแก้ทั้ง UI
+--    **ห้ามนำเสนอว่าเป็นตัวชี้วัดอิสระจาก confidence**
+ALTER TABLE fall_events ADD COLUMN IF NOT EXISTS risk_score    SMALLINT;
+
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_active    BOOLEAN DEFAULT TRUE;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS installed_at TIMESTAMPTZ DEFAULT NOW();
@@ -91,3 +162,32 @@ ALTER TABLE alerts ADD COLUMN IF NOT EXISTS fall_event_id TEXT;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_fall_event_id
   ON alerts(fall_event_id) WHERE fall_event_id IS NOT NULL;
+
+
+-- ============================================================
+-- ml_models — ทะเบียนเวอร์ชันโมเดล (เพิ่ม 2026-09-09)
+--
+-- หน้า Admin → Models ใช้ตารางนี้
+--
+-- ⚠️ เก็บ **เมทาดาทาอย่างเดียว** ไม่ได้เก็บไฟล์โมเดลและไม่ได้ deploy อะไร
+--    การกด "active" ที่นี่ไม่ได้ทำให้ ML service เปลี่ยนไปใช้โมเดลนั้นจริง
+--    (app/predict.py ยัง hardcode path ของไฟล์อยู่)
+--    เป็นทะเบียนไว้บันทึกว่าเวอร์ชันไหนควรเป็นตัวใช้งาน — คนต้องไปเปลี่ยนไฟล์เอง
+--    ถ้าวันหลังทำ deploy อัตโนมัติ ค่อยต่อจากตารางนี้
+-- ============================================================
+CREATE TABLE IF NOT EXISTS ml_models (
+  version     TEXT PRIMARY KEY,                 -- "x.y.z" — ตรงกับ fall_events.model_version
+  status      TEXT NOT NULL DEFAULT 'testing'
+              CHECK (status IN ('active', 'testing', 'inactive')),
+  tested      BOOLEAN NOT NULL DEFAULT FALSE,
+  notes       TEXT NOT NULL,
+  uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- มี active ได้ทีละเวอร์ชันเดียวเท่านั้น — บังคับที่ฐานข้อมูล ไม่ใช่แค่ใน service
+-- ถ้าปล่อยให้ service คุมอย่างเดียว มี request พร้อมกันสองอันจะได้ active สองตัว
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ml_models_single_active
+  ON ml_models ((status)) WHERE status = 'active';
+
+CREATE INDEX IF NOT EXISTS idx_ml_models_uploaded ON ml_models(uploaded_at DESC);

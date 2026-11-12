@@ -44,7 +44,7 @@ API running on port 3000
 │  ตารางบอกว่าคีย์แต่ละแบบเรียกอะไรได้                        │
 ├──────────────────────────────────────────────────────┤
 │  Detection            ▸  POST /api/v1/predict        │ ← กดที่แถบเพื่อกาง
-│  Events               ▸  GET  /api/v1/events         │
+│  Events               ▸  POST /api/v1/alert/ack/…    │
 │  Push                 ▸                              │
 │  Demo   ⚠️            ▸                              │
 │  Admin                ▸                              │

@@ -6,31 +6,33 @@
 
 | Feature | สถานะ | หมายเหตุ |
 |---|---|---|
-| LSTM v3 model | ⚠️ | 97.9% วัดด้วย split ที่ข้อมูลรั่ว · ไม่รั่วได้ 95.6% · **แต่ 95.6% นั้นมาจากการแยก session ไม่ใช่การจับการล้ม** — ความสามารถจริงราว 72.6% · ดู `docs/reports/data_quality_audit_2026-09.md` |
+| LSTM v3 model | ⚠️ | 99.7% วัดด้วย split ที่ข้อมูลรั่ว · ไม่รั่วได้ 95.6% · **แต่ 95.6% นั้นมาจากการแยก session ไม่ใช่การจับการล้ม** — ความสามารถจริงราว 72.6% · ดู `docs/reports/data_quality_audit_2026-09.md` |
 | Express API (core) | ✅ | predict, events, alert endpoints |
 | Push Notification (FCM V1) | ✅ | pushService.js + Expo SDK + useFcmV1 |
 | Escalation / Acknowledge flow | ✅ | escalationService.js — timer in-memory, Twilio fallback |
 | Push token registration | ✅ | `POST /api/v1/push/register` |
 | Demo trigger endpoint | ✅ | `POST /api/v1/demo/fire` — ข้าม ML ไปยิง push ตรงๆ |
-| Mobile app (Expo) | ✅ | 29 หน้า — บ้าน/สมาชิก/ผู้ติดต่อฉุกเฉิน/อุปกรณ์/แจ้งเตือน · รับ push, Acknowledge, poll fall event ทุก 4 วิ |
-| Supabase schema | ✅ | fall_events + push_tokens tables |
+| Mobile app (Expo) | ✅ | 31 หน้า — login/สมัคร/บ้าน/สมาชิก/ผู้ติดต่อฉุกเฉิน/อุปกรณ์/แจ้งเตือน · รับ push · รายการแจ้งเตือนดึงตาราง `alerts` ทุก 10 วิ · กดรับทราบผ่าน `AlertsContext.acknowledgeAlert` (แก้ 2026-11-12 — ตั้งแต่ 2 ก.ย. ปุ่มส่ง `alerts.id` แทน id ของ fall_events ได้ 404 แบบเงียบ กดแล้วระบบยังโทรฉุกเฉิน) |
+| Supabase schema | ⚠️ | `schema.sql` ครบ แต่**ฐานข้อมูลจริงยังไม่ได้รันส่วนที่เพิ่มหลัง ก.ย.** — ดูแถว "ฐานข้อมูลจริง + Express ยังไม่ต่อกัน" |
 | ESP32 USB Serial mode | ✅ | csi_collector_serial.py @ 921600 baud |
-| End-to-end demo flow | ✅ | ESP32 → API → Push → App → Acknowledge → Twilio |
+| End-to-end demo flow | ⚠️ | ESP32 → API → Push → Twilio ใช้ได้ · **รายการในแอปยังไม่เห็นเหตุการณ์จริง** จึงกดรับทราบจากรายการไม่ได้ (ตรวจ 2026-11-12 — ดูแถว "ฐานข้อมูลจริง + Express ยังไม่ต่อกัน") |
 | Admin Client API | ✅ | 6 endpoints + auth แยกจาก x-api-key — ดู `docs/reports/admin_api_progress.md` |
 | Escalation timer persistence | ✅ | สร้าง timer ใหม่จาก DB ตอน boot + sweeper ทุก 60 วิ ไม่ใช้ Redis |
+| บัญชีผู้ใช้ รอบแรก | ⚠️ | login เบอร์โทร + รหัสผ่าน (Supabase Auth) · สิทธิ์ owner/caregiver ด้วย RLS · เชิญเข้าบ้านด้วยรหัส 6 ตัว/QR ของจริง · ทดสอบแล้ว (SQL 14/14 · web 29/29) **แต่ยังไม่เปิดบนฐานจริง** — ต้องเปิด Phone provider + รัน `accounts.sql` **หลัง**ทดสอบสด · dev client ต้อง build ใหม่ (AsyncStorage) · **รอบ 2 (13 พ.ย.):** push เฉพาะสมาชิกบ้าน + กดรับทราบต้อง login เป็นสมาชิก (มีผลหลังรัน accounts.sql) · ดู `docs/reports/accounts_round1.md` |
 
 ### 🔲 ยังค้าง (Pending)
 
 | Feature | Priority | หมายเหตุ |
 |---|---|---|
 | Threshold tuning | Med | หาแล้วสำหรับ RandomForest — แนะนำ 0.36 (recall 97.6%, false alarm 9.6%) เหลือแค่ตัดสินใจว่าจะเปลี่ยน production model ไหม |
-| BLE WiFi Provisioning | Med | **โค้ดครบทั้งแอปและ firmware แล้ว** · เหลือ 1) build/flash/ทดสอบกับบอร์ดจริง (เครื่องที่เขียนไม่มี ESP-IDF) 2) หน้าจอกรอก PoP → **ใบงานทีมฟรอนต์** `docs/reports/frontend_req_device_pairing_code.md` |
+| BLE WiFi Provisioning | Med | ตรวจกับโค้ด 2026-11-12: ✅ build/flash บอร์ดจริง (13 ต.ค. · ESP-IDF v5.4 · บอร์ด 4MB · มือถือเห็น BLE) · ✅ บันทึกอุปกรณ์ลง Supabase + เลือกบ้านจริง (`device-setup` / `select-house`) · ✅ หน้ากรอกรหัสจับคู่ (PoP) `app/device-pairing-code.tsx` (2026-11-12 · สแกน QR หรือพิมพ์ · ทดสอบแบบกดจริงในโหมดจำลองแล้ว) · เหลือ: 1) จับคู่บอร์ดจริงจนจบ — ส่ง WiFi ผ่าน BLE + ปุ่ม BOOT ค้าง 5 วิ + สแกน QR ด้วยกล้องจริง (ยังไม่เคยทดสอบ ต้องมี dev client + firmware โหมด production) 2) ขั้นตอนผลิต device code + PoP + QR บนกล่อง (default เป็นค่าเดียวกันทุกเครื่อง · รูปแบบ QR ยังไม่ได้กำหนด แอปรับทั้งรหัสล้วนและ JSON ของ Espressif) |
 | One-class anomaly model | ✅ ตอบแล้ว | ลอง 4 ตัว ROC-AUC ดีสุด 0.70 เทียบ supervised 0.985 — ใช้แทนไม่ได้กับ feature ชุดนี้ |
-| เก็บ dataset ใหม่ (สลับคลาสใน session) | **High** | ข้อมูลชุดเดิมเก็บ fall ทั้งหมดก่อนแล้วค่อย non_fall → สภาพห้องกับคลาสทับกันสนิท แก้ย้อนหลังไม่ได้ · **ต้องสลับคลาสภายใน session เดียวกัน** ดูข้อกำหนดใน `docs/reports/data_quality_audit_2026-09.md` |
+| เก็บ dataset ใหม่ (สลับคลาสใน session) | **High** | ✅ **เก็บครบ 5 คน 801 ไฟล์** (2026-11-11 · fall คนละ 80 · ไฟล์กดมาร์คพลาด 1 ไฟล์ย้ายไป `data/raw_excluded/` แล้วเก็บแทน) ไฟล์สะอาด แต่ลิงก์ noise สูงตลอดทุก session (กระตุก 8–12% vs ชุดแรก 3.6% · RSSI กระโดด 30–47% · ปิด Wi-Fi แมคแล้วไม่ช่วย) · **feature เดิมข้ามคนไม่ได้** (เทรน 4 คนทดสอบคนที่ 5: 54.5% ≈ เดาสุ่ม) · **feature แบบเหตุการณ์ + เลื่อนกรอบตอนเทรน** (`experiments/event_features.py`) ได้ **72.9%** (AUC 0.78 · สลับ label สูงสุด 54.5% · ไม่เลื่อนกรอบ 71.0%) · เทรนแค่ 2 คนแรกแล้วทดสอบ 3 คนที่ไม่เคยเห็น 71.7% · ตัวที่โมเดลใช้มากสุด = RSSI ที่สูงขึ้น ~6–7 dB หลังล้ม (ขึ้นกับตำแหน่งวางบอร์ด) · จุดอ่อน: ล้มข้างๆ จับได้ 60% · นอนลงบนพื้นแจ้งผิด 46% · ไซม่อน 63.5% · ตัวเลข+กราฟสไลด์: `experiments/presentation_numbers.py` → `make_figures.py` → `docs/reports/figures/dataset_2026_11/` · ⚠️ 72.9% วัดแบบรู้จังหวะเหตุการณ์ (กรอบอยู่ที่มาร์ค) · **แบบดูต่อเนื่อง (เลื่อนกรอบทุก 0.25 วิ · `experiments/streaming_eval.py`)** ได้แค่ **จับล้ม ~43% แจ้งผิด ~4/ชม.** ที่ threshold 0.4 ยืนยัน 5 กรอบ หลังเพิ่ม feature "นิ่งหลังเหตุการณ์" (เดิม 37% · ประมาณจากไฟล์สั้น · แจ้งผิดเกือบทั้งหมดมาจากตอนเดิน) · เทรนแล้วเป็น `rf_v2_event` (`experiments/train_rf_v2.py`) · ML service สลับด้วย `FALL_MODEL=rf_v2_event` · ตัวตรวจสด `data_collection/fall_monitor.py` · **เหลือ: ทดสอบสดตาม `docs/reports/live_test_rf_v2.md`** → แก้ลิงก์ก่อนเก็บรอบหน้า · ดู `docs/reports/collect_runbook.md` |
 | Unseen test scenario | **High** | test set ต้องเป็น session ที่ไม่เคยเห็น ไม่ใช่แค่ไฟล์ที่ไม่เคยเห็น |
 | **CSI uplink ในบ้านลูกค้า** | **High** | 🔴 **ยังไม่มีอะไรส่ง CSI ขึ้น cloud เลย** — ทั้งสองทางที่มีอยู่ต้องมีคอมเปิดในบ้าน และ `csi_streamer.py` ยิงตรงไป ML service ข้าม Express API (ไม่มี event/alert/push/escalation) · ตัวเลข + ทางเลือก: `docs/reports/production_csi_uplink_decision.md` |
+| **ฐานข้อมูลจริง + Express ยังไม่ต่อกัน** | **High** | ตรวจ 2026-11-12 (อ่านอย่างเดียว): Express `.env` ไม่มี `SUPABASE_URL`/`SUPABASE_KEY` → `dbService` ใช้ mock store ในหน่วยความจำ (`fall_events` บน Supabase มี 0 แถว) · ฐานข้อมูลจริงยังไม่ได้รัน `schema.sql` (ไม่มี `alerts.fall_event_id` · `devices.last_seen_at`/`is_active`/`installed_at` · ตาราง `ml_models`) · `ESP-B96AB8` ยังไม่อยู่ใน `devices` → แอปไม่เห็นเหตุการณ์จริง เห็นแต่ push · หน้า Admin ใช้ไม่ได้ · วิธีแก้: `docs/reports/live_test_rf_v2.md` หัวข้อ "ให้เหตุการณ์ขึ้นในแอป" |
 | Production Cloud deploy | Med | **Dockerfile + render.yaml + compose พร้อมแล้ว** · เหลือ: ตัดสินใจเรื่องไฟล์โมเดลที่ถูก gitignore · กรอก env ใน Render · ทดสอบ `docker compose up` (ยังไม่ได้รัน — เครื่องนี้ไม่มี docker) |
-| Hybrid AI escalation call | Low | **สเปค Phase 2a พร้อมให้ implement แล้ว** → `docs/reports/spec_hybrid_ai_escalation_phase2a.md` (จุดเชื่อมต่อระดับบรรทัด · คำตอบคำถามเปิด 5 ข้อ · เทสต์ 14 เคส · เกณฑ์งานเสร็จ) · Phase 2b ยังไม่อนุญาต ต้องผ่าน shadow mode ก่อน (`docs/reports/hybrid_ai_escalation_design.md`) |
+| Hybrid AI escalation call | Low | ✅ **Phase 2a merge เข้า dev แล้ว** (PR #34 · 2026-11-12) — เพื่อน implement (OpenTyphoon ไม่ใช่ Claude) + แก้บั๊ก 4 จุด + ข้อความที่มีวงเล็บ/อักษรโรมันถอยไปใช้ข้อความคงที่ · **ปิดเป็นค่าเริ่มต้น** ทำงานเมื่อตั้ง `AI_VOICE_ENABLED=true` + `TYPHOON_API_KEY` · ⚠️ branch นี้ (feature/ml-service) ยังไม่มีโค้ดนี้ — ตอน merge dev เข้ามา ต้องรัน `schema.sql` ที่รวมแล้วบน Supabase ก่อนต่อ Express (โค้ดใหม่เขียนคอลัมน์ `fall_events.escalation_method` ถ้าไม่มี mark escalated จะล้ม) · สเปค `docs/reports/spec_hybrid_ai_escalation_phase2a.md` · Phase 2b ยังไม่อนุญาต ต้องผ่าน shadow mode ก่อน (`docs/reports/hybrid_ai_escalation_design.md`) |
 
 ---
 
@@ -42,22 +44,22 @@ Hybrid AI-driven fall detection system using WiFi CSI (Channel State Information
 
 ```
 TDG/
-├── app/                          # React Native + Expo (expo-router) — 29 หน้า
+├── app/                          # React Native + Expo (expo-router) — 31 หน้า
 │   ├── _layout.tsx  index.tsx  welcome.tsx  home.tsx  settings.tsx
+│   ├── login.tsx  register.tsx                                    # เบอร์โทร + รหัสผ่าน (Supabase Auth)
 │   ├── houses.tsx  add-house.tsx  select-house.tsx  manage-home.tsx
 │   ├── devices.tsx  device-details.tsx
-│   ├── scan-devices.tsx  connect-device.tsx  add-network.tsx      # ← BLE provisioning flow
-│   ├── wifi-password.tsx  device-setup.tsx                        #   (UI เสร็จ ยังเป็น mock)
-│   ├── scan-qr.tsx  enter-code.tsx  invite-*.tsx                  # PoP / เชิญสมาชิก
+│   ├── scan-devices.tsx  device-pairing-code.tsx  connect-device.tsx  # ← BLE provisioning flow
+│   ├── add-network.tsx  wifi-password.tsx  device-setup.tsx       #   ต่อ BLE จริงแล้ว · ทดสอบได้แค่โหมดจำลอง
+│   ├── scan-qr.tsx  enter-code.tsx  invite-*.tsx                  # เชิญสมาชิกเข้าบ้าน (ไม่ใช่ PoP) · รหัส 6 ตัว/QR ของจริง · ต้องรัน accounts.sql
 │   ├── members.tsx  member-detail.tsx
 │   ├── emergency-contacts.tsx  add-external-contact.tsx  edit-contact.tsx
 │   └── notifications.tsx  clear-alerts.tsx
 ├── components/                   # 31 component (การ์ด alert, ปุ่ม, ฟอร์ม, dropdown)
-├── contexts/                     # AlertsContext, DevicesContext
+├── contexts/                     # AuthContext, AlertsContext, DevicesContext
 ├── data/                         # ⚠️ hooks ที่คุยกับ Supabase ตรง ไม่ผ่าน Express API
 │   ├── supabaseClient.ts
-│   └── useAlerts · useDevices · useHouses · useContacts · useSystemAlerts
-├── hooks/useLiveAlerts.ts        # poll Express API ทุก 4 วิ แล้ว merge เข้า AlertsContext
+│   └── useAlerts · useDevices · useHouses · useContacts · useSystemAlerts · houseInvites
 ├── lib/                          # api.ts (Express API), notifications.ts, pushNotifications.ts
 ├── types/alert.ts
 ├── fall_detection_backend/
@@ -69,8 +71,9 @@ TDG/
 │   │   │   │                     # escalationService, pushService,
 │   │   │   │                     # adminService, adminAuthService
 │   │   │   └── middleware/       # auth (x-api-key), adminAuth (Bearer), cors, validate
-│   │   ├── scripts/              # hash_admin_password.js, fake_csi_stream.sh
-│   │   └── tests/                # 92 เคส (jest)
+│   │   ├── scripts/              # hash_admin_password.js, fake_csi_stream.sh,
+│   │   │                         # check_live_setup.js (เช็คก่อนทดสอบสด · อ่านอย่างเดียว)
+│   │   └── tests/                # 143 เคส (jest · นับ 2026-11-12)
 │   ├── ml_service/               # Python + FastAPI ML inference
 │   │   ├── app/                  # main.py, predict.py, preprocess.py, schemas.py
 │   │   ├── experiments/          # ⭐ eval_harness · check_dataset · audit_data
@@ -78,9 +81,9 @@ TDG/
 │   │   ├── notebooks/            # train_v3.ipynb, preprocess_v2.py
 │   │   ├── data_collection/      # csi_collector_serial.py (มีโหมด session สลับคลาส)
 │   │   ├── data/sessions/        # manifest ของแต่ละรอบเก็บข้อมูล
-│   │   └── models/               # lstm_v3.h5, scaler_v3.pkl (NOT in git)
+│   │   └── models/               # rf_v1.pkl (ใช้จริง), lstm_v3_binary_99acc.h5 (NOT in git)
 │   ├── ESP32-CSI-Tool/           # ESP32 firmware submodule
-│   └── supabase/                 # schema.sql (backend) + seed.sql (mock ของแอป)
+│   └── supabase/                 # schema.sql · accounts.sql (บัญชี + RLS · ยังไม่รันบนฐานจริง) · seed.sql (mock ของแอป)
 ├── docs/reports/                 # สเปค · รายงานผลโมเดล · audit ข้อมูล
 └── backend/                      # legacy server แยกต่างหาก ไม่เกี่ยวกับ express_api
 
@@ -125,38 +128,44 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### Data Collection & Training Pipeline
+
+> รายละเอียดทุกขั้น + ข้อห้าม: **`docs/reports/collect_runbook.md`** · firmware/อัตรา CSI: `docs/reports/esp_build_worklog.md` (2026-11-11)
+
+แผนรอบนี้: คนแสดง 5 คน · คนละ session คนละ 80 รอบ = 800 ไฟล์ · ห้องเดียว · **ทาง USB Serial** (#1 เสียบสายกับแมค · แมคเกาะ WiFi บ้านได้)
+> เปลี่ยนจาก UDP 2026-11-11 — ขา #1→แมคทาง WiFi ขาดเป็นพัก ๆ เพราะ macOS สแกน WiFi (ต่ำสุด 24 pkt/s) · serial ได้ 98-100 นิ่ง
+ท่าถ่วงน้ำหนักตามความยาก (`ACTIVITY_WEIGHT` ใน `csi_collector_serial.py`) · อัตรา CSI 100 pkt/s (ชุดแรก 73 เพราะบั๊ก firmware)
+
 ```bash
-cd fall_detection_backend/ml_service
-pip install pyserial   # ครั้งแรกเท่านั้น
+cd fall_detection_backend/ml_service && source venv/bin/activate
 
-# 1. เช็ค ESP32 (USB serial)
-python data_collection/esp_checker.py
+# 1. #1 เสียบสาย USB กับแมค (firmware active_ap/build_serial) · #2 เสียบไฟ · แมคเสียบสายชาร์จ
 
-# 2. เก็บ data ผ่าน USB serial (ไม่ใช้ UDP แล้ว)
-python data_collection/csi_collector_serial.py
-#    ⭐ ในเมนูให้กด 's' = โหมด session สลับคลาส — สคริปต์สั่งเองว่าตาต่อไปเก็บท่าอะไร
-#    สลับ fall/non_fall ให้อัตโนมัติ กันปัญหา session confound ที่เจอในชุดข้อมูลแรก
-#    เมนูเลือกท่าแบบเดิมยังใช้ได้ แต่จะเก็บทีละท่ารวดเดียว = ทำให้คลาสผูกกับเวลา
-#    ห้าม reboot ESP32 / ห้ามขยับอุปกรณ์ / ห้ามย้ายของในห้อง ตลอด session
-#    manifest บันทึกที่ data/sessions/session_<id>.json
+# 2. เก็บด้วยหน้าเว็บ → http://localhost:8765 · เลือกคนแสดงจากการ์ด · Space/Y/N
+caffeinate -i python data_collection/collect_web.py      # serial เป็นค่าเริ่มต้น
+#    เปิดพอร์ตแล้ว #1 รีบูต → เปิดหน้าเว็บก่อน แล้วค่อยอุ่นบอร์ด 10-15 นาที · ป้ายบนสุดต้อง ~100 pkt/s · ส่งพลาด/ทิ้งซ้ำ 0
+#    แผง "ทดสอบลิงก์" (หน้าแรก): ทุกคนนิ่ง → กระตุก ≤ 5% · RSSI กระโดด ≤ 5% · เดินผ่านจุดทำท่า → การเคลื่อนไหว ≥ 3 เท่า
+#    อัตราครบ ≠ ข้อมูลดี — session 20261111_1333 อัตราครบทุกไฟล์แต่กระตุก 9% นำร่องไม่ผ่าน
+#    (สำรอง) UDP: CSI_TRANSPORT=udp ... + udp_rate_check.py — ดู runbook หัวข้อ UDP
+#    ซ้อมโดยไม่มีบอร์ด: python data_collection/collect_web.py --demo (เขียนลง data/raw จริง — ลบก่อนเก็บจริง)
+#    ไฟล์ → data/raw/s<session>_<seq>_<label>_<ท่า>_*.csv · manifest → data/sessions/session_<id>.json (มี actor_id)
 
-# 3. Preprocess → data/processed_v2/
-python notebooks/preprocess_v2.py
-#    ออก X.npy, y.npy, file_ids.npy, session_ids.npy, metadata.json
-#    session_ids มาจาก prefix s<id>_ ที่ collector เขียนไว้ (ไฟล์เก่าไม่มี prefix = "legacy")
-#    จำเป็นสำหรับแบ่ง test set ตาม session — test ต้องเป็น session ที่โมเดลไม่เคยเห็น
+# 3. 🚦 ด่านนำร่อง — หลังคนแรกเก็บ ~30 รอบ ก่อนเก็บต่อ (โมเดลแยก fall/non_fall ได้ดีกว่าสุ่มไหม)
+python experiments/pilot_check.py --actor 1
 
-# 4. ⭐ ตรวจข้อมูลก่อนเทรน — 0 = ผ่าน, 1 = ไม่ผ่าน
-python experiments/check_dataset.py
-#    เช็ค: สลับคลาสจริงไหม · สภาพห้องเลื่อนไหม · โมเดลจับระดับสัญญาณหรือการเคลื่อนไหว
-#    · ข้าม session แล้วยังทำงานไหม · วิธีวัดรั่วไหม
-#    ไม่ผ่าน = อย่าเพิ่งเทรน ตัวเลขที่ได้จะไม่สะท้อนความจริง
-#    อยากรู้รายละเอียดว่าทำไม → python experiments/audit_data.py
+# 4. Preprocess → data/processed_v3_framed (dataset A) + processed_v3_continuous (dataset B)
+python notebooks/preprocess_v3.py        # ห้ามใช้ preprocess_v2 กับข้อมูลชุดใหม่
+#    window 273 pkt (2.73 วิ) · stride 68 · ออก file_ids / session_ids / actor_ids
+#    ⚠️ ค้าง: เลือก subcarrier ผิด (ใช้ 0-51 ต้องเป็น 6-31,33-58) + ยังไม่หาร gain ต่อ packet — แก้ก่อนเทรน rf_v2
+#    parser ทิ้งแถวเสียจากสาย USB (บรรทัดซ้อน/ขาดกลาง) + เฟรม legacy sig_mode 0 แล้ว (เดิมพังทั้งไฟล์ / เป็นทางลัดของโมเดล)
 
-# 5. Train → เปิด notebooks/train_v3.ipynb → Restart & Run All
+# 5. ตรวจข้อมูลก่อนเทรน (ใช้กับ dataset A เท่านั้น) — 0 = ผ่าน
+CSI_DATA_DIR=data/processed_v3_framed python experiments/check_dataset.py
+#    ข้อ "โมเดลจับอะไรอยู่" อาจ FAIL ทั้งที่ข้อมูลดี (ห้องว่าง/ท่านอนเปลี่ยนระดับสัญญาณจริง) — ดูคู่กับผลแบ่งตามคน
+
+# 6. Train rf_v2 (RandomForest) — แบ่ง test ตามคน (leave-one-actor-out) · ยังไม่มี notebook
 ```
 
-> หมายเหตุ: `csi_collector.py` (UDP version) เก็บไว้สำหรับโหมด WiFi ในอนาคต — ตอนนี้ใช้ `csi_collector_serial.py` เท่านั้น
+> CLI เดิม `csi_collector_serial.py` (กด `s`) ยังใช้ได้เป็นทางสำรอง · `csi_collector.py` (UDP รุ่นเก่า) ห้ามใช้ — ไม่มีโหมดสลับคลาส
 
 ## API Endpoints (Express API — Render Cloud)
 
@@ -186,22 +195,27 @@ route จริงใน Express  →  openapi.js  →  API_REFERENCE.md
 
 All endpoints require `x-api-key` header.
 
-> **`x-api-key` แยกตาม scope แล้ว** — `DEVICE_API_KEY` (predict) · `APP_API_KEY` (events/ack/push) ·
-> `DEMO_API_KEY` (demo/fire, alert/test) · scope ไหนไม่ได้ตั้ง จะถอยไปใช้ `API_KEY` เดิม
-> คีย์ที่ฝังใน APK จึงสั่งให้ระบบโทรออกไม่ได้ · ดู `src/middleware/auth.js`
+> **`x-api-key` แยกตาม scope แล้ว** — `DEVICE_API_KEY` (predict) · `APP_API_KEY` (ack · push/register) ·
+> `DEMO_API_KEY` (demo/fire, alert/test · debug: events, push/tokens ที่คืนข้อมูลทุกบ้าน) · scope ไหนไม่ได้ตั้ง จะถอยไปใช้ `API_KEY` เดิม
+> คีย์ที่ฝังใน APK จึงสั่งให้ระบบโทรออกไม่ได้ **เมื่อตั้งคีย์แยกจริง** · ดู `src/middleware/auth.js`
+> ⚠️ ตรวจ 2026-11-12: `.env` ของ express_api ตั้งแค่ `API_KEY` ตัวเดียว — ทุก scope ยังใช้คีย์เดียวกัน
 
 ### Core
 - `POST /api/v1/predict` — รับ CSI features จาก ESP32, เรียก ML service, trigger alert ถ้า fall
-- `GET  /api/v1/events` — list all events (`?device_id=&limit=50`)
-- `GET  /api/v1/events/falls` — falls only
+- `GET  /api/v1/events` — list all events (`?device_id=&limit=50`) · **DEMO_API_KEY** (คืนทุกบ้าน · แอปไม่ได้ใช้)
+- `GET  /api/v1/events/falls` — falls only · **DEMO_API_KEY**
 - `GET  /health`
 
 ### Push Notification
 - `POST /api/v1/push/register` — ลงทะเบียน Expo push token (`{ token, device_id, platform }`)
-- `GET  /api/v1/push/tokens` — debug: ดู token ทั้งหมด
+- `GET  /api/v1/push/tokens` — debug: ดู token ทั้งหมด · ใช้ **DEMO_API_KEY** (คืน token ทุกเครื่อง)
+- push ตอนตรวจพบการล้ม: ก่อนรัน `accounts.sql` ส่งทุกเครื่อง · หลังรันส่งเฉพาะเครื่องของสมาชิกบ้าน (`pushService.recipientsFor`)
 
 ### Acknowledge / Escalation
-- `POST /api/v1/events/:id/acknowledge` — ผู้ดูแลกด OK → ยกเลิก escalation timer
+- `POST /api/v1/alert/ack/:event_id` — ผู้ดูแลกด OK → ยกเลิก escalation timer ·
+  `event_id` คือ id ของ `fall_events` (ในแอปคือ `alerts.fall_event_id`) **ไม่ใช่ `alerts.id`** —
+  ส่งผิดตัวได้ 404 แล้วระบบโทรตามเวลาเหมือนไม่มีใครกด · หมดเวลาแล้วได้ 409
+  · หลังรัน `accounts.sql` ต้องแนบ `Authorization: Bearer <access token ของบัญชี>` และเป็นสมาชิกบ้านของอุปกรณ์ ไม่งั้น 401/403 (`services/accountService.js`)
 - escalationService จะ auto-call Twilio ถ้าไม่มีใคร ack ภายใน `ACK_TIMEOUT_SECONDS` (default 60s)
 
 ### Admin Client (ใช้ Bearer token ไม่ใช่ x-api-key)
@@ -231,15 +245,19 @@ PORT=3000
 API_KEY=...
 ML_SERVICE_URL=http://localhost:8000
 SUPABASE_URL=...
-SUPABASE_KEY=...
+SUPABASE_KEY=...              # service_role ไม่ใช่ anon — จำเป็นหลังรัน accounts.sql (RLS)
 TWILIO_ACCOUNT_SID=...
 TWILIO_AUTH_TOKEN=...
 TWILIO_PHONE=...
-ALERT_NUMBERS=+66812345678,+66898765432
+ALERT_PHONES=+66812345678,+66898765432
 ```
 
 ### ML Service (`fall_detection_backend/ml_service/.env`)
 ```
+# เลือกโมเดล: rf_v1 (ค่าเริ่มต้น · 416 ค่า) | rf_v2_event (28 ค่า · ตัวตรวจแบบดูต่อเนื่อง)
+FALL_MODEL=rf_v1
+# FALL_THRESHOLD=0.4   # แก้ทับ threshold ของ rf_v2_event
+# ⚠️ สองบรรทัดนี้ไม่มีผล — app/predict.py เลือกไฟล์จาก FALL_MODEL เท่านั้น
 MODEL_PATH=models/lstm_v3.h5
 SCALER_PATH=models/scaler_v3.pkl
 PORT=8000
@@ -255,20 +273,35 @@ CSI_SEQUENCE_LEN=10
 |---|---|---|---|
 | Legacy | `lstm_model.h5`, `lstm_best.h5`, `lstm_binary.h5`, `scaler.pkl` | — | เก่า |
 | v2 | `lstm_v2.h5`, `lstm_v2_best.h5`, `scaler_v2.pkl` | — | เก่า |
-| **v3** ✅ | `lstm_v3.h5`, `lstm_v3_best.h5`, `scaler_v3.pkl` | 97.9% | **ใช้งานอยู่** |
+| v3 (LSTM) | `lstm_v3_binary_99acc.h5`, `lstm_v3_binary_best.h5`, `scaler_v3.pkl` | 99.7% (split รั่ว) | เทรนแล้วแต่ **ไม่ได้ใช้ serving** |
+| **rf_v1** ✅ | `rf_v1.pkl`, `scaler_rf_v1.pkl` | 95.6% (grouped 5-fold) | **ตัวที่ ML service โหลดจริง** |
+| rf_v2_event | `rf_v2_event.pkl` (+ `report_rf_v2_event.json`) | unseen 72.9% ที่มาร์ค · ดูต่อเนื่อง ~43% / แจ้งผิด ~4 ต่อชม. | ใช้เมื่อ `FALL_MODEL=rf_v2_event` · 28 ค่าจาก `app/event_features.py` · ยังไม่ผ่านทดสอบสด |
 
-### v3 Config
+### v3 Config (LSTM — เทรนไว้ ไม่ได้ใช้ serving)
 - Architecture: LSTM 128→64→32
 - WINDOW_SIZE: 200, STRIDE: 50, SEQUENCE_LEN: 10
 - Features: 8 stats × 52 subcarriers = 416
-- Fall recall: 98.5% — **ตัวเลขนี้วัดด้วย split ที่ข้อมูลรั่ว อย่าใช้รายงาน**
-- Train/Val/Test: 868 / 187 / 187 (`train_test_split` สุ่ม ไม่ได้แบ่งตามไฟล์บันทึก)
+- Test accuracy 99.7% · Fall recall 100% — **ตัวเลขนี้วัดด้วย split ที่ข้อมูลรั่ว อย่าใช้รายงาน**
+  (ที่มา `models/report_v3.json`)
+- Train/Val/Test: **1,675 / 359 / 360** = 70/15/15 ของ 2,394 sequence
+  (`train_test_split` สุ่ม stratify seed 42 · ไม่ได้แบ่งตามไฟล์บันทึก)
+
+### rf_v1 Config (ตัวที่ ML service ใช้จริง)
+- `app/predict.py` hardcode `models/rf_v1.pkl` + `models/scaler_rf_v1.pkl` —
+  **ไม่ได้อ่าน `MODEL_PATH` / `SCALER_PATH` จาก .env**
+- RandomForest 200 trees · per-window (416 features) ไม่ใช้ sequence
+- `FALL_THRESHOLD = 0.55` ใน `predict.py` — ไม่ใช่ 0.5 และไม่ใช่ 0.36 ที่ tuning แนะนำ
+- เทรนด้วย `data/processed_v2` 2,412 window · random split test_size=0.15 →
+  **train 2,050 / test 362** (ยืนยันจาก `scaler_rf_v1.pkl.n_samples_seen_ = 2050`)
+- สคริปต์ที่สร้างไฟล์นี้ไม่อยู่ในรีโป — `data_collection/retrain_rf.py` ใช้ test_size=0.2
+  และอ่าน `data/realtime/` ซึ่งสร้างทีหลัง (rf_v1 ลงวันที่ 2026-03-23 · realtime 2026-04-22)
 
 > ⚠️ **ปัญหาที่พบ 2026-09-01** — `train_v3.ipynb` ไม่ได้โหลด `file_ids.npy` ที่ preprocess เซฟไว้
 > ทำให้ window จากการล้มครั้งเดียวกัน (ซ้อนกัน 75%) กระจายไปทั้ง train และ test
 > และ SEQUENCE_LEN=10 ก็เกินกว่าที่ข้อมูลรองรับ (3 window ต่อไฟล์) → 100% ของ sequence
 > ประกอบจากคนละไฟล์ · ฝั่ง serving workaround ด้วยการซ้ำ window เดียว 10 ครั้ง
-> **ตัวเลขที่ควรใช้: accuracy 95.6% / fall recall 96.6% (RandomForest per-window, grouped 5-fold)**
+> **ตัวเลขที่ควรใช้: accuracy 95.6% ±0.5 / fall recall 96.6% ±0.9**
+> (RandomForest per-window · StratifiedGroupKFold 5-fold แบ่งตามไฟล์บันทึก · train 80% / test 20% ต่อ fold)
 > รายละเอียด: `docs/reports/model_evaluation_2026-09.md` · โค้ด: `ml_service/experiments/`
 
 ## Data Pipeline
@@ -284,7 +317,7 @@ ESP32 #2 (STA) ──WiFi packet──► ESP32 #1 (AP) ──USB Serial──�
                                                        ▼
                               csi_collector_serial.py → raw CSV (400 pkts/file) → data/raw/
                               → preprocess_v2.py → X.npy (N, 416), y.npy → data/processed_v2/
-                              → train_v3.ipynb   → lstm_v3.h5, scaler_v3.pkl → models/
+                              → train_v3.ipynb   → lstm_v3_binary_99acc.h5, scaler_v3.pkl → models/
 ```
 
 ### Data ปัจจุบัน (data/raw/)
@@ -294,13 +327,27 @@ ESP32 #2 (STA) ──WiFi packet──► ESP32 #1 (AP) ──USB Serial──�
 > ตรวจซ้ำได้ด้วย `python experiments/audit_data.py` · รายละเอียด `docs/reports/data_quality_audit_2026-09.md`
 
 
-| Class | ไฟล์ | Windows |
-|---|---|---|
-| fall_A | 100 | 300 |
-| fall_B | 100 | 300 |
-| fall_C | 100 | 300 |
-| non_fall | 120 | 360 |
-| **รวม** | **420** | **1,260** |
+> ไฟล์ดิบอยู่ใน `data/raw/Data_2.zip` (804 ไฟล์ ยังไม่ได้แตก) · 3 window ต่อไฟล์คงที่
+
+| Class | ท่า | ไฟล์ | Windows |
+|---|---|---:|---:|
+| fall | ล้มไปข้างหน้า | 100 | 300 |
+| fall | ล้มไปข้างหลัง | 100 | 300 |
+| fall | ล้มไปข้างๆ | 100 | 300 |
+| fall | สดุดล้ม | 100 | 300 |
+| non_fall | สะดุดแต่ไม่ล้ม | 82 | 246 |
+| non_fall | เดิน | 81 | 243 |
+| non_fall | นอนลงบนพื้น | 81 | 243 |
+| non_fall | ก้มเก็บของ | 80 | 240 |
+| non_fall | ยืนนิ่ง | 80 | 240 |
+| **fall รวม** | | **400** | **1,200** (49.8%) |
+| **non_fall รวม** | | **404** | **1,212** (50.2%) |
+| **รวมทั้งหมด** | | **804** | **2,412** |
+
+สัดส่วนคลาสสมดุลเกือบเป๊ะ 1:1.01 — `class_weight="balanced"` ใน `train_v3.ipynb`
+จึงได้น้ำหนัก ~1.0 ทั้งสองคลาส เท่ากับไม่ได้ทำอะไร · `rf_v1` ตั้ง `class_weight=None`
+
+มีคู่ท่าที่ตั้งใจให้แยกยาก: **"สดุดล้ม" (fall) กับ "สะดุดแต่ไม่ล้ม" (non_fall)**
 
 ## ESP32 Hardware Setup & Network Topology (Data Collection Mode)
 
@@ -358,17 +405,19 @@ CONFIG_ESPTOOLPY_MONITOR_BAUD=921600
 
 ใน production ESP32 #1 ต้องส่ง CSI ขึ้น cloud ผ่าน WiFi (ไม่ใช่ USB) — ลูกค้าไม่ต้อง hardcode WiFi → ใช้ BLE provisioning แทน
 
-### สถานะ (2026-09-02)
+### สถานะ (ตรวจกับโค้ด 2026-11-12)
 
 | ส่วน | สถานะ |
 |---|:---:|
 | UI ทั้ง flow + permission (manifest และ runtime) | ✅ |
+| บันทึกอุปกรณ์ลง Supabase หลังตั้งค่าเสร็จ | ✅ `device-setup.tsx` · ไม่มีค่าสำรองปลอมแล้ว |
+| `select-house` ดึงบ้านจริง + ส่ง `house_id` ผ่าน flow | ✅ |
 | BLE library + Expo config plugin + `lib/provisioning.ts` | ✅ |
 | ต่อ 3 หน้าจอเข้ากับ BLE จริง | ✅ |
 | **ESP32 firmware — `wifi_provisioning` + `scheme_ble`** | ✅ เขียนแล้ว |
-| ปุ่ม reset กลับเข้าโหมดตั้งค่า | ✅ |
-| **ยังไม่เคย build / flash / ทดสอบกับบอร์ดจริง** | ❌ |
-| หน้าจอกรอก PoP ในแอป | ❌ ทีมฟรอนต์ — ใบงาน `docs/reports/frontend_req_device_pairing_code.md` |
+| ปุ่ม reset กลับเข้าโหมดตั้งค่า | ✅ เขียนแล้ว · ⚠️ ยังไม่เคยทดสอบ |
+| build / flash / ทดสอบกับบอร์ดจริง | ✅ build + flash + มือถือเห็น BLE (13 ต.ค.) · ❌ ยังไม่เคยส่ง WiFi ผ่าน BLE จนจบ |
+| หน้าจอกรอก PoP ในแอป | ✅ `app/device-pairing-code.tsx` (2026-11-12) — ใบงาน `docs/reports/frontend_req_device_pairing_code.md` ปิดแล้ว · ยังไม่เคยสแกน QR ด้วยกล้องจริง |
 
 ### สองโหมดใน firmware — เลือกใน menuconfig
 
@@ -383,6 +432,8 @@ CONFIG_ESPTOOLPY_MONITOR_BAUD=921600
 
 ### ⚠️ สามเรื่องที่ต้องรู้ก่อน build
 
+> ข้อ 1–2 แก้แล้ว build ผ่านจริง 13 ต.ค. — เก็บไว้เป็นเหตุผล · ข้อ 3 ยังเป็นความเสี่ยงที่ต้องทดสอบ
+
 **1. Partition ไม่พอ — ต้องแก้ก่อน**
 ```
 firmware ปัจจุบัน   924 KB
@@ -390,7 +441,7 @@ app partition เดิม  1 MB (partitions_singleapp.csv)  → เหลือ
 NimBLE + provisioning ต้องการอีก ~250-350 KB       → build ไม่ผ่านแน่นอน
 ```
 เพิ่ม `active_ap/partitions.csv` (app 2 MB) และต้องใช้ flash 4 MB
-`sdkconfig` เดิมตั้งไว้ 2MB ซึ่งน่าจะไม่ตรงของจริง — เช็คด้วย `esptool.py flash_id`
+`sdkconfig` เดิมตั้งไว้ 2MB ซึ่งไม่ตรงของจริง — **ยืนยันแล้ว 13 ต.ค. บอร์ดทั้งสองตัวเป็น 4MB** (`esptool.py flash_id`)
 
 **2. Bluetooth ปิดอยู่** — `# CONFIG_BT_ENABLED is not set` ต้องเปิด NimBLE (ไม่ใช่ Bluedroid ซึ่งกินที่กว่ามาก)
 
@@ -438,8 +489,10 @@ idf.py fullclean && idf.py build
 idf.py -p /dev/cu.usbserial-XXXX flash monitor
 ```
 
-**ยังไม่เคย build จริง** — เครื่องที่เขียนโค้ดไม่มี ESP-IDF ติดตั้ง
-ต้องมีคนรัน `idf.py build` ยืนยันก่อน แล้วแก้ error ที่อาจมี
+**build ผ่านแล้ว 13 ต.ค. 2026** (ESP-IDF v5.4 ที่ `~/esp/esp-idf-v5.4`) แต่ทำด้วย**ไฟล์ defaults ไม่ใช่ menuconfig** —
+`sdkconfig.defaults` ที่เขียนเองเคยขาดออปชันจำเป็นแบบไม่มี warning 2 ครั้ง (baudrate กลายเป็น 115200 เงียบ ๆ · CSI ปิดจน reboot วน)
+คำสั่งที่ใช้ได้จริง: `docs/reports/HANDOFF_2026-10-13.md` ข้อ 3 · บันทึกละเอียด `docs/reports/esp_build_worklog.md`
+ยังไม่เคยส่ง WiFi ผ่าน BLE จนจบ และยังไม่เคยทดสอบปุ่ม BOOT ค้าง 5 วิ
 
 ## Alert Flow (Production)
 
@@ -463,10 +516,12 @@ PUSH_MODE=real              # real = ยิง FCM จริง | fake = log con
 
 ## Important Notes
 
-- `lstm_v3.h5`, `lstm_v3_best.h5`, `scaler_v3.pkl` are NOT committed to git — must be obtained separately
+- ไฟล์โมเดล (`rf_v1.pkl`, `scaler_rf_v1.pkl`, `lstm_v3_binary_99acc.h5`, `scaler_v3.pkl`) NOT committed to git — must be obtained separately · git ติดตามเฉพาะ `report_*.json` กับรูป `.png` ใน `models/`
 - `fall_detection_backend/ESP32-CSI-Tool/` **ไม่ใช่ submodule** — เป็นโฟลเดอร์ธรรมดาในรีโปหลัก (ไม่มี `.gitmodules` ไม่มี `.git` ข้างใน · git ติดตามไฟล์ในนั้น 50 ไฟล์) แก้ตรงได้เลย
 - **`lib/api.ts`** — URL/คีย์ย้ายไป `app.config.js` แล้ว ตั้งผ่าน `EXPO_PUBLIC_API_BASE_URL` / `EXPO_PUBLIC_API_KEY` · แต่คีย์ยังเป็นตัวเดียวกับ ESP32 อยู่ ดูหัวข้อ Deploy
-- ต้องรัน `ALTER TABLE devices` ใน `schema.sql` ก่อนใช้หน้า Admin — คอลัมน์ `last_seen_at`/`is_active`/`installed_at` ยังไม่มีใน Supabase จริง
+- **ฐานข้อมูลจริงยังไม่ได้รัน `schema.sql`** (ตรวจ 2026-11-12 แบบอ่านอย่างเดียว) — ไม่มี `alerts.fall_event_id` (Express สร้าง alert ในแอปไม่ได้) · `devices.last_seen_at`/`is_active`/`installed_at` (หน้า Admin พัง) · ตาราง `ml_models` · แก้: วาง `schema.sql` ทั้งไฟล์ใน Supabase SQL Editor แล้วรัน (ทุกคำสั่งเป็น IF NOT EXISTS รันซ้ำได้)
+- **`accounts.sql` รันหลังทดสอบสด และหลังลงแอปที่มีหน้า login แล้วเท่านั้น** — เปิด RLS แล้วแอปที่ไม่ได้ login ไม่เห็นอะไรเลย · Express ต้องใช้ service_role ก่อน · ลำดับเต็มใน `docs/reports/accounts_round1.md`
+- Express `.env` ยังไม่ได้ตั้ง `SUPABASE_URL`/`SUPABASE_KEY` → `dbService` ใช้ mock store ในหน่วยความจำ เหตุการณ์ไม่ลงฐานข้อมูลและหายเมื่อรีสตาร์ต — แอปเห็นแค่ push ไม่เห็นในรายการ
 - escalationService เก็บ timer ใน memory แต่กู้คืนได้ — ตอน boot อ่านเหตุการณ์ที่ยัง pending จาก DB มาตั้ง timer ใหม่ด้วยเวลาที่เหลือจริง และมี sweeper เช็คซ้ำทุก 60 วิ (เหตุการณ์ที่เลยกำหนดเกิน 1 ชม. จะไม่โทร แต่ปิดสถานะไว้ไม่ให้ค้าง pending)
 - Twilio Trial accounts can only send to verified numbers — verify caregiver numbers first
 - `backend/` ที่ root เป็น legacy server แยกต่างหาก ไม่เกี่ยวกับ `fall_detection_backend/express_api/`
@@ -497,7 +552,7 @@ Table: `fall_events` — Express API เขียนเมื่อ ESP32 ตร
 
 Table: `push_tokens` — `token` PK · `device_id` · `platform` · `created_at` / `updated_at`
 
-**กลุ่ม B — แอปมือถือ** (❗ **ไม่มี `CREATE TABLE` ในรีโปเลย** รู้โครงสร้างได้จาก `seed.sql` กับโค้ดใน `data/` เท่านั้น)
+**กลุ่ม B — แอปมือถือ** (`CREATE TABLE IF NOT EXISTS` อยู่ต้น `schema.sql` แล้ว 12 พ.ย. — เขียนตามโค้ดใน `data/` กับ `seed.sql` · ฐานจริงมีตารางอยู่ก่อน คำสั่งนี้จึงไม่แก้ตารางเดิม)
 
 | ตาราง | คอลัมน์ที่ใช้จริง |
 |---|---|
@@ -505,7 +560,20 @@ Table: `push_tokens` — `token` PK · `device_id` · `platform` · `created_at`
 | `devices` | `id` (PK เช่น `'d1'`) · `house_id` → houses · `name` · **`code`** (`'ESP-0001A'`) · `wifi_ssid` · `status` · **+ `last_seen_at` · `is_active` · `installed_at`** (เพิ่มโดย `schema.sql` ให้ admin ใช้) |
 | `emergency_contacts` | ผู้ติดต่อฉุกเฉิน (self / member / external) |
 | `house_contacts` | เชื่อม contact กับบ้าน (many-to-many) |
-| `alerts` | `id` · `house_id` · `title` · `description` · `location` · `status` · `answered_by` · `countdown` · `timeline` (JSON) · **+ `fall_event_id`** → ผูกกับ `fall_events` |
+| `alerts` | `id` · `house_id` · `title` · `description` · `location` · `status` · `answered_by` · `countdown` · `timeline` (JSON) · **+ `fall_event_id`** → ผูกกับ `fall_events` (เพิ่มโดย `schema.sql` — ฐานข้อมูลจริงยังไม่มี ณ 2026-11-12) |
+
+**กลุ่ม C — บัญชีผู้ใช้** (`accounts.sql` · ⚠️ ยังไม่ได้รันบนฐานจริง — ลำดับและเหตุผลใน `docs/reports/accounts_round1.md`)
+
+| ตาราง / ฟังก์ชัน | |
+|---|---|
+| `house_members` | `house_id` · `user_id` → `auth.users` · `role` (`owner` / `caregiver`) |
+| `house_invites` | `code` (6 ตัว ไม่มี I O 0 1) · `house_id` · อายุ 15 นาที · ใช้ได้ครั้งเดียว (`used_by` / `used_at`) |
+| `create_house(p_name)` | สร้างบ้าน + ตั้งคนเรียกเป็น owner · เพดาน 5 บ้านต่อคน (นับทุกบ้านที่เป็นสมาชิก) — แอป insert `houses` ตรงไม่ได้แล้ว |
+| `create_house_invite(p_house_id)` / `join_house(p_code)` | owner สร้างรหัส · คนถูกเชิญเข้าเป็น caregiver · เพดาน 6 คนต่อบ้าน |
+
+RLS เปิดทุกตารางกลุ่ม B + C · `fall_events` / `push_tokens` / `ml_models` เปิด RLS แบบไม่มี policy = เข้าได้เฉพาะ service_role
+→ **Express ต้องใช้ service_role key** ไม่งั้นเขียนเหตุการณ์ไม่ได้แบบไม่มี error ชัด (`check_live_setup.js` เช็คให้)
+`emergency_contacts` ได้คอลัมน์ `created_by` เพิ่ม (คนสร้างต้องเห็นแถวของตัวเองก่อนผูกกับบ้าน)
 
 ### ✅ ตัดสินใจแล้ว 2026-09-01 — `fall_events.device_id` ↔ `devices.code`
 
@@ -546,20 +614,27 @@ Table: `push_tokens` — `token` PK · `device_id` · `platform` · `created_at`
 ฝั่งแอป: `data/useAlerts.ts` ดึงซ้ำทุก 10 วินาที · `hooks/useLiveAlerts.ts` ถูกลบแล้ว
 เพราะจะทำให้เหตุการณ์เดียวกันโผล่สองครั้ง (ทั้งจากตาราง `alerts` และจากการ poll API)
 
+> ⚠️ ทั้งหมดนี้ต้องรัน `schema.sql` บนฐานข้อมูลจริงก่อน (ยังไม่ได้รัน ณ 2026-11-12) —
+> ถ้าต่อ Express เข้า Supabase โดยไม่รัน การสร้างแถว `alerts` จะล้มทุกครั้ง (log `❌ [ALERT]`)
+> และกดรับทราบจากแอปต้องส่ง `alerts.fall_event_id` ไม่ใช่ `alerts.id` (บั๊กที่แก้ 2026-11-12)
+
 ### 🔲 ยังต้องตัดสินใจ
 
 1. **`devices.status` กับ online/offline ของ admin เป็นสองแหล่งความจริง**
    `status` ('connected'/'disconnected') ฝั่งแอปตั้งเอง · admin คำนวณจาก `last_seen_at` ตาม NFR-09
    ควรตัดสินใจว่าจะเลิกใช้ `status` แล้วอนุมานจาก `last_seen_at` อย่างเดียวไหม
 
-### เส้นทางข้อมูลของแอป — มีสองทางขนานกัน
+### เส้นทางข้อมูลของแอป
 
 ```
-data/*.ts hooks  ──Supabase client ตรง──►  houses · devices · alerts · contacts
-                                            (ส่วนใหญ่เป็น seed data)
+data/*.ts hooks  ──Supabase client ตรง (anon key + session ของคนที่ login)──►  houses · devices · alerts · contacts
+  useAlerts ดึงตาราง alerts ซ้ำทุก 10 วิ                 (แถวจริงเขียนโดย Express · ที่เหลือเป็น seed)
+  หลังรัน accounts.sql: RLS กรองให้เห็นเฉพาะบ้านที่เป็นสมาชิก · เปลี่ยนบัญชีแล้ว Alerts/Devices ดึงใหม่เอง
 
-hooks/useLiveAlerts ──poll ทุก 4 วิ──► Express API /api/v1/events/falls
-lib/api.ts                             ──► /alert/ack/:id · /push/register · /health
+contexts/AuthContext ──► Supabase Auth (เบอร์โทร + รหัสผ่าน · session เก็บใน AsyncStorage)
+lib/api.ts  ──► Express API  /alert/ack/:event_id · /push/register · /health
 ```
 
-`app/home.tsx` ใช้ทั้งสองทาง · หน้าอื่นเกือบทั้งหมดใช้ `data/` อย่างเดียว
+กดรับทราบ (`contexts/AlertsContext.tsx` → `acknowledgeAlert`): alert ที่มี `fallEventId` → ส่ง Express
+เพื่อยกเลิกการโทร · ข้อมูลตัวอย่างที่ไม่มี → แก้แถว `alerts` ตรง · ส่งไม่สำเร็จจะย้อนสถานะ
+และขึ้นข้อความบนหน้า home (เดิมเงียบ) · ถือผลการกดไว้ 30 วิ กันรายการเด้งกลับระหว่างรอฐานข้อมูลตามทัน

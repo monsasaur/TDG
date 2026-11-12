@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, Pressable } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,16 +7,23 @@ import PageHeader from "../components/PageHeader";
 import FilterPillButton from "../components/FilterPillButton";
 import HouseFilterDropdown from "../components/HouseFilterDropdown";
 import ConfirmModal from "../components/ConfirmModal";
-
-const HOUSES = ["บ้านแม่", "บ้านพ่อ"];
+import { useHouses } from "../data/useHouses";
 
 export default function ClearAlertsScreen() {
   const router = useRouter();
   const { alerts, systemAlerts, clearAlerts } = useAlerts();
+  const { houses } = useHouses();
 
+  const HOUSES = houses.map((h) => h.name);
   const showAll = HOUSES.length > 1;
-  const defaultHouse = showAll ? "ทั้งหมด" : HOUSES[0];
-  const [selectedHouse, setSelectedHouse] = useState(defaultHouse);
+  const [selectedHouse, setSelectedHouse] = useState<string>("ทั้งหมด");
+
+  // บ้านมาทีหลัง (โหลดจาก Supabase) — ถ้ามีบ้านเดียวให้เลือกบ้านนั้นแทน "ทั้งหมด"
+  useEffect(() => {
+    if (!showAll && HOUSES.length === 1 && selectedHouse === "ทั้งหมด") {
+      setSelectedHouse(HOUSES[0]);
+    }
+  }, [showAll, HOUSES, selectedHouse]);
   const [clearFall, setClearFall] = useState(true);
   const [clearSystem, setClearSystem] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);

@@ -1,0 +1,210 @@
+{
+ "version": "rf_v2_event",
+ "model_name": "RandomForest",
+ "trained_at": "2026-11-11T18:09:47+00:00",
+ "feature_fn": "app.event_features.stream_feature_vector",
+ "keys": [
+  "posture_z",
+  "level_db",
+  "rssi_chg",
+  "across_z",
+  "mot10_base",
+  "mot10_max",
+  "mot10_mean",
+  "mot10_ratio",
+  "mot10_peak_t",
+  "mot10_width",
+  "mot30_base",
+  "mot30_max",
+  "mot30_mean",
+  "mot30_ratio",
+  "mot30_peak_t",
+  "mot30_width",
+  "pc1_ratio",
+  "pc1_frac",
+  "level_db_early",
+  "rssi_chg_early",
+  "post_std",
+  "base_tail_std",
+  "post_std_ratio",
+  "post_mot10",
+  "post_mot30",
+  "post_drift",
+  "rssi_std_post",
+  "rssi_std_base"
+ ],
+ "pre": 342,
+ "post": 130,
+ "window": 472,
+ "step": 25,
+ "threshold": 0.4,
+ "confirm": 5,
+ "label": "1 = fall",
+ "still_threshold": 0.4292813531186464,
+ "still": {
+  "threshold": 0.4292813531186464,
+  "fraction": 0.8,
+  "falls_pass": 0.8992443324937027,
+  "walk_windows_pass": 0.3717948717948718,
+  "note": "การขยับ = std ของค่าเฉลี่ย 10 packet ใน 60 packet ล่าสุด ÷ noise ต่อ packet ของช่วงก่อนทำท่า"
+ },
+ "n_files": 801,
+ "n_rows": 11318,
+ "n_fall_rows": 1974,
+ "people": [
+  1,
+  2,
+  3,
+  4,
+  5
+ ],
+ "sklearn": "1.5.2",
+ "unseen_eval": {
+  "default": {
+   "fall_recall": 0.43,
+   "routine_alarms_per_hour": 3.9614855570839063,
+   "routine_hours": 0.25243055555555555,
+   "lookalike_alarm_rate": 0.1532567049808429,
+   "per_lookalike": {
+    "นอนลงบนพื้น": 0.4625,
+    "ก้มเก็บของ": 0.0,
+    "สะดุดแต่ไม่ล้ม": 0.0297029702970297
+   }
+  },
+  "grid": {
+   "k3_t0.3": {
+    "fall_recall": 0.7375,
+    "routine_alarms_per_hour": 99.03713892709766,
+    "routine_hours": 0.25243055555555555,
+    "lookalike_alarm_rate": 0.3524904214559387,
+    "per_lookalike": {
+     "นอนลงบนพื้น": 0.8875,
+     "ก้มเก็บของ": 0.075,
+     "สะดุดแต่ไม่ล้ม": 0.1485148514851485
+    }
+   },
+   "k3_t0.4": {
+    "fall_recall": 0.615,
+    "routine_alarms_per_hour": 43.576341127922966,
+    "routine_hours": 0.25243055555555555,
+    "lookalike_alarm_rate": 0.25287356321839083,
+    "per_lookalike": {
+     "นอนลงบนพื้น": 0.675,
+     "ก้มเก็บของ": 0.0,
+     "สะดุดแต่ไม่ล้ม": 0.1188118811881188
+    }
+   },
+   "k3_t0.5": {
+    "fall_recall": 0.46,
+    "routine_alarms_per_hour": 15.845942228335625,
+    "routine_hours": 0.25243055555555555,
+    "lookalike_alarm_rate": 0.1839080459770115,
+    "per_lookalike": {
+     "นอนลงบนพื้น": 0.5375,
+     "ก้มเก็บของ": 0.0,
+     "สะดุดแต่ไม่ล้ม": 0.04950495049504951
+    }
+   },
+   "k3_t0.6": {
+    "fall_recall": 0.345,
+    "routine_alarms_per_hour": 3.9614855570839063,
+    "routine_hours": 0.25243055555555555,
+    "lookalike_alarm_rate": 0.09961685823754789,
+    "per_lookalike": {
+     "นอนลงบนพื้น": 0.2875,
+     "ก้มเก็บของ": 0.0,
+     "สะดุดแต่ไม่ล้ม": 0.0297029702970297
+    }
+   },
+   "k4_t0.3": {
+    "fall_recall": 0.65,
+    "routine_alarms_per_hour": 59.42228335625859,
+    "routine_hours": 0.25243055555555555,
+    "lookalike_alarm_rate": 0.2988505747126437,
+    "per_lookalike": {
+     "นอนลงบนพื้น": 0.8,
+     "ก้มเก็บของ": 0.025,
+     "สะดุดแต่ไม่ล้ม": 0.1188118811881188
+    }
+   },
+   "k4_t0.4": {
+    "fall_recall": 0.5125,
+    "routine_alarms_per_hour": 19.80742778541953,
+    "routine_hours": 0.25243055555555555,
+    "lookalike_alarm_rate": 0.19157088122605365,
+    "per_lookalike": {
+     "นอนลงบนพื้น": 0.55,
+     "ก้มเก็บของ": 0.0,
+     "สะดุดแต่ไม่ล้ม": 0.0594059405940594
+    }
+   },
+   "k4_t0.5": {
+    "fall_recall": 0.38,
+    "routine_alarms_per_hour": 0.0,
+    "routine_hours": 0.25243055555555555,
+    "lookalike_alarm_rate": 0.13409961685823754,
+    "per_lookalike": {
+     "นอนลงบนพื้น": 0.4,
+     "ก้มเก็บของ": 0.0,
+     "สะดุดแต่ไม่ล้ม": 0.0297029702970297
+    }
+   },
+   "k4_t0.6": {
+    "fall_recall": 0.2575,
+    "routine_alarms_per_hour": 0.0,
+    "routine_hours": 0.25243055555555555,
+    "lookalike_alarm_rate": 0.05363984674329502,
+    "per_lookalike": {
+     "นอนลงบนพื้น": 0.1625,
+     "ก้มเก็บของ": 0.0,
+     "สะดุดแต่ไม่ล้ม": 0.009900990099009901
+    }
+   },
+   "k5_t0.3": {
+    "fall_recall": 0.58,
+    "routine_alarms_per_hour": 23.76891334250344,
+    "routine_hours": 0.25243055555555555,
+    "lookalike_alarm_rate": 0.23371647509578544,
+    "per_lookalike": {
+     "นอนลงบนพื้น": 0.6875,
+     "ก้มเก็บของ": 0.0125,
+     "สะดุดแต่ไม่ล้ม": 0.04950495049504951
+    }
+   },
+   "k5_t0.4": {
+    "fall_recall": 0.43,
+    "routine_alarms_per_hour": 3.9614855570839063,
+    "routine_hours": 0.25243055555555555,
+    "lookalike_alarm_rate": 0.1532567049808429,
+    "per_lookalike": {
+     "นอนลงบนพื้น": 0.4625,
+     "ก้มเก็บของ": 0.0,
+     "สะดุดแต่ไม่ล้ม": 0.0297029702970297
+    }
+   },
+   "k5_t0.5": {
+    "fall_recall": 0.2925,
+    "routine_alarms_per_hour": 0.0,
+    "routine_hours": 0.25243055555555555,
+    "lookalike_alarm_rate": 0.07662835249042145,
+    "per_lookalike": {
+     "นอนลงบนพื้น": 0.25,
+     "ก้มเก็บของ": 0.0,
+     "สะดุดแต่ไม่ล้ม": 0.0
+    }
+   },
+   "k5_t0.6": {
+    "fall_recall": 0.18,
+    "routine_alarms_per_hour": 0.0,
+    "routine_hours": 0.25243055555555555,
+    "lookalike_alarm_rate": 0.022988505747126436,
+    "per_lookalike": {
+     "นอนลงบนพื้น": 0.075,
+     "ก้มเก็บของ": 0.0,
+     "สะดุดแต่ไม่ล้ม": 0.0
+    }
+   }
+  },
+  "note": "เทรน 4 คน ทดสอบคนที่ 5 · เลื่อนกรอบทุก 0.25 วิ · กิจวัตรรวม ~16 นาที (ประมาณคร่าว ๆ)"
+ }
+}

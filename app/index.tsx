@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import Animated, {
   useSharedValue,
@@ -9,11 +9,15 @@ import Animated, {
 } from "react-native-reanimated";
 import { useRouter } from "expo-router";
 import SpinningLogo from "../components/SpinningLogo";
+import { useAuth } from "../contexts/AuthContext";
 
 const RING_SIZE = 280;
 
 export default function SplashScreen() {
   const router = useRouter();
+  const { session, loading } = useAuth();
+  const [animDone, setAnimDone] = useState(false);
+  const routed = useRef(false);
 
   const bgOpacity = useSharedValue(0);
   const ringScale = useSharedValue(0);
@@ -31,12 +35,17 @@ export default function SplashScreen() {
       withTiming(1, { duration: 700, easing: Easing.out(Easing.back(1.2)) })
     );
 
-    const timeout = setTimeout(() => {
-      router.replace("/welcome" as any);
-    }, 5000);
+    const timeout = setTimeout(() => setAnimDone(true), 5000);
 
     return () => clearTimeout(timeout);
   }, []);
+
+  // รอทั้งแอนิเมชันจบและอ่าน session ที่เก็บไว้เสร็จ — มีบัญชีค้างอยู่ไปหน้า home เลย ไม่ต้อง login ใหม่
+  useEffect(() => {
+    if (!animDone || loading || routed.current) return;
+    routed.current = true;
+    router.replace((session ? "/home" : "/welcome") as any);
+  }, [animDone, loading, session, router]);
 
   const bgStyle = useAnimatedStyle(() => ({
     backgroundColor: `rgba(249, 236, 237, ${bgOpacity.value})`,

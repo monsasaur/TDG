@@ -2,13 +2,15 @@
  * admin.js — Admin Client API (TDG_BA.pdf ข้อ 13.2)
  *
  * ทุกเส้นยกเว้น /login ต้องมี Authorization: Bearer <token> (SEC-03)
- * BR-07 — MVP นี้อ่านอย่างเดียว ไม่มีเส้นไหนเปลี่ยนสถานะเหตุการณ์หรืออุปกรณ์
+ * BR-07 — เส้นที่เกี่ยวกับเหตุการณ์/อุปกรณ์อ่านอย่างเดียว
+ * ยกเว้น /models/* ซึ่งเป็นทะเบียนเวอร์ชันโมเดล (เมทาดาทา ไม่ได้ deploy อะไร)
  */
 
 const router           = require('express').Router()
 const adminAuth        = require('../middleware/adminAuth')
 const adminAuthService = require('../services/adminAuthService')
 const adminService     = require('../services/adminService')
+const modelRegistry    = require('../services/modelRegistryService')
 
 // SEC-09 — ไม่เปิดเผยโครงสร้างภายในระบบผ่านข้อความ error
 function fail(res, err, label) {
@@ -99,6 +101,55 @@ router.get('/devices', adminAuth, async (req, res) => {
     }))
   } catch (err) {
     fail(res, err, 'devices')
+  }
+})
+
+// ----- ทะเบียนเวอร์ชันโมเดล — รองรับหน้า Admin → Models -----
+//
+// ⚠️ เมทาดาทาอย่างเดียว: ตั้ง active ที่นี่ไม่ได้ทำให้ ML service เปลี่ยนโมเดลจริง
+//    ยังต้องมีคนไปเปลี่ยนไฟล์ใน ml_service เอง (predict.py hardcode path อยู่)
+
+// ส่ง key ของข้อความกลับไปให้ frontend แปลเอง — ไม่ส่งข้อความไทย/อังกฤษจาก server
+// เพราะ i18n อยู่ฝั่ง frontend อยู่แล้ว (src/i18n/messages.js)
+function modelFail(res, err, label) {
+  if (err instanceof modelRegistry.ModelError) {
+    return res.status(err.status).json({ error: err.key })
+  }
+  return fail(res, err, label)
+}
+
+router.get('/models', adminAuth, async (_req, res) => {
+  try {
+    res.json(await modelRegistry.list())
+  } catch (err) {
+    modelFail(res, err, 'models')
+  }
+})
+
+router.post('/models', adminAuth, async (req, res) => {
+  try {
+    const { version, notes } = req.body || {}
+    res.status(201).json(await modelRegistry.create({ version, notes }))
+  } catch (err) {
+    modelFail(res, err, 'model create')
+  }
+})
+
+router.post('/models/:version/test', adminAuth, async (req, res) => {
+  try {
+    res.json(await modelRegistry.markTested(req.params.version))
+  } catch (err) {
+    modelFail(res, err, 'model test')
+  }
+})
+
+// rollback ใช้เส้นเดียวกับ activate — ฝั่ง frontend แค่ส่งเวอร์ชันเก่ามาแทน
+// response มี previous_active ให้ ไม่ต้องจำสถานะไว้ในเบราว์เซอร์ (รีเฟรชแล้วหาย)
+router.post('/models/:version/activate', adminAuth, async (req, res) => {
+  try {
+    res.json(await modelRegistry.activate(req.params.version))
+  } catch (err) {
+    modelFail(res, err, 'model activate')
   }
 })
 

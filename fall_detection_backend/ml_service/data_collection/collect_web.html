@@ -1,0 +1,816 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>เก็บ Dataset</title>
+<style>
+:root{
+  --bg:#f4f5f7; --panel:#fff; --ink:#15181d; --muted:#5d6570; --line:#e2e5ea;
+  --fall:#d6363f; --fall-bg:#fdecec; --non:#1f8f55; --non-bg:#e8f6ee;
+  --warn:#b7791f; --warn-bg:#fdf4e3; --bad:#c2303a; --bad-bg:#fdecec; --ok:#1f8f55; --ok-bg:#e8f6ee;
+  --accent:#2457c5; --shadow:0 1px 2px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#111317; --panel:#1a1d23; --ink:#eef0f3; --muted:#9aa3ad; --line:#2b3038;
+    --fall:#ff5a63; --fall-bg:#3a1a1d; --non:#3ccf83; --non-bg:#16301f;
+    --warn:#f0b44c; --warn-bg:#3a2e14; --bad:#ff6b73; --bad-bg:#3a1a1d; --ok:#3ccf83; --ok-bg:#16301f;
+    --accent:#6f9bff; --shadow:none;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Sukhumvit Set","Thonburi","Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer}
+.wrap{max-width:1280px;margin:0 auto;padding:16px}
+header{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+header h1{font-size:18px;margin:0 8px 0 0;font-weight:700}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;
+  background:var(--panel);border:1px solid var(--line);font-size:13px;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.chip.ok .dot{background:var(--ok)} .chip.warn .dot{background:var(--warn)} .chip.bad .dot{background:var(--bad)}
+.chip.bad{border-color:var(--bad);color:var(--bad)}
+.spacer{flex:1}
+.grid{display:grid;grid-template-columns:1fr 320px;gap:16px}
+@media (max-width:960px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
+.panel h2{font-size:14px;color:var(--muted);margin:0 0 12px;font-weight:600;letter-spacing:.02em}
+.banner{padding:12px 16px;border-radius:12px;margin-bottom:16px;font-size:15px;border:1px solid}
+.banner.bad{background:var(--bad-bg);border-color:var(--bad);color:var(--bad)}
+.banner.warn{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}
+.hidden{display:none!important}
+
+/* main card */
+.card{border-radius:18px;padding:28px;border:3px solid var(--line);background:var(--panel);box-shadow:var(--shadow)}
+.card.fall{border-color:var(--fall)} .card.non_fall{border-color:var(--non)}
+.tagrow{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.tag{font-weight:800;font-size:15px;padding:4px 12px;border-radius:8px;letter-spacing:.04em}
+.tag.fall{background:var(--fall-bg);color:var(--fall)} .tag.non_fall{background:var(--non-bg);color:var(--non)}
+.seq{color:var(--muted);font-size:15px}
+.act{font-size:clamp(40px,7vw,76px);font-weight:800;line-height:1.1;margin:6px 0 10px}
+.cue{font-size:22px;margin-bottom:18px}
+.cue b{color:var(--accent)}
+.steps{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+.step{padding:8px 12px;border-radius:10px;border:1px solid var(--line);font-size:15px;color:var(--muted)}
+.step.now{border-color:var(--accent);color:var(--ink);font-weight:700;background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.step.done{text-decoration:line-through;opacity:.6}
+.primary{width:100%;padding:26px;border-radius:16px;border:0;font-size:30px;font-weight:800;color:#fff;background:var(--accent)}
+.primary.mark{background:var(--fall)} .primary.stop{background:#3a414c} .primary.go{background:var(--ok)}
+.primary.wait{background:#3a414c;opacity:.75}
+.primary:disabled{opacity:.45;cursor:default}
+.keyhint{display:inline-block;margin-left:10px;font-size:15px;font-weight:600;opacity:.8;border:1px solid rgba(255,255,255,.5);border-radius:6px;padding:1px 8px}
+.big-count{font-size:120px;font-weight:800;text-align:center;line-height:1;margin:10px 0 6px;font-variant-numeric:tabular-nums}
+.sub{color:var(--muted);text-align:center;font-size:18px}
+
+.bar{position:relative;height:26px;border-radius:8px;background:var(--bg);border:1px solid var(--line);overflow:hidden;margin:16px 0 8px}
+.bar .fill{position:absolute;left:0;top:0;bottom:0;background:color-mix(in srgb,var(--accent) 35%,transparent)}
+.bar .min{position:absolute;top:0;bottom:0;width:2px;background:var(--warn)}
+.bar .mk{position:absolute;top:-2px;bottom:-2px;width:4px;background:var(--fall)}
+.bar .cue{position:absolute;top:0;bottom:0;width:0;border-left:3px dashed var(--accent)}
+.cuelabel{position:relative;height:18px;font-size:13px;font-weight:700;color:var(--accent)}
+.cuelabel span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.cuebig{text-align:center;font-weight:800;font-variant-numeric:tabular-nums;line-height:1;margin:6px 0 2px;font-size:72px;color:var(--muted)}
+.cuebig.go{color:var(--fall);font-size:96px}
+.cuebig.soon{color:var(--accent)}
+.barlabels{display:flex;justify-content:space-between;color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
+
+.review .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:14px 0}
+.stat{background:var(--bg);border-radius:10px;padding:10px 12px}
+.stat .k{font-size:12px;color:var(--muted)} .stat .v{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.issue{padding:10px 12px;border-radius:10px;margin:6px 0;font-size:16px}
+.issue.bad{background:var(--bad-bg);color:var(--bad)} .issue.warn{background:var(--warn-bg);color:var(--warn)}
+.issue.ok{background:var(--ok-bg);color:var(--ok)}
+.btnrow{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.btn{padding:20px;border-radius:14px;border:2px solid var(--line);background:var(--panel);color:var(--ink);font-size:22px;font-weight:700}
+.btn.solid{border-color:transparent;color:#fff;background:var(--ok)}
+.btn.solid.danger{background:var(--bad)}
+
+/* side */
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font-size:15px}
+.list li:last-child{border-bottom:0}
+.pill{width:10px;height:10px;border-radius:3px;flex:none}
+.pill.fall{background:var(--fall)} .pill.non_fall{background:var(--non)}
+.num{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--muted)}
+.mini{height:6px;border-radius:3px;background:var(--bg);margin-top:4px;overflow:hidden}
+.mini > div{height:100%;background:var(--accent)}
+.prog{font-size:28px;font-weight:800;font-variant-numeric:tabular-nums}
+.small{font-size:13px;color:var(--muted)}
+.side > .panel{margin-bottom:16px}
+.linkbtn{background:none;border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--bad);width:100%}
+
+/* setup */
+.form{display:grid;gap:12px}
+.form label{display:grid;gap:6px;font-size:14px;color:var(--muted)}
+.form input{font:inherit;font-size:17px;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.checks{display:grid;gap:8px}
+.linkpanel .lk-row{display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 10px}
+.linkpanel .lk-m{display:grid;gap:2px}
+.linkpanel .lk-m b{font-size:24px;font-variant-numeric:tabular-nums}
+.linkpanel .lk-m.ok b{color:var(--ok)} .linkpanel .lk-m.warn b{color:var(--warn)} .linkpanel .lk-m.bad b{color:var(--bad)}
+.linkpanel svg{width:100%;height:70px;display:block;background:var(--bg);border-radius:8px}
+.linkpanel ol{margin:8px 0 0;padding-left:20px;font-size:14px;color:var(--muted);display:grid;gap:4px}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:15px}
+.check .ic{width:22px;flex:none;text-align:center;font-weight:800}
+.check.ok .ic{color:var(--ok)} .check.bad .ic{color:var(--bad)} .check.warn .ic{color:var(--warn)}
+code{font-family:ui-monospace,Menlo,monospace;font-size:.92em;background:var(--bg);padding:1px 6px;border-radius:5px}
+.toggle{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--muted)}
+.overall{margin-bottom:16px;padding:16px 18px}
+.ov-top{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+.ov-done{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums}
+.ov-done small{font-size:16px;color:var(--muted);font-weight:600}
+.ov-left{margin-left:auto;text-align:right;font-variant-numeric:tabular-nums}
+.ov-left b{font-size:22px}
+.ov-bar{display:flex;height:22px;border-radius:8px;background:var(--bg);border:1px solid var(--line);overflow:hidden}
+.ov-bar > div{height:100%;transition:width .4s}
+.ov-bar .f{background:var(--fall)} .ov-bar .n{background:var(--non)}
+.ov-sub{display:flex;gap:18px;flex-wrap:wrap;margin-top:8px;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ov-sub span{display:inline-flex;align-items:center;gap:6px}
+.actorgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.actor{border:2px solid var(--line);border-radius:12px;padding:12px;background:var(--panel);text-align:left;color:var(--ink)}
+.actor.sel{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 20%,transparent)}
+.actor.full{opacity:.7}
+.actor .nm{font-size:18px;font-weight:800;display:flex;align-items:center;gap:6px}
+.actor .nm .id{font-size:12px;color:var(--muted);font-weight:600;border:1px solid var(--line);border-radius:6px;padding:0 6px}
+.actor .meta{font-size:13px;color:var(--muted);margin-top:6px;font-variant-numeric:tabular-nums}
+.actor .ov-bar{height:12px;margin-top:8px}
+.actorgrid input{font:inherit;font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
+.dsgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px 16px;margin-top:14px}
+.dsrow{font-size:14px}
+.dsrow .top{display:flex;align-items:center;gap:6px}
+.dsrow .top .num{margin-left:auto}
+.dsrow.full .top{color:var(--muted)}
+.mini.f > div{background:var(--fall)} .mini.n > div{background:var(--non)}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:560px){.acts{grid-template-columns:1fr}}
+.actgrp h3{font-size:14px;margin:0 0 6px;display:flex;align-items:center;gap:8px}
+.actgrp h3 button{margin-left:auto;font-size:12px;border:1px solid var(--line);background:none;color:var(--muted);border-radius:6px;padding:2px 8px}
+.actrow{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;font-size:15px;cursor:pointer}
+.actrow:hover{background:var(--bg)}
+.actrow input{width:18px;height:18px;margin:0}
+.actrow .num{font-size:13px}
+.actsum{font-size:14px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>เก็บ Dataset</h1>
+    <span class="chip" id="c-transport"><span class="dot"></span><span>—</span></span>
+    <span class="chip" id="c-rate"><span class="dot"></span><span>—</span></span>
+    <span class="chip" id="c-esp"><span class="dot"></span><span>—</span></span>
+    <span class="chip" id="c-link"><span class="dot"></span><span>—</span></span>
+    <span class="spacer"></span>
+    <button class="chip bad" id="c-audio" style="cursor:pointer"><span class="dot"></span><span>🔇 คลิกตรงนี้เพื่อเปิดเสียง</span></button>
+    <label class="toggle"><input type="checkbox" id="t-voice" checked> เสียงประกาศท่า</label>
+  </header>
+
+  <div id="b-offline" class="banner bad hidden">ติดต่อโปรแกรมไม่ได้ — โปรแกรม <code>collect_web.py</code> ปิดไปหรือเปล่า? ข้อมูลที่บันทึกแล้วไม่หาย</div>
+  <div id="b-error" class="banner bad hidden"></div>
+  <div id="b-demo" class="banner warn hidden">โหมดซ้อม (<code>--demo</code>) — ข้อมูลเป็นของปลอม ไฟล์ที่ได้ลง <code>data/raw</code> ต้องลบทิ้งก่อนเก็บจริง</div>
+  <div id="b-signal" class="banner warn hidden"></div>
+
+  <!-- connecting -->
+  <section id="v-connecting" class="panel hidden"><h2>กำลังเชื่อมต่อ ESP32…</h2>
+    <div class="small">ดูขั้นตอนใน terminal ที่รันโปรแกรม · โหมด UDP ต้องให้แมคเกาะ WiFi <code>myssid</code> ก่อน</div>
+  </section>
+
+  <!-- setup -->
+  <section id="v-actors" class="panel overall hidden">
+    <h2 style="display:flex;align-items:center">คนแสดง — คนละ session · เลือกคนที่จะเก็บรอบนี้
+      <button class="linkbtn" id="btn-edit-actors" style="width:auto;margin-left:auto;color:var(--accent);padding:4px 10px">แก้ชื่อ</button></h2>
+    <div class="actorgrid" id="actor-cards"></div>
+    <div id="actor-edit" class="hidden" style="margin-top:12px">
+      <div class="actorgrid" id="actor-inputs"></div>
+      <div style="display:flex;gap:10px;margin-top:10px">
+        <button class="btn solid" id="btn-save-actors" style="padding:10px 18px;font-size:16px">บันทึกชื่อ</button>
+        <button class="btn" id="btn-cancel-actors" style="padding:10px 18px;font-size:16px">ยกเลิก</button>
+      </div>
+      <div class="small" style="margin-top:6px">ข้อมูลผูกกับลำดับคน (1–5) ไม่ใช่ชื่อ — แก้ชื่อทีหลังตัวเลขไม่หาย</div>
+    </div>
+  </section>
+
+  <section id="v-dataset" class="panel overall hidden">
+    <h2>ทั้ง dataset — รวมทุก session</h2>
+    <div class="ov-top">
+      <div class="ov-done" id="ds-done"></div>
+      <div class="ov-left"><div class="small">เหลือ</div><b id="ds-left"></b> <span class="small" id="ds-rounds"></span></div>
+    </div>
+    <div class="ov-bar"><div class="f" id="ds-f"></div><div class="n" id="ds-n"></div></div>
+    <div class="ov-sub">
+      <span><span class="pill fall"></span><span id="ds-fall"></span></span>
+      <span><span class="pill non_fall"></span><span id="ds-non"></span></span>
+      <span id="ds-sess"></span>
+    </div>
+    <div class="dsgrid" id="ds-acts"></div>
+  </section>
+
+  <section id="v-setup" class="grid hidden">
+    <div class="panel">
+      <h2>เริ่ม session ใหม่</h2>
+      <div class="form">
+        <label>จำนวนรอบ (1 รอบ = 1 fall + 1 non_fall · ซ้อม 12 · เก็บจริง 396)
+          <input id="f-rounds" type="number" min="1" value="12"></label>
+        <label>ห้อง / สถานที่<input id="f-room" placeholder="เช่น ห้องนอนชั้น 2"></label>
+        <label>ตำแหน่ง ESP32<input id="f-esp" placeholder="เช่น #1 บนตู้ สูง 1.2 ม. · #2 ฝั่งตรงข้าม ห่าง 3 ม."></label>
+        <div class="small" id="f-actor-show">คนแสดง: <b>— เลือกจากการ์ดด้านบน —</b></div>
+        <label>หมายเหตุ<input id="f-notes" placeholder="ประตูเปิด · คนกดนั่งที่โต๊ะ ฯลฯ"></label>
+        <label class="toggle" style="color:var(--ink);font-size:15px"><input type="checkbox" id="f-cue" checked>
+          บอกจังหวะให้ทำท่า — ติ๊ก 3·2·1 แล้วเสียงยาว + "ล้ม" ที่วินาทีที่ 5 (ท่าที่มาร์คเท่านั้น)</label>
+        <div>
+          <div style="font-size:14px;color:var(--muted);margin-bottom:8px">ท่าที่จะเก็บ — ต้องมีทั้ง fall และ non_fall (สคริปต์สลับคลาสให้)</div>
+          <div class="acts">
+            <div class="actgrp" id="g-fall"><h3><span class="pill fall"></span>Fall<button data-grp="fall">ทั้งหมด</button></h3><div></div></div>
+            <div class="actgrp" id="g-non_fall"><h3><span class="pill non_fall"></span>Non-fall<button data-grp="non_fall">ทั้งหมด</button></h3><div></div></div>
+          </div>
+          <div class="actsum" id="act-sum"></div>
+        </div>
+        <button class="primary" id="btn-start">เริ่ม session</button>
+        <div class="small" id="setup-msg"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>เช็คก่อนเริ่ม</h2>
+      <div class="checks" id="checks"></div>
+      <p class="small" style="margin-top:14px">ข้อที่ระบบเช็คให้ไม่ได้ — ทำเองก่อนกดเริ่ม</p>
+      <div class="checks">
+        <div class="check"><span class="ic">☐</span>อุ่นบอร์ด 10–15 นาทีแล้ว</div>
+        <div class="check"><span class="ic">☐</span>ประตูอยู่สภาพเดียวตลอด session (แนะนำเปิดไว้)</div>
+        <div class="check"><span class="ic">☐</span>คนกดนั่งที่เดิม · ไม่มีคนอื่นในห้อง · มีเบาะรองท่าล้ม</div>
+        <div class="check"><span class="ic">☐</span>iPhone ปิด Wi-Fi · ไม่มีมือถือเครื่องอื่นเกาะ <code>myssid</code></div>
+      </div>
+    </div>
+    <div class="panel linkpanel">
+      <h2>ทดสอบลิงก์ — สัญญาณนิ่งพอจะเห็นคนไหม</h2>
+      <div class="lk-row">
+        <div class="lk-m" id="lk-jit"><span class="small">กระตุก (ตอนนิ่ง)</span><b>—</b><span class="small">ดี ≤ 5% · ชุดแรก 3.6%</span></div>
+        <div class="lk-m" id="lk-jump"><span class="small">RSSI กระโดด</span><b>—</b><span class="small">ดี ≤ 5% · ชุดแรก 0.3%</span></div>
+        <div class="lk-m" id="lk-mot"><span class="small">การเคลื่อนไหวตอนนี้</span><b>—</b><span class="small" id="lk-mot-sub">—</span></div>
+      </div>
+      <svg id="lk-spark" viewBox="0 0 400 70" preserveAspectRatio="none" aria-label="การเคลื่อนไหว 40 วิล่าสุด"></svg>
+      <ol>
+        <li>ทุกคนนิ่ง 10 วิ (คนแสดงยืนที่จุดทำท่า คนกดนั่งที่เดิม) → ดู <b>กระตุก</b> กับ <b>RSSI กระโดด</b></li>
+        <li>คนแสดงเดินไป-กลับผ่านจุดทำท่า 10 วิ → <b>การเคลื่อนไหว</b> ควรขึ้น <b>≥ 3 เท่า</b> ของตอนนิ่ง</li>
+        <li>ตัวเลขไม่ผ่าน = เก็บไปโมเดลก็แยกไม่ออก (รอบ 11 พ.ย. 13:33 กระตุก 9% · นำร่องไม่ผ่าน)</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- collecting -->
+  <section id="v-overall" class="panel overall hidden">
+    <div class="ov-top">
+      <div class="ov-done" id="ov-done"></div>
+      <div class="ov-left"><div class="small">เหลือ</div><b id="ov-left"></b> <span class="small" id="ov-eta"></span></div>
+    </div>
+    <div class="ov-bar"><div class="f" id="ov-f"></div><div class="n" id="ov-n"></div></div>
+    <div class="ov-sub">
+      <span><span class="pill fall"></span><span id="ov-fall"></span></span>
+      <span><span class="pill non_fall"></span><span id="ov-non"></span></span>
+      <span id="ov-retake"></span>
+      <span id="ov-pace"></span>
+    </div>
+  </section>
+
+  <section id="v-collect" class="grid hidden">
+    <div>
+      <div class="card" id="card">
+        <div class="tagrow"><span class="tag" id="k-tag"></span><span class="seq" id="k-seq"></span></div>
+        <div class="act" id="k-act"></div>
+        <div class="cue" id="k-cue"></div>
+        <div class="steps" id="k-steps"></div>
+
+        <div id="k-countdown" class="hidden">
+          <div class="big-count" id="k-count"></div>
+          <div class="sub" id="k-countsub"></div>
+        </div>
+
+        <div id="k-rec" class="hidden">
+          <div class="cuebig hidden" id="k-cuebig"></div>
+          <div class="cuelabel hidden" id="k-cuelabel"><span id="k-cuelabel-t"></span></div>
+          <div class="bar"><div class="fill" id="k-fill"></div><div class="min hidden" id="k-min"></div><div class="cue hidden" id="k-cueline"></div><div class="mk hidden" id="k-mk"></div></div>
+          <div class="barlabels"><span id="k-elapsed"></span><span id="k-markinfo"></span><span id="k-n"></span></div>
+        </div>
+
+        <div id="k-review" class="review hidden">
+          <div class="stats" id="r-stats"></div>
+          <div id="r-issues"></div>
+          <div class="btnrow">
+            <button class="btn" id="btn-discard">ทิ้ง · เก็บซ้ำ <span class="keyhint" style="border-color:var(--line)">N</span></button>
+            <button class="btn solid" id="btn-save">บันทึก <span class="keyhint">Y</span></button>
+          </div>
+        </div>
+
+        <div style="margin-top:18px" id="k-primary-wrap">
+          <button class="primary" id="btn-primary"></button>
+        </div>
+      </div>
+    </div>
+    <div class="side">
+      <div class="panel"><h2>ตาถัดไป</h2><ul class="list" id="p-next"></ul></div>
+      <div class="panel"><h2>แต่ละท่า</h2><ul class="list" id="p-tally"></ul></div>
+      <button class="linkbtn" id="btn-end">จบ session ก่อนครบ</button>
+    </div>
+  </section>
+
+  <!-- done -->
+  <section id="v-done" class="panel hidden">
+    <h2>จบ session แล้ว</h2>
+    <div class="prog" id="d-sum"></div>
+    <p class="small" id="d-file"></p>
+    <p>ขั้นต่อไป (ใน terminal อีกหน้าต่าง):</p>
+    <pre style="background:var(--bg);padding:14px;border-radius:10px;overflow:auto"><code>python notebooks/preprocess_v3.py
+CSI_DATA_DIR=data/processed_v3_framed python experiments/check_dataset.py</code></pre>
+    <button class="btn" id="btn-new">เริ่ม session ใหม่</button>
+  </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let st = null, lastSeq = null, busy = false;
+
+// ---------- เสียง ----------
+// Chrome ไม่ให้หน้าเว็บเล่นเสียงจนกว่าจะมีคนคลิก/กดปุ่มในแท็บนั้นอย่างน้อย 1 ครั้ง
+// → ปลดล็อกเสียงทุกครั้งที่มีการคลิก/กดคีย์ และขึ้นป้ายบอกถ้ายังล็อกอยู่
+let actx = null, speechPrimed = false, thVoice = null, lastUtter = null, bootSeen = null;
+
+// เปิดหลายแท็บ → ให้เล่นเสียงแค่แท็บที่ใช้งานล่าสุด (กันเสียงซ้อน / กันแท็บที่ถูกล็อกแย่งไป)
+const myTab = Math.random().toString(36).slice(2);
+let audioOwner = myTab;
+const bc = ("BroadcastChannel" in window) ? new BroadcastChannel("collect-web-audio") : null;
+if (bc) bc.onmessage = e => { if (e.data && e.data.owner) { audioOwner = e.data.owner; renderAudioChip(); } };
+function claimAudio(){ audioOwner = myTab; if (bc) bc.postMessage({owner: myTab}); }
+
+function audioState(){
+  if (audioOwner !== myTab) return "other";
+  if (!actx || actx.state !== "running") return "locked";
+  return "ok";
+}
+function unlockAudio(){
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume().then(renderAudioChip);
+  } catch(e) {}
+  if (window.speechSynthesis && !speechPrimed) {          // ปลุกระบบพูดด้วยประโยคว่างภายในจังหวะที่ผู้ใช้กด
+    try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); speechPrimed = true; } catch(e) {}
+  }
+  claimAudio(); renderAudioChip();
+}
+["pointerdown", "keydown"].forEach(ev => document.addEventListener(ev, unlockAudio, {capture: true}));
+window.addEventListener("focus", () => { claimAudio(); renderAudioChip(); });
+
+function pickVoice(){
+  try { thVoice = speechSynthesis.getVoices().find(v => /^th/i.test(v.lang)) || null; } catch(e) {}
+  renderAudioChip();
+}
+if (window.speechSynthesis) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+
+function beep(kind){
+  if (audioOwner !== myTab) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const play = () => {
+      const tones = {start:[[880,.12]], mark:[[1320,.08]], ready:[[990,.1],[990,.1]],
+                     tick:[[600,.07]], go:[[1200,.45]],
+                     done:[[660,.15],[880,.15],[1100,.25]]}[kind] || [[700,.1]];
+      let t = actx.currentTime + 0.01;
+      for (const [f,d] of tones){
+        const o = actx.createOscillator(), g = actx.createGain();
+        o.frequency.value = f; o.connect(g); g.connect(actx.destination);
+        g.gain.setValueAtTime(.25,t); g.gain.exponentialRampToValueAtTime(.001,t+d);
+        o.start(t); o.stop(t+d); t += d + .05;
+      }
+    };
+    if (actx.state === "suspended") actx.resume().then(play).catch(() => {}); else play();
+  } catch(e) {}
+}
+function speak(text){
+  if (!$("t-voice").checked || !window.speechSynthesis || audioOwner !== myTab) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text); u.lang = "th-TH"; u.rate = 1.0;
+    if (thVoice) u.voice = thVoice;
+    lastUtter = u;                                        // เก็บไว้ — Chrome เก็บขยะ utterance ก่อนพูดจบได้
+    setTimeout(() => speechSynthesis.speak(u), 60);       // speak ทันทีหลัง cancel บางครั้ง Chrome ไม่พูด
+  } catch(e) {}
+}
+function playEvents(evts){
+  const latest = evts.length ? evts[evts.length-1].seq : 0;
+  // เปิดหน้าครั้งแรก หรือ server เพิ่งเปิดใหม่ (boot เปลี่ยน / ลำดับย้อนกลับ) → เริ่มนับใหม่ ไม่เล่นย้อนหลัง
+  if (lastSeq === null || st.boot !== bootSeen || latest < lastSeq) { bootSeen = st.boot; lastSeq = latest; return; }
+  for (const e of evts){ if (e.seq <= lastSeq) continue; lastSeq = e.seq;
+    if (e.kind === "beep") beep(e.text); else if (e.kind === "speak") speak(e.text); }
+}
+function renderAudioChip(){
+  const c = $("c-audio"); if (!c) return;
+  const s = audioState();
+  const noThai = window.speechSynthesis && speechSynthesis.getVoices().length && !thVoice;
+  c.className = "chip " + (s === "ok" ? (noThai ? "warn" : "ok") : s === "other" ? "" : "bad");
+  c.lastElementChild.textContent =
+      s === "ok"    ? (noThai ? "🔊 เสียงพร้อม · ไม่มีเสียงพูดภาษาไทยในเครื่อง" : "🔊 เสียงพร้อม · กดเพื่อทดสอบ")
+    : s === "other" ? "🔇 เสียงเล่นที่อีกแท็บ · คลิกเพื่อย้ายมาที่นี่"
+    :                 "🔇 คลิกตรงนี้เพื่อเปิดเสียง";
+}
+
+// ---------- API ----------
+async function post(path, body){
+  if (busy) return; busy = true;
+  try{
+    const r = await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})});
+    const j = await r.json();
+    if (!r.ok){ $("setup-msg").textContent = j.error || "ผิดพลาด"; }
+    else { st = j; render(); }
+  }catch(e){} finally{ busy = false; }
+}
+async function poll(){
+  try{
+    const r = await fetch("/api/state",{cache:"no-store"});
+    st = await r.json(); $("b-offline").classList.add("hidden"); render();
+  }catch(e){ $("b-offline").classList.remove("hidden"); }
+  setTimeout(poll, 150);
+}
+
+// ---------- render ----------
+const show = (id, on) => $(id).classList.toggle("hidden", !on);
+function chip(id, level, text){ const c=$(id); c.className="chip "+(level||""); c.lastElementChild.textContent=text; }
+
+function signalLevel(){
+  const s = st.signal, k = st.consts;
+  if (s.rate == null) return ["bad", "ไม่มีข้อมูลจาก #2"];
+  if (s.rate < k.rate_fail) return ["bad", `${s.rate.toFixed(0)} pkt/s`];
+  if (k.rate_high && s.rate > k.rate_high) return ["bad", `${s.rate.toFixed(0)} pkt/s · สูงผิดปกติ`];
+  if (s.rate < k.rate_warn) return ["warn", `${s.rate.toFixed(0)} pkt/s`];
+  return ["ok", `${s.rate.toFixed(0)} pkt/s`];
+}
+
+function render(){
+  if (!st) return;
+  playEvents(st.events);
+  renderAudioChip();
+  const k = st.consts, s = st.signal;
+
+  chip("c-transport", st.transport ? "ok" : "warn",
+       st.transport ? `${({udp:"UDP",serial:"USB Serial",demo:"DEMO"})[st.transport]||st.transport} · ${st.mac||"—"}` : "ยังไม่เชื่อมต่อ");
+  const [lv, txt] = st.transport ? signalLevel() : ["", "—"];
+  chip("c-rate", lv, txt);
+  const e = s.esp;
+  if (st.transport === "udp" || st.transport === "serial" || st.transport === "demo"){
+    if (!e) chip("c-esp", "warn", "#1: ไม่มี STAT (firmware เก่า?)");
+    else {
+      const bad = (e.qdrop||0) > 1 || (e.fail||0) > 1, bc = st.transport === "udp" && e.dest !== "unicast";
+      chip("c-esp", bad ? "bad" : bc ? "warn" : "ok",
+           `#1 ${e.dest||"?"} · คิวเต็ม ${e.qdrop??"–"} · ส่งพลาด ${e.fail??"–"}` +
+           (e.dup !== undefined ? ` · ทิ้งซ้ำ ${e.dup}` : "") + " /วิ");
+    }
+  } else chip("c-esp", "", "#1: —");
+  const L = s.link;
+  if (!st.transport || !L) chip("c-link", "", "ลิงก์: —");
+  else chip("c-link", linkLevel(L), `กระตุก ${L.jitter}% · RSSI กระโดด ${L.rssi_jump}%`);
+
+  show("b-demo", st.demo);
+  $("b-error").textContent = st.error || ""; show("b-error", !!st.error);
+  const live = ["idle","countdown","recording"].includes(st.phase) || st.phase === "setup";
+  let sigMsg = "";
+  if (live && st.transport && lv === "bad") sigMsg = s.rate == null
+      ? "ไม่ได้รับข้อมูลจาก ESP32 #2 — เช็คไฟของ #2 และแมคยังเกาะ myssid อยู่ไหม"
+      : s.rate > k.rate_high
+      ? `อัตราสูงผิดปกติ (${s.rate} pkt/s) — มีเฟรมซ้ำเพราะช่องสัญญาณแน่น · ปิด AirDrop/Handoff ของแมค · ขยับแมคเข้าใกล้ #1 · iPhone ปิด Wi-Fi`
+      : `อัตราต่ำมาก (${s.rate} pkt/s) — ข้อมูลจะไม่สม่ำเสมอ · ปิด AirDrop/Handoff ของแมค · ขยับแมคเข้าใกล้ #1`;
+  else if (live && e && e.dest && e.dest !== "unicast" && st.transport === "udp")
+    sigMsg = "#1 ยังส่งแบบ broadcast — HELLO ไม่ถึง #1 อัตราจะแกว่ง (รอ 2–3 วิ ถ้ายังไม่หายให้เช็ค WiFi)";
+  $("b-signal").textContent = sigMsg; show("b-signal", !!sigMsg);
+
+  const ph = st.phase;
+  show("v-connecting", ph === "connecting" || (ph === "error" && !st.session));
+  show("v-setup", ph === "setup");
+  show("v-collect", ["idle","countdown","recording","review"].includes(ph));
+  show("v-overall", ["idle","countdown","recording","review"].includes(ph));
+  show("v-done", ph === "done");
+
+  show("v-dataset", ph === "setup" || ph === "done");
+  show("v-actors", ph === "setup");
+  if (ph === "setup") renderActors();
+  if (ph === "setup" || ph === "done") renderDataset();
+  if (ph === "setup") { buildActs(); renderSetup(); }
+  if (["idle","countdown","recording","review"].includes(ph)) renderCollect();
+  if (ph === "done") renderDone();
+}
+
+function lvl3(v, ok, bad){ return v <= ok ? "ok" : v <= bad ? "warn" : "bad"; }
+function linkLevel(L){
+  const a = lvl3(L.jitter, L.jitter_ok, L.jitter_bad), b = lvl3(L.rssi_jump, L.jump_ok, L.jump_bad);
+  return [a, b].includes("bad") ? "bad" : [a, b].includes("warn") ? "warn" : "ok";
+}
+function renderLink(){
+  const L = st.signal.link;
+  const set = (id, cls, val) => { const e = $(id); e.className = "lk-m " + cls; e.querySelector("b").textContent = val; };
+  if (!L){ set("lk-jit", "", "—"); set("lk-jump", "", "—"); set("lk-mot", "", "—"); $("lk-spark").innerHTML = ""; return; }
+  set("lk-jit", lvl3(L.jitter, L.jitter_ok, L.jitter_bad), L.jitter.toFixed(1) + "%");
+  set("lk-jump", lvl3(L.rssi_jump, L.jump_ok, L.jump_bad), L.rssi_jump.toFixed(1) + "%");
+  const ratio = L.motion_floor > 0 ? L.motion / L.motion_floor : 0;
+  set("lk-mot", ratio >= 3 ? "ok" : "", L.motion.toFixed(2));
+  $("lk-mot-sub").textContent = `×${ratio.toFixed(1)} ของค่าต่ำสุด 60 วิ (${L.motion_floor.toFixed(2)}) · RSSI ${L.rssi} dBm`;
+  const h = L.motion_hist || [], W = 400, H = 70;
+  if (h.length < 2){ $("lk-spark").innerHTML = ""; return; }
+  const top = Math.max(...h, L.motion_floor * 3) * 1.1, x = i => (i / (h.length - 1)) * W, y = v => H - (v / top) * H;
+  const pts = h.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  $("lk-spark").innerHTML =
+    `<line x1="0" x2="${W}" y1="${y(L.motion_floor*3).toFixed(1)}" y2="${y(L.motion_floor*3).toFixed(1)}" stroke="currentColor" stroke-opacity=".35" stroke-dasharray="4 4"/>` +
+    `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+}
+
+function renderSetup(){
+  renderLink();
+  const s = st.signal, k = st.consts, e = s.esp, items = [];
+  const add = (lvl, text) => items.push(`<div class="check ${lvl}"><span class="ic">${lvl==="ok"?"✓":lvl==="bad"?"✗":"!"}</span><span>${text}</span></div>`);
+  add(s.rate != null ? "ok" : "bad", s.rate != null ? `ได้รับข้อมูลจาก #2 (${st.mac})` : "ยังไม่ได้รับข้อมูลจาก #2");
+  if (s.rate != null) add(s.rate > k.rate_high ? "bad" : s.rate >= k.rate_warn ? "ok" : s.rate >= k.rate_fail ? "warn" : "bad",
+                          `อัตรา ${s.rate} pkt/s (ต้องอยู่ช่วง ${k.rate_warn}–${k.rate_high})`);
+  if (st.transport === "udp" || st.transport === "serial"){
+    if (!e) add("warn", "ไม่เห็นบรรทัด STAT จาก #1 — firmware #1 เป็นตัวใหม่หรือเปล่า");
+    else {
+      if (st.transport === "udp")
+        add(e.dest === "unicast" ? "ok" : "warn", `#1 ส่งแบบ ${e.dest} ${e.dest==="unicast"?"":"(ต้องเป็น unicast)"}`);
+      else add(e.dest === "serial" ? "ok" : "warn", `#1 ส่งทางสาย USB (${e.dest})`);
+      add((e.qdrop||0) <= 1 && (e.fail||0) <= 1 ? "ok" : "bad", `#1 คิวเต็ม ${e.qdrop}/วิ · ส่งพลาด ${e.fail}/วิ (ต้องเป็น 0)`);
+      if (e.dup !== undefined)
+        add((e.dup||0) <= 5 ? "ok" : "warn", `#2 ส่งซ้ำ ${e.dup}/วิ (#1 ทิ้งให้แล้ว ข้อมูลไม่ซ้ำ · ถ้าเยอะแปลว่าช่องแน่น)`);
+    }
+  }
+  add(s.other_per_s > 5 ? "warn" : "ok", `เฟรมจากเครื่องอื่น ${s.other_per_s}/วิ ${s.other_per_s>5?"— มีเครื่องอื่นเกาะ myssid?":""}`);
+  if (s.link){
+    const L = s.link;
+    add(lvl3(L.jitter, L.jitter_ok, L.jitter_bad), `สัญญาณกระตุก ${L.jitter}% (ดี ≤ ${L.jitter_ok}% · ดูตอนทุกคนนิ่ง)`);
+    add(lvl3(L.rssi_jump, L.jump_ok, L.jump_bad), `RSSI กระโดด ${L.rssi_jump}% ของ packet (ดี ≤ ${L.jump_ok}% · สูง = มีสัญญาณอื่นรบกวน)`);
+  }
+  if (st.raw_files_existing > 0) add("warn", `มีไฟล์ใน data/raw อยู่แล้ว ${st.raw_files_existing} ไฟล์ — ถ้าเป็นไฟล์ซ้อม/demo ลบก่อนเก็บจริง`);
+  $("checks").innerHTML = items.join("");
+}
+
+const MODE_STEPS = {
+  mark:  ["ยืนปกติจนได้ยินสัญญาณ", "ทำท่า", "กด Space ตอนเกิดเหตุ", "อยู่ท่านั้น 2 วิ", "ติ๊ง → กด Space หยุด"],
+  plain: ["ทำท่าต่อเนื่อง", "7 วิ", "ติ๊ง → กด Space หยุด"],
+  auto:  ["กด Space เริ่ม", "ทุกคนออกจากห้อง 15 วิ", "รอเสียงติ๊ง", "กลับเข้ามา"],
+};
+
+function renderCollect(){
+  const c = st.cur, ph = st.phase, k = st.consts;
+  const card = $("card"); card.className = "card " + c.label;
+  $("k-tag").className = "tag " + c.label; $("k-tag").textContent = c.label === "fall" ? "FALL" : "NON-FALL";
+  $("k-seq").textContent = `ตาที่ ${st.progress.done + 1} / ${st.progress.target}`;
+  $("k-act").textContent = c.name;
+  $("k-cue").innerHTML = c.mode === "mark" ? `มาร์คตอน: <b>${c.cue || "เกิดเหตุ"}</b>`
+                       : c.mode === "auto" ? "<b>ทุกคนออกจากห้อง</b> — สคริปต์เริ่ม-หยุดเอง"
+                       : "ทำท่าต่อเนื่องตลอดคลิป";
+
+  // ขั้นตอน
+  const steps = [...MODE_STEPS[c.mode]]; let now = 0;
+  if (c.mode === "mark" && !st.session.action_cue) steps[0] = "ยืนปกติ ≥ 5 วิ";
+  if (c.mode === "mark"){ now = ph==="idle"||ph==="countdown" ? 0 : ph==="recording" ? (c.mark<0 ? 2 : c.stop_ready ? 4 : 3) : 5; }
+  if (c.mode === "plain"){ now = ph==="recording" ? (c.stop_ready ? 2 : 1) : ph==="review" ? 3 : 0; }
+  if (c.mode === "auto"){ now = ph==="idle" ? 0 : ph==="countdown" ? 1 : ph==="recording" ? 2 : 4; }
+  $("k-steps").innerHTML = steps.map((t,i)=>`<span class="step ${i<now?"done":i===now?"now":""}">${t}</span>`).join("");
+
+  show("k-countdown", ph === "countdown");
+  if (ph === "countdown"){
+    $("k-count").textContent = Math.ceil(c.countdown_left);
+    $("k-countsub").textContent = c.mode === "auto" ? "ออกจากห้องเลย · กด Space เพื่อยกเลิก" : "เตรียมตัว · กด Space เพื่อยกเลิก";
+  }
+
+  show("k-rec", ph === "recording");
+  if (ph === "recording"){
+    const tgt = c.bar_target || k.target_pkts, pct = Math.min(100, c.n / tgt * 100);
+    $("k-fill").style.width = pct + "%";
+    const minEl = $("k-min"), mk = $("k-mk");
+    if (c.mode === "mark"){
+      minEl.classList.remove("hidden"); minEl.style.left = (k.mark_min_sec * k.pkt_per_sec / tgt * 100) + "%";
+      if (c.mark >= 0){ mk.classList.remove("hidden"); mk.style.left = Math.min(100, c.mark / tgt * 100) + "%"; }
+      else mk.classList.add("hidden");
+    } else if (c.mode === "plain"){
+      minEl.classList.remove("hidden"); minEl.style.left = (k.plain_min_sec * k.pkt_per_sec / tgt * 100) + "%"; mk.classList.add("hidden");
+    } else { minEl.classList.add("hidden"); mk.classList.add("hidden"); }
+    // เส้น "ทำท่าตรงนี้" + ตัวเลขนับถอยหลังตัวใหญ่ ให้คนแสดงเหลือบเห็นได้
+    const cueOn = c.mode === "mark" && c.cue_in !== undefined && c.mark < 0;
+    const cueX = k.action_cue_sec * k.pkt_per_sec / tgt * 100;
+    show("k-cueline", cueOn); show("k-cuelabel", cueOn); show("k-cuebig", cueOn);
+    if (cueOn){
+      $("k-cueline").style.left = cueX + "%";
+      $("k-cuelabel-t").style.left = cueX + "%"; $("k-cuelabel-t").textContent = `▼ ${c.cue_word}ตรงนี้`;
+      const big = $("k-cuebig");
+      if (c.cue_in > 3){ big.className = "cuebig"; big.textContent = `${c.cue_word}ใน ${Math.ceil(c.cue_in)}`; }
+      else if (c.cue_in > 0){ big.className = "cuebig soon"; big.textContent = Math.ceil(c.cue_in); }
+      else { big.className = "cuebig go"; big.textContent = `${c.cue_word}!`; }
+    }
+    $("k-elapsed").textContent = `${c.elapsed.toFixed(1)} วิ`;
+    $("k-n").textContent = `${c.n} pkt`;
+    $("k-markinfo").textContent = c.mode === "mark"
+      ? (c.mark >= 0 ? (c.stop_ready ? `✓ หยุดได้แล้ว (มาร์คที่ ${c.mark_sec} วิ)` : `📍 มาร์คแล้ว · รออีก ${Math.max(0, k.stop_after_mark_sec - c.after_sec).toFixed(1)} วิ`)
+                     : (c.ready_to_mark ? "พร้อมมาร์ค" : `ยังเร็วไป (รอ ${k.mark_min_sec} วิ)`))
+      : c.mode === "plain" ? (c.stop_ready ? "✓ หยุดได้แล้ว" : `รออีก ${Math.max(0, k.plain_stop_sec - c.elapsed).toFixed(1)} วิ`) : "กำลังบันทึกห้องว่าง";
+  }
+
+  show("k-review", ph === "review");
+  if (ph === "review"){
+    const r = st.review;
+    const stats = [["ความยาว", `${r.dur_sec} วิ`], ["packet", r.n], ["อัตรา", r.rate != null ? `${r.rate.toFixed(0)}/วิ` : "–"],
+                   ["ขาดยาวสุด", r.max_gap_ms != null ? `${r.max_gap_ms} ms` : "–"]];
+    if (c.mode === "mark") stats.push(["มาร์คที่", r.mark_sec != null ? `${r.mark_sec} วิ` : "ไม่มี"], ["หลังมาร์ค", r.after_sec != null ? `${r.after_sec} วิ` : "–"]);
+    $("r-stats").innerHTML = stats.map(([a,b])=>`<div class="stat"><div class="k">${a}</div><div class="v">${b}</div></div>`).join("");
+    $("r-issues").innerHTML = r.issues.length
+      ? r.issues.map(i=>`<div class="issue ${i.level}">${i.level==="bad"?"✗":"!"} ${i.text}</div>`).join("")
+        + (r.ok ? "" : `<div class="issue bad"><b>แนะนำให้ทิ้งแล้วเก็บซ้ำ</b></div>`)
+      : `<div class="issue ok">✓ ใช้ได้</div>`;
+    $("btn-save").className = "btn solid" + (r.ok ? "" : " danger");
+    $("btn-save").firstChild.textContent = r.ok ? "บันทึก " : "บันทึกทั้งที่มีปัญหา ";
+  }
+
+  // ปุ่มหลัก
+  const b = $("btn-primary"); show("k-primary-wrap", ph !== "review");
+  let label = "", cls = "primary", dis = false;
+  if (ph === "idle") label = c.mode === "auto" ? "เริ่ม · แล้วออกจากห้อง" : "เริ่มบันทึก";
+  else if (ph === "countdown") { label = "ยกเลิก"; cls += " stop"; }
+  else if (ph === "recording"){
+    if (c.mode === "mark" && c.mark < 0){ label = `มาร์ค: ${c.cue || "เกิดเหตุ"}`; cls += " mark"; }
+    else if (c.mode === "auto"){ label = "กำลังบันทึก… รอเสียงติ๊ง"; dis = true; }
+    else if (c.stop_ready){ label = "หยุดได้แล้ว"; cls += " go"; }
+    else { label = "หยุด (ยังเร็วไป)"; cls += " wait"; }
+  }
+  b.className = cls; b.disabled = dis;
+  b.innerHTML = label + (dis ? "" : ' <span class="keyhint">Space</span>');
+
+  // side
+  renderOverall();
+  $("p-next").innerHTML = st.upcoming.length ? st.upcoming.map(u=>`<li><span class="pill ${u.label}"></span>${u.name}</li>`).join("") : '<li class="small">ตานี้เป็นตาสุดท้าย</li>';
+  $("p-tally").innerHTML = st.tally.map(t=>
+    `<li><span class="pill ${t.label}"></span>${t.name}<span class="num">${t.done}/${t.goal}</span></li>`).join("");
+}
+
+// ---------- ทั้ง dataset (หน้าแรก) ----------
+// ---------- คนแสดง ----------
+let actorSel = null, editingActors = false;
+try { actorSel = parseInt(localStorage.getItem("collect_actor")) || null; } catch(e){}
+function renderActors(){
+  const d = st.dataset; if (!d || !d.actors) return;
+  $("actor-cards").innerHTML = d.actors.map(a => {
+    const tgt = a.goal_files || 1, full = a.need_rounds === 0;
+    return `<button class="actor ${a.id === actorSel ? "sel" : ""} ${full ? "full" : ""}" data-actor="${a.id}">
+      <div class="nm"><span class="id">${a.id}</span>${esc(a.name)}${full ? " ✓" : ""}</div>
+      <div class="ov-bar"><div class="f" style="width:${a.fall/tgt*100}%"></div><div class="n" style="width:${a.non_fall/tgt*100}%"></div></div>
+      <div class="meta">${a.files} / ${a.goal_files} ไฟล์ · ${full ? "ครบแล้ว" : `เหลือ ${a.need_rounds} รอบ`}${a.sessions ? ` · ${a.sessions} session` : ""}</div>
+    </button>`;
+  }).join("");
+  document.querySelectorAll("[data-actor]").forEach(b => b.onclick = () => pickActor(parseInt(b.dataset.actor)));
+  const a = d.actors.find(x => x.id === actorSel);
+  $("f-actor-show").innerHTML = a ? `คนแสดง: <b>${a.id} · ${esc(a.name)}</b>` : `คนแสดง: <b style="color:var(--bad)">— เลือกจากการ์ดด้านบน —</b>`;
+  if (!editingActors)
+    $("actor-inputs").innerHTML = d.actors.map(a => `<label class="small">${a.id}<input data-aname="${a.id}" value="${esc(a.name)}"></label>`).join("");
+}
+function pickActor(id){
+  actorSel = id; try { localStorage.setItem("collect_actor", id); } catch(e){}
+  const a = st.dataset.actors.find(x => x.id === id);
+  // ใส่จำนวนรอบที่คนนี้ยังขาด ให้เป็นค่าเริ่มต้น (แก้เองได้)
+  if (a && a.need_rounds) { $("f-rounds").value = a.need_rounds; $("f-rounds").dataset.touched = "1"; }
+  renderActors(); updateActSum();
+}
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+
+function renderDataset(){
+  const d = st.dataset; if (!d) return;
+  const done = d.fall + d.non_fall, tgt = d.target || 1, left = Math.max(0, d.target - done);
+  $("ds-done").innerHTML = `เก็บแล้ว ${done} <small>/ ${d.target} ไฟล์ · ${Math.round(done / tgt * 1000) / 10}%</small>`;
+  $("ds-left").textContent = `${left} ไฟล์`;
+  // รอบที่ต้องเก็บเพิ่ม = คลาสที่ขาดมากกว่า (1 รอบ = 1 fall + 1 non_fall)
+  const need = Math.max(d.fall_goal - d.fall, d.non_goal - d.non_fall, 0);
+  $("ds-rounds").textContent = need ? `≈ ${need} รอบ` : "ครบแล้ว";
+  $("ds-f").style.width = (d.fall / tgt * 100) + "%";
+  $("ds-n").style.width = (d.non_fall / tgt * 100) + "%";
+  $("ds-fall").textContent = `fall ${d.fall} / ${d.fall_goal}`;
+  $("ds-non").textContent = `non_fall ${d.non_fall} / ${d.non_goal}`;
+  $("ds-sess").textContent = `${d.sessions} session · ${d.files} ไฟล์ใน data/raw`;
+  $("ds-acts").innerHTML = d.activities.map(a => {
+    const p = Math.min(100, a.done / a.goal * 100), full = a.done >= a.goal;
+    return `<div class="dsrow ${full ? "full" : ""}"><div class="top"><span class="pill ${a.label}"></span>${a.name}
+      <span class="num">${full ? "✓ " : ""}${a.done}/${a.goal}</span></div>
+      <div class="mini ${a.label === "fall" ? "f" : "n"}"><div style="width:${p}%"></div></div></div>`;
+  }).join("");
+  // จำนวนรอบของ session ตั้งจากคนแสดงที่เลือก (pickActor) ไม่ใช่จากทั้ง dataset
+}
+
+// ---------- แถบความคืบหน้ารวม ----------
+const fmtDur = sec => { sec = Math.max(0, Math.round(sec));
+  const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+  return h ? `${h} ชม. ${m} นาที` : `${m} นาที`; };
+function renderOverall(){
+  const p = st.progress, tgt = p.target || 1, half = tgt / 2;
+  const pct = Math.round(p.done / tgt * 1000) / 10, left = Math.max(0, p.target - p.done);
+  $("ov-done").innerHTML = `เก็บแล้ว ${p.done} <small>/ ${p.target} ไฟล์ · ${pct}%</small>`;
+  $("ov-left").textContent = `${left} ไฟล์`;
+  $("ov-f").style.width = (p.fall / tgt * 100) + "%";
+  $("ov-n").style.width = (p.non_fall / tgt * 100) + "%";
+  $("ov-fall").textContent = `fall ${p.fall} / ${half}`;
+  $("ov-non").textContent = `non_fall ${p.non_fall} / ${half}`;
+  $("ov-retake").textContent = p.retakes ? `เก็บซ้ำ ${p.retakes} ครั้ง` : "";
+  // ความเร็วจริง (รวมเวลาพัก) — ยังเก็บน้อยใช้ค่าประมาณจากรอบซ้อม ~20 วิ/ไฟล์
+  const elapsed = (Date.now() - Date.parse(st.session.started_at)) / 1000;
+  const per = p.done >= 3 ? elapsed / p.done : 20;
+  $("ov-eta").textContent = left ? `≈ ${fmtDur(left * per)}` : "ครบแล้ว";
+  $("ov-pace").textContent = p.done >= 3
+    ? `ใช้ไป ${fmtDur(elapsed)} · เฉลี่ย ${per.toFixed(0)} วิ/ไฟล์` : `ใช้ไป ${fmtDur(elapsed)}`;
+}
+
+function renderDone(){
+  const p = st.progress;
+  $("d-sum").textContent = `เก็บได้ ${p.done} sample · fall ${p.fall} · non_fall ${p.non_fall}`;
+  $("d-file").innerHTML = st.session ? `manifest: <code>data/sessions/session_${st.session.id}.json</code>` : "";
+}
+
+// ---------- ปุ่ม + คีย์บอร์ด ----------
+// ---------- เลือกท่า ----------
+let actsBuilt = false;
+function selectedActs(){ return [...document.querySelectorAll(".actrow input:checked")].map(i => i.value); }
+function buildActs(){
+  if (actsBuilt || !st || !st.activities) return; actsBuilt = true;
+  let saved = null; try { saved = JSON.parse(localStorage.getItem("collect_acts")); } catch(e){}
+  for (const grp of ["fall","non_fall"]){
+    $("g-"+grp).lastElementChild.innerHTML = st.activities.filter(a => a.label === grp).map(a =>
+      `<label class="actrow"><input type="checkbox" value="${a.name}" ${!saved || saved.includes(a.name) ? "checked" : ""}>
+       ${a.name}<span class="num" data-n="${a.name}"></span></label>`).join("");
+  }
+  document.querySelectorAll(".actrow input").forEach(i => i.addEventListener("change", updateActSum));
+  document.querySelectorAll(".actgrp h3 button").forEach(b => b.onclick = ev => {
+    ev.preventDefault();
+    const boxes = [...document.querySelectorAll(`#g-${b.dataset.grp} input`)];
+    const all = boxes.every(x => x.checked); boxes.forEach(x => x.checked = !all); updateActSum();
+  });
+  $("f-rounds").addEventListener("input", () => { $("f-rounds").dataset.touched = "1"; updateActSum(); });
+  updateActSum();
+}
+// จำนวนต่อท่าแบบเดียวกับ build_interleaved_plan: แต่ละคลาสหมุนครบทุกท่าก่อนวนใหม่
+// จำนวนต่อท่าถามจาก server — ใช้น้ำหนักท่า + ส่วนที่คนแสดงคนนี้ยังขาด แบบเดียวกับ plan จริง
+let previewTimer = null, previewSeq = 0;
+function requestPreview(rounds, sel){
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(async () => {
+    const my = ++previewSeq;
+    try {
+      const r = await fetch("/api/preview", {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({rounds, activities: sel, actor_id: actorSel})});
+      const j = await r.json(); if (my !== previewSeq) return;
+      for (const a of st.activities){
+        const el = document.querySelector(`[data-n="${a.name}"]`); if (!el) continue;
+        const n = (j.counts || {})[a.name] || 0;
+        el.textContent = sel.includes(a.name) && n ? `×${n}` : "";
+      }
+      $("act-note").textContent = j.from_quota ? "· จำนวนต่อท่าคิดจากส่วนที่คนนี้ยังขาด" : "· ท่าที่แยกยากเก็บมากกว่า (ดูน้ำหนักใน runbook)";
+    } catch(e){}
+  }, 150);
+}
+function updateActSum(){
+  const sel = selectedActs(), rounds = Math.max(0, parseInt($("f-rounds").value) || 0);
+  try { localStorage.setItem("collect_acts", JSON.stringify(sel)); } catch(e){}
+  const by = g => st.activities.filter(a => a.label === g && sel.includes(a.name));
+  const f = by("fall"), nf = by("non_fall");
+  const ok = f.length > 0 && nf.length > 0;
+  if (ok) requestPreview(rounds, sel);
+  $("act-sum").innerHTML = ok
+    ? `${rounds} รอบ = <b>${rounds * 2}</b> ไฟล์ · fall ${f.length} ท่า · non_fall ${nf.length} ท่า <span class="small" id="act-note"></span>`
+    : `<span style="color:var(--bad)">ต้องเลือกท่า fall และ non_fall อย่างน้อยคลาสละ 1 ท่า — ถ้าเก็บคลาสเดียว ข้อมูลจะผูกกับเวลาแบบชุดแรก</span>`;
+  $("btn-start").disabled = !ok || rounds < 1 || !actorSel;
+}
+
+$("btn-start").onclick = () => post("/api/session", {
+  rounds: $("f-rounds").value, room: $("f-room").value, esp32_setup: $("f-esp").value,
+  actor_id: actorSel, notes: $("f-notes").value, activities: selectedActs(),
+  action_cue: $("f-cue").checked });
+$("btn-primary").onclick = () => post("/api/primary");
+$("btn-save").onclick = () => post("/api/save");
+$("btn-discard").onclick = () => post("/api/discard");
+$("btn-end").onclick = () => { if (confirm("จบ session ตอนนี้? ตาที่บันทึกแล้วไม่หาย แต่จะเก็บต่อใน session นี้ไม่ได้")) post("/api/end"); };
+$("btn-new").onclick = () => post("/api/new");
+$("c-audio").onclick = () => { unlockAudio(); setTimeout(() => { beep("ready"); speak("ทดสอบเสียง"); }, 80); };
+$("btn-edit-actors").onclick = () => { editingActors = !editingActors; renderActors(); show("actor-edit", editingActors); };
+$("btn-cancel-actors").onclick = () => { editingActors = false; show("actor-edit", false); renderActors(); };
+$("btn-save-actors").onclick = async () => {
+  const names = [...document.querySelectorAll("[data-aname]")].sort((a,b)=>a.dataset.aname-b.dataset.aname).map(i => i.value);
+  editingActors = false; show("actor-edit", false);
+  await post("/api/actors", {names});
+};
+
+document.addEventListener("keydown", ev => {
+  if (["INPUT","TEXTAREA"].includes(document.activeElement.tagName)) return;
+  if (!st || ev.repeat) return;              // กดค้าง ≠ กดหลายครั้ง
+  const ph = st.phase;
+  if (ev.code === "Space"){
+    ev.preventDefault();
+    if (["idle","countdown","recording"].includes(ph) && !$("btn-primary").disabled) post("/api/primary");
+  } else if (ph === "review" && (ev.key === "y" || ev.key === "Y")) post("/api/save");
+  else if (ph === "review" && (ev.key === "n" || ev.key === "N")) post("/api/discard");
+});
+// ปุ่มที่โฟกัสอยู่จะกิน Space ซ้ำ — ปลดโฟกัสหลังคลิก
+document.addEventListener("click", ev => { if (ev.target.closest("button")) ev.target.closest("button").blur(); });
+
+poll();
+</script>
+</body>
+</html>

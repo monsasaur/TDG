@@ -16,6 +16,7 @@
  */
 import Constants from "expo-constants";
 import { Platform } from "react-native";
+import { supabase } from "../data/supabaseClient";
 
 type ApiExtra = { apiBaseUrl?: string; apiKey?: string };
 const extra = (Constants.expoConfig?.extra ?? {}) as ApiExtra;
@@ -27,48 +28,70 @@ const fallbackBaseUrl =
 export const API_BASE_URL = extra.apiBaseUrl ?? fallbackBaseUrl;
 export const API_KEY = extra.apiKey ?? "dev-secret-key-123";
 
-export type BackendFallEvent = {
-  id: string;
-  device_id: string;
-  timestamp: number;
-  location: string;
-  is_fall: boolean;
-  confidence: number;
-  acknowledged?: boolean;
-  acknowledged_at?: string | null;
-  acknowledged_by?: string | null;
-  escalated?: boolean;
-  escalated_at?: string | null;
-  sms_sent?: boolean;
-  call_made?: boolean;
-  created_at?: string;
-};
-
 const headers = {
   "x-api-key": API_KEY,
   "Content-Type": "application/json",
 };
 
-export async function fetchFallEvents(limit = 20): Promise<BackendFallEvent[]> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/events/falls?limit=${limit}`, {
-    headers,
-  });
-  if (!res.ok) throw new Error(`GET /events/falls ${res.status}`);
-  const data = await res.json();
-  return data.events || [];
+/**
+ * แนบ access token ของบัญชีที่ login อยู่ — backend ใช้ยืนยันว่าใครกดรับทราบ และเครื่องนี้เป็นของใคร
+ * (x-api-key บอกแค่ว่าเป็นแอปของเรา · ดู express_api/src/services/accountService.js)
+ * ยังไม่ login = ส่งแค่ x-api-key แบบเดิม
+ */
+async function withUserToken(base: Record<string, string>): Promise<Record<string, string>> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    return token ? { ...base, Authorization: `Bearer ${token}` } : base;
+  } catch {
+    return base;
+  }
 }
 
+/**
+ * 409 = หมดเวลารอแล้ว ระบบโทรฉุกเฉินไปแล้ว ยกเลิกไม่ได้
+ * not_allowed = 401/403 — หลังเปิดระบบบัญชี ต้อง login ด้วยบัญชีที่เป็นสมาชิกบ้านนี้
+ */
+export type AckResponse = "acknowledged" | "already_escalated" | "not_allowed";
+
+/**
+ * รอ backend นานสุดเท่านี้ — ค้างนานกว่านี้ให้ถือว่าไม่สำเร็จ ผู้ใช้จะได้รู้ตัวและกดใหม่
+ * แทนที่หน้าจอจะบอกว่ารับทราบแล้วทั้งที่ระบบยังนับเวลาโทรฉุกเฉินอยู่
+ * (เช่นมือถือไม่ได้อยู่วงเดียวกับเครื่องที่รัน backend — fetch ค้างได้เป็นนาที)
+ */
+const ACK_TIMEOUT_MS = 8_000;
+
+/**
+ * แจ้ง backend ว่ามีผู้ดูแลรับทราบเหตุการณ์แล้ว → ยกเลิกการโทรฉุกเฉิน
+ *
+ * `eventId` ต้องเป็น **id ของ fall_events** (`alerts.fall_event_id`) ไม่ใช่ `alerts.id`
+ * backend หาเหตุการณ์จากตาราง fall_events — ส่ง id ผิดตัวจะได้ 404
+ * แล้วระบบโทรฉุกเฉินตามเวลาเหมือนไม่มีใครกด (บั๊กที่เกิดจริง 2 ก.ย. – 12 พ.ย. 2026)
+ */
 export async function acknowledgeEvent(
   eventId: string,
-  acknowledgedBy = "caregiver"
-): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/alert/ack/${eventId}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ acknowledged_by: acknowledgedBy }),
-  });
-  if (!res.ok && res.status !== 409) {
-    throw new Error(`POST /alert/ack ${res.status}`);
+  acknowledgedBy?: string
+): Promise<AckResponse> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ACK_TIMEOUT_MS);
+  try {
+    const res = await fetch(
+      `${API_BASE_URL}/api/v1/alert/ack/${encodeURIComponent(eventId)}`,
+      {
+        method: "POST",
+        headers: await withUserToken(headers),
+        body: JSON.stringify(
+          acknowledgedBy ? { acknowledged_by: acknowledgedBy } : {}
+        ),
+        signal: controller.signal,
+      }
+    );
+    if (res.status === 409) return "already_escalated";
+    if (res.status === 401 || res.status === 403) return "not_allowed";
+    if (!res.ok) throw new Error(`POST /alert/ack ${res.status}`);
+    return "acknowledged";
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -77,9 +100,10 @@ export async function registerPushToken(payload: {
   device_id?: string | null;
   platform?: string | null;
 }): Promise<void> {
+  // login อยู่ → ผูกเครื่องกับบัญชี · ไม่ได้ login → ปลดการผูก (push ของบ้านส่งเฉพาะเครื่องสมาชิก)
   const res = await fetch(`${API_BASE_URL}/api/v1/push/register`, {
     method: "POST",
-    headers,
+    headers: await withUserToken(headers),
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`POST /push/register ${res.status}`);

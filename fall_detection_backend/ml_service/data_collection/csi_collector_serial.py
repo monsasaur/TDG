@@ -1,35 +1,114 @@
 """
 csi_collector_serial.py
 ========================
-เก็บ CSI Data จาก ESP32 ผ่าน USB Serial (ไม่ใช่ UDP)
-พร้อม interactive menu, progress bar และหยุดอัตโนมัติ
+เก็บ CSI Data จาก ESP32 — รองรับสองทางรับ **ตรรกะการเก็บเหมือนกันทุกอย่าง**
+
+    USB Serial (ค่าเริ่มต้น)   ESP32 เสียบสาย USB กับคอม
+    UDP                        ESP32 ยิงผ่าน WiFi — คอมเกาะ "myssid" ที่ ESP32 ปล่อยเอง
 
 วิธีใช้:
-  pip install pyserial
-  python data_collection/csi_collector_serial.py
+  pip install pyserial                       # เฉพาะโหมด serial
+  python data_collection/csi_collector_serial.py            # serial
+  CSI_TRANSPORT=udp python data_collection/csi_collector_serial.py   # udp
 
-ESP32 ต้อง flash firmware version ที่ส่ง CSI ออก serial (active_ap AP-only)
+โหมด UDP ต้อง flash firmware ที่เปิด CONFIG_SEND_CSI_TO_UDP
+(menuconfig → ESP32 CSI Tool Config → Send CSI data over UDP)
+ช่องสัญญาณยังคงที่ตาม WIFI_CHANNEL เพราะคอมเกาะ AP ของ ESP32 เอง
+ไม่ได้ให้ ESP32 ไปเกาะเราเตอร์ — ต่างจากเซ็ตอัป UDP เก่าที่ช่องหลุดตาม hotspot
+
+⚠️ โหมด UDP: คอมจะไม่มีอินเทอร์เน็ตระหว่างเก็บ และคอมกลายเป็นแหล่งสัญญาณ
+   เพิ่มบนช่องเดียวกัน — วางให้ห่างจากบริเวณทำท่า และห้ามขยับตลอด session
 """
 
-import serial
-import serial.tools.list_ports
 import csv
-import json
-import random
-import time
-import os
-import threading
 import glob
-from datetime import datetime
+import json
+import os
+import random
+import socket
+import threading
+import time
+from datetime import datetime, timedelta
 
 # =================== Config ===================
+# ทางรับข้อมูล — "serial" หรือ "udp" (ตั้งผ่าน env CSI_TRANSPORT)
+TRANSPORT    = os.environ.get("CSI_TRANSPORT", "serial").strip().lower()
+
+# กรอง CSI ตาม MAC ต้นทาง — None = ตรวจอัตโนมัติตอนเชื่อมต่อ (เลือก MAC ที่มากที่สุด)
+#
+# ทำไมต้องมี: ESP32 #1 วัด CSI จาก **ทุก packet ที่มันรับได้** ไม่ใช่เฉพาะจาก ESP32 #2
+# โหมด serial ชุดเดิมมี MAC แปลกปลอมปนมา 0.1% (มือถือแถวนั้น probe เข้ามา)
+# โหมด UDP คอมต้องเกาะ AP ของ ESP32 → เฟรมของคอมเองจะถูกวัด CSI ด้วย
+# ถ้าไม่กรอง จะมีสัญญาณจากคอมปนเข้าไปใน feature โดยไม่รู้ตัว
+MAC_FILTER   = None
+
+UDP_HOST     = "0.0.0.0"
+UDP_PORT     = 5500    # ต้องตรงกับ UDP_TARGET_PORT ใน csi_component.h
+UDP_BUFSIZE  = 4096
+# ขอให้ ESP32 #1 ส่ง unicast มาที่เครื่องนี้ (firmware 2026-11-11 ขึ้นไป)
+# broadcast ส่งที่ 1 Mbps ไม่มี ACK/ส่งซ้ำ — วัดจริงได้ 78 pkt/s แกว่ง · unicast ได้ 100 นิ่ง
+# firmware เก่าไม่รู้จัก HELLO ก็แค่ไม่สนใจ ยังส่ง broadcast เหมือนเดิม
+ESP_AP_IP     = "192.168.4.1"
+UDP_CTRL_PORT = 5501
+HELLO_EVERY   = 2.0     # วิ — firmware กลับเป็น broadcast ถ้าเงียบเกิน 10 วิ
+
 SERIAL_PORT  = None    # None = auto-detect; หรือ "/dev/cu.usbserial-0001"
 BAUDRATE     = 921600  # ต้องตรงกับ firmware (sdkconfig CONFIG_ESP_CONSOLE_UART_BAUDRATE)
                        # active_ap/sdkconfig:1630 = 921600 · esp_checker.py ก็ใช้ค่านี้
 READ_TIMEOUT = 1.0
 
-PACKETS_PER_SAMPLE = 400
+# อัตรา CSI — วัดจาก field[18] local_timestamp (µs) ของ ESP32 เอง ไม่ใช่นาฬิกา Python
+# (serial/UDP buffer ทำให้ Python อ่านเป็นชุด ได้อัตราปลอม)
+#
+#   ชุดแรก   73.2 pkt/s แกว่ง 25-96 — บั๊ก firmware สองตัว ไม่ใช่ขีดจำกัดฮาร์ดแวร์
+#   ชุดใหม่  100  pkt/s · SD 0.9  — firmware 2026-11-11 (ตัวส่งของ #2 + เส้นทาง UDP ของ #1)
+#
+# ค่าทุกตัวคิดแบบ "คงระยะเวลาเท่าชุดแรก" (ตัดสินใจ 2026-11-11) — ต้องตรงกับ preprocess_v3.py
+PKT_PER_SEC        = 100.0
+
+# ความยาวคลิปของท่า auto (ห้องว่าง) — ท่าอื่นหยุดเมื่อกด Enter/Space
+PACKETS_PER_SAMPLE = 1230  # ≈ 12.3 วิ เท่าความยาวคลิปชุดแรก
+
+# กดหยุดได้เมื่อไหร่ — ข้อมูลหลังจากนี้ไม่ถูกใช้ จึงไม่ต้องรอนานกว่านี้
+#   ท่ามาร์ค: framed ใช้ถึงมาร์ค +0.7 วิ · continuous ทิ้งท่าล้มหลังถึงพื้น +0.3 วิ
+#             → 2 วิหลังมาร์คพอ (เผื่อกันกดเร็วเกิน) · เดิมให้รอเต็ม 12 วิ = นอนบนพื้นเปล่า ๆ ~7 วิ
+#   ท่าต่อเนื่อง: framed ใช้ช่วง 2.1-6.2 วิ → 7 วิพอ
+STOP_AFTER_MARK_SEC = 2.0
+
+# จังหวะบอกให้ทำท่า (หน้าเว็บ) — ติ๊ก 3-2-1 แล้วบอก "ล้ม" ที่วินาทีนี้หลังเริ่มบันทึก
+# ต้อง ≥ MARK_MIN_PKT (3.4 วิ) บวกเผื่อปฏิกิริยาคน · 5 วิ = ตรงกับโปรโตคอล "ยืน ≥ 5 วิ"
+ACTION_CUE_SEC = 5.0
+# คำที่พูดตอนถึงจังหวะ — สั้นที่สุด เสียงสังเคราะห์พูดคำยาวช้า
+ACTION_WORD = {
+    "ล้มไปข้างหน้า":  "ล้ม",
+    "ล้มไปข้างหลัง":  "ล้ม",
+    "ล้มไปข้างๆ":     "ล้ม",
+    "สดุดล้ม":        "ล้ม",
+    "ก้มเก็บของ":     "ก้ม",
+    "นอนลงบนพื้น":    "นอน",
+    "สะดุดแต่ไม่ล้ม":  "สะดุด",
+}
+PLAIN_STOP_SEC      = 7.0
 COUNTDOWN          = 2
+WINDOW_SIZE_MIN    = 273   # = WINDOW_SIZE ใน preprocess_v3 (2.73 วิ) — สั้นกว่านี้ทำ window ไม่ได้
+
+# ต้องมี packet ก่อนจุดมาร์คอย่างน้อยเท่านี้ preprocess_v3 ถึงจะตัด window ครบ 3 อัน
+MARK_MIN_PKT       = 342   # = FRAMED_BEFORE (3.4 วิ) → ยืนก่อนทำท่าอย่างน้อย ~3.4 วิ
+# และต้องมีหลังจุดมาร์คอย่างน้อยเท่านี้ — กดหยุดเร็วไป window สุดท้ายหาย
+MARK_AFTER_PKT     = 68    # = FRAMED_AFTER (0.7 วิ)
+
+# ช่องว่างระหว่าง packet ติดกัน — ปกติ 10 ms · ที่ตำแหน่งจริงยาวสุด 21-33 ms (รอบซ้อม 8 ไฟล์)
+# window 2.73 วิ ที่มีรูกลางเกิน 0.1 วิ ค่า std/iqr ของ window นั้นเพี้ยน
+GAP_WARN_SEC = 0.10
+GAP_BAD_SEC  = 0.30
+
+# เกณฑ์เตือนเรื่องอัตรา — firmware ใหม่วัดได้ 99.9 · SD 0.9
+# ต่ำกว่านี้แปลว่ามีอะไรผิดปกติ: unicast หลุด (ไม่ได้ HELLO) / มีของแย่งช่อง / firmware เก่า
+RATE_WARN          = 90.0
+RATE_FAIL          = 75.0
+# สูงเกินก็ผิดปกติ — #2 ส่ง 100/วิ พอดี ถ้าได้เกินแปลว่ามีเฟรมซ้ำจากการส่งซ้ำ (ช่องแน่น/แมคทำให้
+# #1 ส่งไม่ทัน) · เจอจริง 2026-11-11: 177 pkt/s ตอน AirDrop/Handoff ของแมคเปิด · window 273 pkt จะสั้นลง
+RATE_HIGH          = 110.0
 
 # =================== เมนู ===================
 ACTIVITIES = [
@@ -42,7 +121,51 @@ ACTIVITIES = [
     ("non_fall",    "ก้มเก็บของ",            80),
     ("non_fall",    "นอนลงบนพื้น",           80),
     ("non_fall",    "สะดุดแต่ไม่ล้ม",        80),
+    # ห้องว่าง = ไม่มีคนอยู่ในห้องเลย — คลาสที่ชุดข้อมูลแรกไม่มี
+    # ทำให้ตอน real-time โมเดลไม่เคยเห็นสภาพ "ไม่มีใคร" มาก่อน
+    ("non_fall",    "ห้องว่าง",              80),
 ]
+
+# วิธีกดของแต่ละท่า — ทุกท่าที่ "มีจังหวะเกิดเหตุ" ต้องมาร์ค ไม่ใช่แค่ fall
+#
+#   mark  = ยืนปกติ ≥ 5 วิ → ทำท่า → คนช่วยกด Enter ตอนเกิดเหตุ → Enter หยุด
+#   plain = ทำท่าต่อเนื่องทั้งคลิป → Enter หยุด (ไม่มีจังหวะให้มาร์ค)
+#   auto  = ทุกคนออกจากห้อง สคริปต์เริ่ม/หยุดเอง ไม่มีใครต้องกลับมากด
+#
+# ทำไม non_fall ต้องมาร์คด้วย: preprocess ตัด window ของ fall รอบจุดล้ม (~วิที่ 5)
+# ถ้า non_fall ตัดจากต้นคลิปแทน สองคลาสจะมาจากคนละช่วงของคลิป และท่าที่ทำช้า
+# กว่า 4 วิจะหลุดออกนอก window ไปเลย — ได้ป้าย "ก้มเก็บของ" แต่เนื้อในคือยืนเฉย
+ACTIVITY_MODE = {
+    "ล้มไปข้างหน้า":   "mark",
+    "ล้มไปข้างหลัง":   "mark",
+    "ล้มไปข้างๆ":      "mark",
+    "สดุดล้ม":         "mark",
+    "ก้มเก็บของ":      "mark",
+    "นอนลงบนพื้น":     "mark",
+    "สะดุดแต่ไม่ล้ม":   "mark",
+    "ยืนนิ่ง":          "plain",
+    "เดิน":            "plain",
+    "ห้องว่าง":         "auto",
+}
+
+# คนช่วยกด Enter ตอนไหน — แสดงบนหน้าจอทุกครั้ง กันกดผิดจังหวะ
+MARK_CUE = {
+    "ล้มไปข้างหน้า":   "ตัวถึงพื้น",
+    "ล้มไปข้างหลัง":   "ตัวถึงพื้น",
+    "ล้มไปข้างๆ":      "ตัวถึงพื้น",
+    "สดุดล้ม":         "ตัวถึงพื้น",
+    "ก้มเก็บของ":      "มือแตะของ (จุดที่ก้มต่ำสุด)",
+    "นอนลงบนพื้น":     "ตัวแนบพื้น",
+    "สะดุดแต่ไม่ล้ม":   "เท้าสะดุด",
+}
+
+# ท่า plain ต้องยาวพอให้ preprocess ตัด window ที่ตำแหน่งเดียวกับท่าที่มาร์ค
+# (NO_EVENT_MARK 547 + FRAMED_AFTER 68 ใน preprocess_v3.py)
+PLAIN_MIN_PKT   = 615   # NO_EVENT_MARK 547 + FRAMED_AFTER 68 (6.2 วิ)
+
+# ท่า auto — เวลาให้ทุกคนออกจากห้อง และกันค้างถ้า packet หยุดมา
+AUTO_COUNTDOWN  = 15
+AUTO_TIMEOUT    = 45   # วินาที — 1230 pkt ที่ RATE_FAIL 75 pkt/s ใช้ ~16 วิ
 
 # =================== Path ===================
 BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -60,15 +183,170 @@ def countdown(seconds):
     print(f"\r  🔴 กำลังบันทึก...      ", flush=True)
 
 
+def csi_timestamp(line: str):
+    """local_timestamp (µs) ของ ESP32 — field ที่ 19 (index 18)
+
+    ใช้ตัวนี้วัดอัตรา ไม่ใช่เวลาที่ Python รับ เพราะ buffer ทำให้ Python
+    อ่านเป็นชุด แล้วได้อัตราปลอมสูงกว่าจริง 3 เท่า
+    """
+    parts = line.split(",", 20)
+    try:
+        return int(parts[18]) / 1e6
+    except (IndexError, ValueError):
+        return None
+
+
+# local_timestamp ของ ESP32 เป็น uint32 หน่วย µs → วนกลับเป็น 0 ทุก 2^32 µs ≈ 71.6 นาที
+# บอร์ดเปิดทิ้งไว้ข้ามหลาย session แน่นอน ถ้าไม่ unwrap คลิปที่คร่อมจุดวนจะได้อัตราติดลบ/วัดไม่ได้
+TS_WRAP_SEC = 2 ** 32 / 1e6
+
+
+def esp_rate_gap(packets):
+    """(อัตรา pkt/s, ช่องว่างยาวสุดระหว่าง packet ติดกัน วินาที) จาก timestamp ของ ESP32
+
+    ช่องว่างใหญ่ผิดปกติ = packet หายเป็นช่วง หรือ ESP32 #1 รีบูต (timestamp เริ่มใหม่)
+    อัตราเฉลี่ยของทั้งคลิปมองไม่เห็นปัญหานี้ — หาย 0.5 วิกลางคลิปอัตรายังดูปกติ
+    """
+    ts = [csi_timestamp(p["raw"]) for p in packets]
+    ts = [t for t in ts if t is not None]
+    if len(ts) < 50:
+        return None, None
+    gaps = [(b - a) % TS_WRAP_SEC for a, b in zip(ts, ts[1:])]
+    span = sum(gaps)
+    return ((len(ts) - 1) / span if span > 0 else None), max(gaps)
+
+
+def new_session_id():
+    """session id รูปแบบเดิม (YYYYmmdd_HHMM) แต่รับประกันว่าไม่ซ้ำ
+
+    id ละเอียดแค่ระดับนาที — ถ้าคนแสดงคนหนึ่งจบแล้วอีกคนเริ่มในนาทีเดียวกัน manifest ของ
+    คนแรกจะถูกเขียนทับ และไฟล์ของคนแรกจะถูกนับเป็นของคนที่สอง (actor_id ผิดทั้ง session)
+    ไม่เปลี่ยนรูปแบบเพราะ preprocess_v2/v3 และ collect_web แยก session จากชื่อไฟล์ด้วยรูปแบบนี้
+    → ถ้าซ้ำ เลื่อนไปนาทีถัดไปจนกว่าจะว่าง
+    """
+    t = datetime.now().replace(second=0, microsecond=0)
+    raw = os.listdir(RAW_DIR) if os.path.isdir(RAW_DIR) else []
+    while True:
+        sid = t.strftime("%Y%m%d_%H%M")
+        taken = (os.path.exists(os.path.join(SESSION_DIR, f"session_{sid}.json"))
+                 or any(f.startswith(f"s{sid}_") for f in raw))
+        if not taken:
+            return sid
+        t += timedelta(minutes=1)
+
+
+def csi_mac(line: str):
+    """MAC ต้นทางของบรรทัด CSI — field ที่ 3 (index 2)"""
+    parts = line.split(",", 4)
+    return parts[2] if len(parts) > 2 else None
+
+
+def detect_source_mac(reader, n_probe=200, timeout=10.0):
+    """ฟังสักพักแล้วเลือก MAC ที่ส่งมามากที่สุด = ESP32 #2
+
+    ทำครั้งเดียวตอนเชื่อมต่อ ไม่ได้ทำทุก sample
+    """
+    counts, start = {}, time.time()
+    while sum(counts.values()) < n_probe and time.time() - start < timeout:
+        raw = reader.readline()
+        if not raw:
+            continue
+        line = raw.decode("utf-8", errors="ignore").strip()
+        if "CSI_DATA" not in line:
+            continue
+        mac = csi_mac(line)
+        if mac:
+            counts[mac] = counts.get(mac, 0) + 1
+
+    if not counts:
+        return None, counts
+    best = max(counts, key=counts.get)
+    return best, counts
+
+
+# =================== Reader — ห่อสองทางรับให้หน้าตาเหมือนกัน ===================
+class SerialReader:
+    """อ่าน CSI จาก USB serial"""
+    kind = "serial"
+
+    def __init__(self, ser, port):
+        self._ser = ser
+        self.desc = f"{port} @ {BAUDRATE} baud"
+
+    def readline(self):
+        return self._ser.readline()
+
+    def reset(self):
+        self._ser.reset_input_buffer()
+
+    def close(self):
+        self._ser.close()
+
+
+class UdpReader:
+    """อ่าน CSI จาก UDP — 1 datagram = 1 บรรทัด CSI_DATA
+
+    firmware ยิง broadcast มาที่ port 5500 บนซับเน็ตของ softAP
+    จึงไม่ต้องรู้ IP ของเครื่องนี้ล่วงหน้า
+    """
+    kind = "udp"
+
+    def __init__(self, sock, peer):
+        self._sock = sock
+        self.desc = f"UDP :{UDP_PORT} ← {peer}"
+        self._last_hello = 0.0
+
+    def hello(self):
+        """บอก #1 ว่าเครื่องนี้อยู่ IP ไหน → #1 ส่ง unicast มาแทน broadcast"""
+        try:
+            self._sock.sendto(b"HELLO", (ESP_AP_IP, UDP_CTRL_PORT))
+        except OSError:
+            pass
+        self._last_hello = time.time()
+
+    def readline(self):
+        if time.time() - self._last_hello > HELLO_EVERY:
+            self.hello()
+        try:
+            data, _ = self._sock.recvfrom(UDP_BUFSIZE)
+            return data
+        except socket.timeout:
+            return b""
+
+    def reset(self):
+        """ทิ้ง datagram ที่ค้างใน buffer ให้หมดก่อนเริ่มบันทึก
+
+        เทียบเท่า reset_input_buffer() ของ serial — ถ้าไม่ทำ packet เก่า
+        จากช่วงก่อนกดเริ่มจะถูกนับเป็นของ sample นี้ และทำให้ index ของ
+        จุดมาร์คเลื่อน
+        """
+        self._sock.settimeout(0.0)
+        try:
+            while True:
+                self._sock.recvfrom(UDP_BUFSIZE)
+        except (BlockingIOError, socket.timeout, OSError):
+            pass
+        finally:
+            self._sock.settimeout(READ_TIMEOUT)
+
+    def close(self):
+        self._sock.close()
+
+
 def auto_detect_port():
-    candidates = sorted(glob.glob("/dev/cu.usbserial-*") + glob.glob("/dev/cu.SLAB_*") + glob.glob("/dev/cu.wchusbserial*"))
-    if candidates:
-        return candidates[0]
-    return None
+    candidates = sorted(glob.glob("/dev/cu.usbserial-*")
+                        + glob.glob("/dev/cu.SLAB_*")
+                        + glob.glob("/dev/cu.wchusbserial*"))
+    return candidates[0] if candidates else None
 
 
-# =================== Connect ===================
-def connect_esp32():
+def connect_serial():
+    try:
+        import serial
+    except ImportError:
+        print("  ❌ ไม่มี pyserial — รัน: pip install pyserial")
+        return None
+
     port = SERIAL_PORT or auto_detect_port()
     if port is None:
         print("  ❌ ไม่พบ USB serial port")
@@ -82,7 +360,6 @@ def connect_esp32():
         print(f"  ❌ เปิด serial ไม่ได้: {e}")
         return None
 
-    # รอ CSI_DATA แรก
     print("  ⏳ รอ CSI_DATA จาก ESP32...")
     start = time.time()
     while time.time() - start < 15:
@@ -92,7 +369,7 @@ def connect_esp32():
             continue
         if "CSI_DATA" in line:
             print(f"  ✅ CSI ไหลแล้ว ({port})\n")
-            return ser
+            return SerialReader(ser, port)
 
     print("  ❌ ไม่ได้รับ CSI_DATA ใน 15 วิ")
     print("     เช็ค: 1) ESP32 #1 flash firmware ใหม่หรือยัง")
@@ -102,25 +379,122 @@ def connect_esp32():
     return None
 
 
+def connect_udp():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        sock.bind((UDP_HOST, UDP_PORT))
+    except OSError as e:
+        print(f"  ❌ bind UDP :{UDP_PORT} ไม่ได้: {e}")
+        print("     มีโปรแกรมอื่นใช้ port นี้อยู่ไหม (csi_streamer.py?)")
+        return None
+
+    sock.settimeout(15.0)
+    try:
+        sock.sendto(b"HELLO", (ESP_AP_IP, UDP_CTRL_PORT))   # ขอ unicast ตั้งแต่แรก
+    except OSError:
+        pass
+    print(f"\n  📡 รอ CSI ทาง UDP :{UDP_PORT}")
+    print("     คอมต้องเกาะ WiFi ที่ ESP32 ปล่อย (SSID ตาม CONFIG_ESP_WIFI_SSID)")
+    try:
+        data, addr = sock.recvfrom(UDP_BUFSIZE)
+    except socket.timeout:
+        print("  ❌ ไม่ได้รับอะไรใน 15 วิ")
+        print("     เช็ค: 1) คอมเกาะ WiFi ของ ESP32 แล้วหรือยัง (ไม่ใช่ WiFi บ้าน)")
+        print("           2) firmware เปิด CONFIG_SEND_CSI_TO_UDP แล้วหรือยัง")
+        print("           3) firewall ของ macOS บล็อก UDP ขาเข้าอยู่ไหม")
+        sock.close()
+        return None
+
+    if b"CSI_DATA" not in data:
+        print(f"  ⚠️  ได้ข้อมูลจาก {addr[0]} แต่ไม่ใช่ CSI_DATA — เช็ค firmware")
+    else:
+        print(f"  ✅ CSI ไหลแล้ว จาก {addr[0]}\n")
+    sock.settimeout(READ_TIMEOUT)
+    return UdpReader(sock, addr[0])
+
+
+def connect_esp32():
+    if TRANSPORT == "udp":
+        reader = connect_udp()
+    elif TRANSPORT == "serial":
+        reader = connect_serial()
+    else:
+        print(f"  ❌ CSI_TRANSPORT ต้องเป็น 'serial' หรือ 'udp' — ได้ '{TRANSPORT}'")
+        return None
+    if reader is None:
+        return None
+
+    # ล็อก MAC ต้นทาง เพื่อให้ข้อมูลจาก serial กับ udp เทียบกันได้
+    reader.mac = MAC_FILTER
+    if reader.mac is None:
+        print("  🔍 ตรวจ MAC ต้นทาง...")
+        best, counts = detect_source_mac(reader)
+        reader.mac = best
+        if best is None:
+            print("     ⚠️  ตรวจไม่ได้ — จะเก็บทุก MAC")
+        else:
+            tot = sum(counts.values())
+            print(f"     ✅ ล็อกที่ {best}  ({counts[best]}/{tot} = "
+                  f"{counts[best]/tot*100:.1f}%)")
+            others = {k: v for k, v in counts.items() if k != best}
+            if others:
+                print(f"     ℹ️  กรองทิ้ง MAC อื่น {len(others)} ตัว "
+                      f"({sum(others.values())} pkt) — เฟรมจากคอม/มือถือแถวนั้น")
+    else:
+        print(f"  🔒 ใช้ MAC ที่ตั้งไว้: {reader.mac}")
+    print()
+    return reader
+
+
 # =================== Collect One Sample ===================
-def collect_sample(ser, label, activity_name, sample_num, prefix=None):
-    """เก็บ 1 sample — คืนชื่อไฟล์ที่บันทึก หรือ False ถ้าไม่ได้บันทึก"""
-    target = PACKETS_PER_SAMPLE
+def collect_sample(reader, label, activity_name, sample_num, prefix=None):
+    """เก็บ 1 sample — คืน (ชื่อไฟล์, mark_index, อัตรา pkt/s) · (False, None, None) ถ้าไม่บันทึก
+
+    ท่า fall ต้องกด Enter สองครั้ง:
+        ครั้งที่ 1 = ตอนล้มถึงพื้น → มาร์คตำแหน่ง packet ไว้
+        ครั้งที่ 2 = หยุดบันทึก
+
+    ท่า non_fall กด Enter ครั้งเดียวเพื่อหยุด (ไม่มีจุดมาร์ค)
+
+    mark_index คือลำดับ packet ที่ล้ม ใช้ตอน preprocess เพื่อ:
+      - ตัด window รอบจุดมาร์ค      → dataset แบบเดิม (per-window)
+      - label ทุก window ตามระยะห่าง → dataset ต่อเนื่องสำหรับ real-time
+    ถ้าไม่มีมาร์ค (ลืมกด) จะได้ -1 และ preprocess จะข้ามไฟล์นั้นตอนทำ dataset แบบ framed
+    """
+    target    = PACKETS_PER_SAMPLE
+    mode      = ACTIVITY_MODE.get(activity_name, "mark" if label == "fall" else "plain")
+    is_mark   = mode == "mark"
+    is_auto   = mode == "auto"
 
     print(f"\n  📍 [{activity_name}]  Sample {sample_num}  (เป้า {target} pkts)")
     input("  กด Enter เพื่อเริ่มบันทึก...")
-    countdown(COUNTDOWN)
-    print("  กด Enter เพื่อหยุด")
+    if is_auto:
+        print(f"  🚪 ทุกคนออกจากห้องภายใน {AUTO_COUNTDOWN} วิ — สคริปต์หยุดเองเมื่อครบ")
+        countdown(AUTO_COUNTDOWN)
+    else:
+        countdown(COUNTDOWN)
+    if is_mark:
+        cue = MARK_CUE.get(activity_name, "เกิดเหตุ")
+        print(f"  ยืนปกติ ≥ 5 วิก่อน  ·  ⚡ กด Enter ตอน '{cue}'  →  "
+              f"รอ ~{STOP_AFTER_MARK_SEC:.0f} วิ แล้ว Enter อีกครั้งเพื่อหยุด")
+    elif not is_auto:
+        print(f"  ทำท่าต่อเนื่องตลอดคลิป · กด Enter เพื่อหยุดที่ ~{PLAIN_STOP_SEC:.0f} วิ")
 
     packets    = []
+    dropped    = [0]           # เฟรมที่ MAC ไม่ตรง
+    mark_idx   = [-1]          # list เพื่อให้ thread เขียนได้
     start_time = time.time()
     stop_flag  = threading.Event()
 
-    # ล้าง buffer ค้าง
-    ser.reset_input_buffer()
+    # ล้าง buffer ค้าง — สำคัญมาก ถ้าไม่ล้าง packet เก่าจะทำให้ index มาร์คเลื่อน
+    reader.reset()
 
     def wait_for_enter():
-        input()
+        if is_mark:
+            input()                       # ครั้งที่ 1 — มาร์คจุดเกิดเหตุ
+            mark_idx[0] = len(packets)
+        input()                           # ครั้งสุดท้าย — หยุด
         stop_flag.set()
 
     def timer_display():
@@ -129,19 +503,36 @@ def collect_sample(ser, label, activity_name, sample_num, prefix=None):
             pct  = min(len(packets) / target, 1.0)
             done = int(pct * 30)
             bar  = "█" * done + "░" * (30 - done)
-            print(f"\r  🔴 {elapsed} วิ   [{bar}] {len(packets):3d} pkts", end="", flush=True)
+            if is_mark:
+                tag = f"📍มาร์ค@{mark_idx[0]}" if mark_idx[0] >= 0 else "รอมาร์ค..."
+            else:
+                tag = ""
+            print(f"\r  🔴 {elapsed} วิ   [{bar}] {len(packets):4d} pkts  {tag:16s}",
+                  end="", flush=True)
             time.sleep(0.1)
 
-    threading.Thread(target=wait_for_enter, daemon=True).start()
+    # ท่า auto ไม่รอ Enter — ถ้ามี thread รอ input ค้างไว้ มันจะกิน Enter
+    # ของคำถาม "บันทึกไหม?" ไป
+    if not is_auto:
+        threading.Thread(target=wait_for_enter, daemon=True).start()
     threading.Thread(target=timer_display, daemon=True).start()
 
     while not stop_flag.is_set():
+        if is_auto and (len(packets) >= target
+                        or time.time() - start_time > AUTO_TIMEOUT):
+            stop_flag.set()
+            break
         try:
-            raw = ser.readline()
+            raw = reader.readline()
             if not raw:
                 continue
             line = raw.decode("utf-8", errors="ignore").strip()
             if "CSI_DATA" not in line:
+                continue
+            # ทิ้งเฟรมที่ไม่ได้มาจาก ESP32 #2 — ไม่งั้นสัญญาณจากคอม/มือถือ
+            # ที่อยู่ช่องเดียวกันจะปนเข้าไปใน feature
+            if reader.mac and csi_mac(line) != reader.mac:
+                dropped[0] += 1
                 continue
             packets.append({
                 "timestamp": datetime.now().isoformat(),
@@ -152,13 +543,79 @@ def collect_sample(ser, label, activity_name, sample_num, prefix=None):
             continue
 
     stop_flag.set()
-    print(f"\n  รับมา {len(packets)} pkts")
+    time.sleep(0.15)                  # ให้แถบ progress พิมพ์บรรทัดสุดท้ายเสร็จก่อน
+    _, max_gap = esp_rate_gap(packets)
+    if is_auto:
+        print("\a\n  🔔 ครบแล้ว — กลับเข้าห้องได้")
+    mark = mark_idx[0]
+    # กด Enter สองครั้งเร็วจน packet ถัดไปยังไม่มา → index ชี้เลยแถวสุดท้าย
+    # ถ้าไม่ดึงกลับ จะไม่มีแถวไหนได้ mark=1 แล้ว preprocess ทิ้งไฟล์นี้ทั้งที่ manifest บอกว่ามีมาร์ค
+    if mark >= len(packets):
+        mark = len(packets) - 1
+    rate, _ = esp_rate_gap(packets)
+
+    print(f"\n  รับมา {len(packets)} pkts", end="")
+    if rate:
+        print(f" · {rate:.0f} pkt/s", end="")
+    if dropped[0]:
+        print(f" (กรอง MAC อื่นทิ้ง {dropped[0]})", end="")
+    if is_mark:
+        if mark < 0:
+            print("   ⚠️  ไม่มีจุดมาร์ค (ลืมกด Enter ตอนเกิดเหตุ)")
+        else:
+            print(f"   📍 มาร์คที่ pkt {mark} ({mark/PKT_PER_SEC:.1f} วิ)")
+            if mark < MARK_MIN_PKT:
+                print(f"      ⚠️  ทำท่าเร็วไป — ต้องมีอย่างน้อย {MARK_MIN_PKT} pkt "
+                      f"({MARK_MIN_PKT/PKT_PER_SEC:.1f} วิ) ก่อนจุดมาร์ค ไม่งั้นตัด window ไม่ครบ")
+            if len(packets) - mark < MARK_AFTER_PKT:
+                print(f"      ⚠️  หยุดเร็วไป — ต้องบันทึกต่อหลังมาร์คอย่างน้อย {MARK_AFTER_PKT} pkt "
+                      f"({MARK_AFTER_PKT/PKT_PER_SEC:.1f} วิ) · ได้แค่ {len(packets) - mark}")
+    else:
+        print()
+        if len(packets) < PLAIN_MIN_PKT:
+            print(f"  ⚠️  สั้นไป ({len(packets)} < {PLAIN_MIN_PKT} pkt) "
+                  "— preprocess จะได้ window ไม่ครบ")
+
+    if rate and rate > RATE_HIGH:
+        print(f"  ⚠️  อัตราสูงผิดปกติ ({rate:.0f} pkt/s · ปกติ ~{PKT_PER_SEC:.0f}) — เฟรมซ้ำจากการส่งซ้ำ "
+              "ปิด AirDrop/Handoff ของแมค ขยับแมคใกล้ #1")
+    if rate and rate < RATE_WARN:
+        print(f"  ⚠️  อัตราต่ำ ({rate:.0f} pkt/s · ปกติ ~{PKT_PER_SEC:.0f}) "
+              "— มีอะไรแย่งช่องสัญญาณอยู่")
+        if rate < RATE_FAIL:
+            print(f"     🔴 ต่ำกว่า {RATE_FAIL} pkt/s — ข้อมูลจะไม่สม่ำเสมอ ตอบ n แล้วหยุดเช็คก่อน")
+            print("        เช็ค: firmware ใหม่ทั้งสองตัวไหม · มือถือ/คอมอื่นเกาะ myssid ไหม · "
+                  "รัน udp_rate_check.py ดูตัวนับฝั่ง #1")
+
+    if len(packets) < WINDOW_SIZE_MIN:
+        print(f"  ⚠️  สั้นเกินไป (<{WINDOW_SIZE_MIN} pkts) — ใช้ทำ window ไม่ได้")
+    if max_gap is not None and max_gap > GAP_WARN_SEC:
+        print(f"  ⚠️  ข้อมูลขาดช่วง {max_gap*1000:.0f} ms — packet หายเป็นช่วง / ESP32 รีบูต")
 
     confirm = input("  บันทึก sample นี้ไหม? (y/n): ").strip().lower()
     if confirm != "y":
         print("  ⏭️  ข้ามไป — ไม่บันทึก")
-        return False
+        return False, None, None
 
+    # ท่าที่ต้องมาร์คแต่ลืม — ให้โอกาสทิ้งก่อน เพราะเอาไปทำ dataset framed ไม่ได้
+    if is_mark and mark < 0:
+        keep = input("  ไม่มีจุดมาร์ค เก็บไว้ไหม? (y = เก็บ / n = ทิ้ง): ").strip().lower()
+        if keep != "y":
+            print("  ⏭️  ทิ้ง — จะเก็บท่านี้ซ้ำในตาถัดไป")
+            return False, None, None
+
+    filename = write_sample_csv(packets, label, activity_name, sample_num, prefix, mark)
+    print(f"  ✅ บันทึก → {filename}")
+    return filename, mark, rate
+
+
+# =================== เขียนไฟล์ — ใช้ร่วมกันทั้ง CLI และหน้าเว็บ (collect_web.py) ===================
+def write_sample_csv(packets, label, activity_name, sample_num, prefix, mark):
+    """เขียน 1 sample ลง data/raw — คืนชื่อไฟล์
+
+    รูปแบบชื่อไฟล์และคอลัมน์ต้องคงที่ — preprocess_v3 อ่าน session จาก prefix s<id>_<seq>_
+    และอ่านจุดเกิดเหตุจากคอลัมน์ mark
+    """
     ts        = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_name = activity_name.replace(" ", "_")
     # prefix มีเฉพาะโหมด session — ทำให้เรียงชื่อไฟล์แล้วได้ลำดับการเก็บจริง
@@ -166,13 +623,53 @@ def collect_sample(ser, label, activity_name, sample_num, prefix=None):
     filename  = f"{head}{label}_{safe_name}_{ts}_{sample_num:03d}.csv"
     filepath  = os.path.join(RAW_DIR, filename)
 
+    # คอลัมน์ mark: 1 ที่แถวจุดเกิดเหตุ (ล้มถึงพื้น / มือแตะของ / ...) · 0 ที่เหลือ
+    # เพิ่มท้ายตาราง — preprocess_v2.py เดิมอ่านผ่าน pd.read_csv จึงไม่กระทบ
+    for i, pkt in enumerate(packets):
+        pkt["mark"] = 1 if i == mark else 0
+
     with open(filepath, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["timestamp", "label", "raw"])
+        writer = csv.DictWriter(f, fieldnames=["timestamp", "label", "raw", "mark"])
         writer.writeheader()
         writer.writerows(packets)
-
-    print(f"  ✅ บันทึก → {filename}")
     return filename
+
+
+def assess_sample(mode, n_packets, mark, rate, max_gap=None):
+    """ตรวจ sample ที่เพิ่งเก็บ — คืน list ของ (ระดับ, ข้อความ) · ระดับ = "bad" | "warn"
+
+    กฎเดียวกับที่ CLI พิมพ์เตือน — หน้าเว็บใช้ตัวนี้ตัดสินว่าควรเก็บซ้ำไหม
+    """
+    out = []
+    if mode == "mark":
+        if mark < 0:
+            out.append(("bad", "ไม่มีจุดมาร์ค (ลืมกดตอนเกิดเหตุ)"))
+        else:
+            if mark < MARK_MIN_PKT:
+                out.append(("bad", f"ทำท่าเร็วไป — มาร์คที่ {mark/PKT_PER_SEC:.1f} วิ "
+                                   f"ต้อง ≥ {MARK_MIN_PKT/PKT_PER_SEC:.1f} วิ"))
+            if n_packets - mark < MARK_AFTER_PKT:
+                out.append(("bad", f"หยุดเร็วไป — หลังมาร์คได้ {(n_packets-mark)/PKT_PER_SEC:.1f} วิ "
+                                   f"ต้อง ≥ {MARK_AFTER_PKT/PKT_PER_SEC:.1f} วิ"))
+    elif n_packets < PLAIN_MIN_PKT:
+        out.append(("bad", f"สั้นไป — {n_packets/PKT_PER_SEC:.1f} วิ ต้อง ≥ {PLAIN_MIN_PKT/PKT_PER_SEC:.1f} วิ"))
+    if n_packets < WINDOW_SIZE_MIN:
+        out.append(("bad", f"สั้นเกินไป ({n_packets} pkt) ใช้ทำ window ไม่ได้"))
+    if rate is None:
+        out.append(("bad", "วัดอัตราไม่ได้ (packet น้อยเกินไป)"))
+    elif rate < RATE_FAIL:
+        out.append(("bad", f"อัตราต่ำมาก {rate:.0f} pkt/s (ปกติ ~{PKT_PER_SEC:.0f})"))
+    elif rate < RATE_WARN:
+        out.append(("warn", f"อัตราต่ำ {rate:.0f} pkt/s (ปกติ ~{PKT_PER_SEC:.0f})"))
+    elif rate > RATE_HIGH:
+        out.append(("bad", f"อัตราสูงผิดปกติ {rate:.0f} pkt/s — มีเฟรมซ้ำจากการส่งซ้ำ (ช่องสัญญาณแน่น) "
+                           "· ปิด AirDrop/Handoff ของแมค ขยับแมคใกล้ #1"))
+    if max_gap is not None and max_gap > GAP_BAD_SEC:
+        out.append(("bad", f"ข้อมูลขาดช่วง {max_gap*1000:.0f} ms — packet หายเป็นช่วง หรือ ESP32 #1 รีบูต "
+                           "(ถ้ารีบูต: จดไว้ใน notes และอุ่นบอร์ดใหม่)"))
+    elif max_gap is not None and max_gap > GAP_WARN_SEC:
+        out.append(("warn", f"ข้อมูลขาดช่วง {max_gap*1000:.0f} ms (ปกติ ≤ 35 ms)"))
+    return out
 
 
 # =================== Count Existing Samples ===================
@@ -225,35 +722,115 @@ def show_menu():
 """
 
 
-def build_interleaved_plan(rounds, seed=None):
+# น้ำหนักของแต่ละท่า "ภายในคลาสเดียวกัน" — ตัดสินใจ 2026-11-11
+#
+# ท่าที่แยกจากการล้มยาก = ต้นเหตุของ false alarm → เก็บมากขึ้นให้ตัวเลขแม่นพอ
+# ท่าที่แยกง่าย หรือมีอยู่แล้วในช่วงยืนก่อนล้มของทุกคลิป → เก็บน้อยลง
+#   ห้องว่าง: แยกง่ายมาก (ไม่มีคนเลย) และแพงสุด — ทุกคนต้องออกจากห้องทุกครั้ง
+#   ยืนนิ่ง:  ทุกคลิปที่มาร์คมีช่วงยืนนิ่ง ~5 วิ ก่อนทำท่าอยู่แล้ว (dataset B ได้ไปเต็ม ๆ)
+#
+# ต่อคน 80 รอบ → fall ท่าละ 20 · สะดุดแต่ไม่ล้ม 20 · นอนลง 16 · ก้ม 16 · เดิน 14 · ยืนนิ่ง 8 · ห้องว่าง 6
+# 5 คนรวม     → fall ท่าละ 100 · สะดุดแต่ไม่ล้ม 100 (= คู่ของ "สดุดล้ม") · นอนลง 80 · ก้ม 80 · เดิน 70 · ยืนนิ่ง 40 · ห้องว่าง 30
+ACTIVITY_WEIGHT = {
+    "ล้มไปข้างหน้า":  1,
+    "ล้มไปข้างหลัง":  1,
+    "ล้มไปข้างๆ":     1,
+    "สดุดล้ม":        1,
+    "สะดุดแต่ไม่ล้ม":  20,
+    "นอนลงบนพื้น":    16,
+    "ก้มเก็บของ":     16,
+    "เดิน":          14,
+    "ยืนนิ่ง":         8,
+    "ห้องว่าง":        6,
+}
+
+
+def allocate(total, weights):
+    """แบ่ง total ตามน้ำหนักแบบ largest remainder — ผลรวมเท่ากับ total พอดี และ deterministic
+
+    weights: {ชื่อท่า: น้ำหนัก} (เรียงตาม ACTIVITIES) · น้ำหนัก 0 = ไม่ได้
+    ใช้ทั้งตอนสร้าง plan และตอนแสดงตัวเลขในหน้าเว็บ — ต้องได้ค่าเดียวกันเสมอ
+    """
+    names = [n for n, w in weights.items() if w > 0]
+    if total <= 0 or not names:
+        return {n: 0 for n in weights}
+    wsum = float(sum(weights[n] for n in names))
+    exact = {n: total * weights[n] / wsum for n in names}
+    out = {n: int(exact[n]) for n in names}
+    left = total - sum(out.values())
+    order = sorted(names, key=lambda n: (-(exact[n] - out[n]), -weights[n], names.index(n)))
+    for n in order[:left]:
+        out[n] += 1
+    return {n: out.get(n, 0) for n in weights}
+
+
+def _spread(counts, rng):
+    """เรียงท่าให้แต่ละท่ากระจายทั่วทั้ง session ไม่กระจุกช่วงใดช่วงหนึ่ง
+
+    ท่าที่มี c ครั้ง ได้ตำแหน่ง (i + สุ่ม 0.25-0.75) / c — เหมือนแบ่งเวลาเป็น c ช่วงแล้ววางช่วงละครั้ง
+    ถ้าท่าใดกระจุกตอนต้น/ท้าย session ท่านั้นจะผูกกับอุณหภูมิบอร์ด/ความล้าของคนแสดง
+    """
+    slots = []
+    for n, c in counts.items():
+        for i in range(c):
+            slots.append(((i + rng.uniform(0.25, 0.75)) / c, rng.random(), n))
+    return [n for _, _, n in sorted(slots)]
+
+
+def build_interleaved_plan(rounds, seed=None, activities=None, quota=None):
     """
     สร้างลำดับการเก็บที่สลับ fall / non_fall
 
-    1 รอบ = 1 fall + 1 non_fall โดยสุ่มว่ารอบนั้นเริ่มด้วยคลาสไหน
+    1 รอบ = 1 fall + 1 non_fall · สลับว่ารอบไหนขึ้นต้นด้วยคลาสไหน
     (ถ้าสลับตายตัว fall จะตามหลัง non_fall เสมอ ผลข้างเคียงจากท่าก่อนหน้า
      เช่นยังลุกไม่เสร็จ จะเข้าคลาสเดียวเสมอกลายเป็น confound ตัวใหม่)
 
-    ท่าภายในแต่ละคลาสหมุนจนครบทุกท่าก่อนวนใหม่ — ได้จำนวนเท่ากันทุกท่า
+    จำนวนต่อท่าภายในคลาส:
+      quota=None  → แบ่งตาม ACTIVITY_WEIGHT
+      quota=dict  → แบ่งตามจำนวนที่ "ยังขาด" (เช่นคนแสดงคนเดิมกลับมาเก็บ session ที่สอง)
+                    ถ้าคลาสไหนไม่ขาดแล้วเลย กลับไปใช้ ACTIVITY_WEIGHT
+    แต่ละท่ากระจายทั่วทั้ง session (_spread)
+
+    activities = ชื่อท่าที่จะเก็บ (None = ทุกท่า) · ต้องมีทั้ง fall และ non_fall อย่างน้อยคลาสละ 1 ท่า
+    ไม่งั้นสลับคลาสไม่ได้ = กลับไปเป็นปัญหา session confound ของชุดข้อมูลแรก
     """
-    falls    = [a for a in ACTIVITIES if a[0] == "fall"]
-    nonfalls = [a for a in ACTIVITIES if a[0] == "non_fall"]
+    pool     = [a for a in ACTIVITIES if activities is None or a[1] in activities]
+    falls    = [a for a in pool if a[0] == "fall"]
+    nonfalls = [a for a in pool if a[0] == "non_fall"]
+    if not falls or not nonfalls:
+        raise ValueError("ต้องเลือกท่า fall และ non_fall อย่างน้อยคลาสละ 1 ท่า")
     rng = random.Random(seed)
+    by_name = {a[1]: a for a in pool}
 
-    plan, fall_pool, non_pool = [], [], []
+    def order_for(acts):
+        w = {a[1]: max(0, int((quota or {}).get(a[1], 0))) for a in acts} if quota else {}
+        if not w or sum(w.values()) == 0:
+            w = {a[1]: ACTIVITY_WEIGHT.get(a[1], 1) for a in acts}
+        return _spread(allocate(rounds, w), rng)
+
+    f_order, n_order = order_for(falls), order_for(nonfalls)
+    plan = []
     for r in range(rounds):
-        if not fall_pool:
-            fall_pool = falls[:]
-            rng.shuffle(fall_pool)
-        if not non_pool:
-            non_pool = nonfalls[:]
-            rng.shuffle(non_pool)
-
-        pair = [fall_pool.pop(), non_pool.pop()]
+        pair = [by_name[f_order[r]], by_name[n_order[r]]]
         if r % 2:
             pair.reverse()
         plan.extend(pair)
-
     return plan
+
+
+def planned_counts(rounds, activities=None, quota=None):
+    """จำนวนต่อท่าที่ build_interleaved_plan จะให้ — ใช้แสดงผลล่วงหน้า (ไม่ต้องสุ่ม)"""
+    pool = [a for a in ACTIVITIES if activities is None or a[1] in activities]
+    out = {}
+    for label in ("fall", "non_fall"):
+        acts = [a for a in pool if a[0] == label]
+        if not acts:
+            continue
+        w = {a[1]: max(0, int((quota or {}).get(a[1], 0))) for a in acts} if quota else {}
+        if not w or sum(w.values()) == 0:
+            w = {a[1]: ACTIVITY_WEIGHT.get(a[1], 1) for a in acts}
+        out.update(allocate(rounds, w))
+    return out
 
 
 def ask_session_info():
@@ -270,7 +847,10 @@ def ask_session_info():
 def save_manifest(session_id, info, plan, records, started_at):
     """เขียนทับทุกครั้งที่เก็บได้ 1 sample — กด Ctrl-C แล้วข้อมูลไม่หาย"""
     path = os.path.join(SESSION_DIR, f"session_{session_id}.json")
-    fall_n = sum(1 for r in records if r["label"] == "fall")
+    fall_n    = sum(1 for r in records if r["label"] == "fall")
+    # ไฟล์ที่ต้องมาร์คแต่ไม่มีมาร์ค = ทำ dataset แบบ framed ไม่ได้ ต้องรู้ตัวเลขนี้
+    unmarked  = sum(1 for r in records
+                    if ACTIVITY_MODE.get(r["activity"]) == "mark" and r.get("mark", -1) < 0)
 
     with open(path, "w", encoding="utf-8") as f:
         json.dump({
@@ -282,13 +862,14 @@ def save_manifest(session_id, info, plan, records, started_at):
             "collected":    len(records),
             "fall":         fall_n,
             "non_fall":     len(records) - fall_n,
+            "unmarked":     unmarked,
             "info":         info,
             "samples":      records,
         }, f, indent=2, ensure_ascii=False)
     return path
 
 
-def run_session(ser):
+def run_session(reader):
     print("\n" + "=" * 60)
     print("  🔀  โหมด Session สลับคลาส")
     print("=" * 60)
@@ -306,7 +887,7 @@ def run_session(ser):
     info = ask_session_info()
     plan = build_interleaved_plan(rounds)
 
-    session_id = datetime.now().strftime("%Y%m%d_%H%M")
+    session_id = new_session_id()
     started_at = datetime.now().isoformat()
 
     print("\n  📋 ลำดับที่จะเก็บ (" + str(len(plan)) + " sample)")
@@ -318,20 +899,26 @@ def run_session(ser):
         return
 
     records = []
+    target_n = len(plan)
+    idx = 0
     try:
-        for idx, (label, name, _) in enumerate(plan, 1):
+        while idx < len(plan):
+            label, name, _ = plan[idx]
+            idx += 1
             tag = "🔴 FALL" if label == "fall" else "🟢 NON-FALL"
             print("\n" + "─" * 60)
-            print(f"  [{idx}/{len(plan)}]  {tag}")
+            print(f"  [{len(records)+1}/{target_n}]  {tag}")
             print(f"  ➡️  ตาต่อไป: {name}")
             print("─" * 60)
 
-            filename = collect_sample(
-                ser, label, name, idx, prefix=f"s{session_id}_{idx:03d}"
+            filename, mark, rate = collect_sample(
+                reader, label, name, idx, prefix=f"s{session_id}_{idx:03d}"
             )
             if not filename:
-                print("  ⏭️  ข้าม — จะเก็บท่าเดิมนี้ซ้ำในตาถัดไป")
-                plan.append((label, name, None))   # ต่อท้ายไว้ ไม่ให้คลาสเสียสมดุล
+                print("  ⏭️  ข้าม — เก็บท่าเดิมนี้ซ้ำทันทีในตาถัดไป")
+                # แทรกเป็นตาถัดไป ไม่ต่อท้าย plan — ถ้าต่อท้าย ตาที่เก็บซ้ำทั้งหมด
+                # จะไปกองตอนจบ session ทำให้ท่าที่ทำพลาดบ่อยผูกกับช่วงท้าย (บอร์ดร้อน/คนล้า)
+                plan.insert(idx, (label, name, None))
                 continue
 
             records.append({
@@ -339,12 +926,14 @@ def run_session(ser):
                 "label":    label,
                 "activity": name,
                 "file":     filename,
+                "mark":     mark,          # -1 = ไม่มีจุดมาร์ค (non_fall หรือลืมกด)
+                "rate":     round(rate, 1) if rate else None,
                 "at":       datetime.now().isoformat(),
             })
             save_manifest(session_id, info, plan, records, started_at)
 
             fall_n = sum(1 for r in records if r["label"] == "fall")
-            print(f"  📊 เก็บแล้ว {len(records)}/{len(plan)}  "
+            print(f"  📊 เก็บแล้ว {len(records)}/{target_n}  "
                   f"(fall {fall_n} · non_fall {len(records)-fall_n})")
 
     except KeyboardInterrupt:
@@ -353,6 +942,21 @@ def run_session(ser):
     path = save_manifest(session_id, info, plan, records, started_at)
     fall_n = sum(1 for r in records if r["label"] == "fall")
     print("\n" + "=" * 60)
+    rr = [r["rate"] for r in records if r.get("rate")]
+    if rr:
+        rr_sorted = sorted(rr)
+        med = rr_sorted[len(rr_sorted) // 2]
+        low = sum(1 for x in rr if x < RATE_FAIL)
+        print(f"  📶 อัตรา packet: min {rr_sorted[0]:.0f} · median {med:.0f} "
+              f"· max {rr_sorted[-1]:.0f} pkt/s")
+        if low:
+            print(f"  🔴 {low}/{len(rr)} sample อัตราต่ำกว่า {RATE_FAIL} — "
+                  "ตรวจว่ามีอะไรแย่งช่องสัญญาณ")
+    unmarked = sum(1 for r in records
+                   if ACTIVITY_MODE.get(r["activity"]) == "mark" and r.get("mark", -1) < 0)
+    if unmarked:
+        print(f"  ⚠️  ไฟล์ที่ไม่มีจุดมาร์ค {unmarked} ไฟล์ "
+              "— ใช้ทำ dataset แบบ framed ไม่ได้")
     print(f"  ✅ session {session_id} — เก็บได้ {len(records)} sample "
           f"(fall {fall_n} · non_fall {len(records)-fall_n})")
     print(f"  📄 manifest → {os.path.relpath(path, BASE_DIR)}")
@@ -364,14 +968,17 @@ def run_session(ser):
 # =================== Main ===================
 def main():
     print("=" * 60)
-    print("  📡  CSI Data Collector (USB Serial)")
-    print(f"  Baudrate : {BAUDRATE}")
+    print(f"  📡  CSI Data Collector ({'UDP' if TRANSPORT == 'udp' else 'USB Serial'})")
+    if TRANSPORT == "udp":
+        print(f"  Listen    : UDP :{UDP_PORT}")
+    else:
+        print(f"  Baudrate  : {BAUDRATE}")
     print(f"  Per sample: {PACKETS_PER_SAMPLE} pkts")
     print(f"  Output    : {RAW_DIR}")
     print("=" * 60)
 
-    ser = connect_esp32()
-    if ser is None:
+    reader = connect_esp32()
+    if reader is None:
         return
 
     try:
@@ -382,7 +989,7 @@ def main():
             if choice in ("q", "quit", "exit"):
                 break
             elif choice == "s":
-                run_session(ser)
+                run_session(reader)
                 continue
             elif choice == "all":
                 selected = list(range(len(ACTIVITIES)))
@@ -434,7 +1041,7 @@ def main():
 
                 try:
                     while True:
-                        ok = collect_sample(ser, label, name, s)
+                        ok, _, _ = collect_sample(reader, label, name, s)
                         if ok:
                             saved += 1
                             s += 1
@@ -454,7 +1061,7 @@ def main():
             print("\n  🎉 เสร็จแล้ว!")
 
     finally:
-        ser.close()
+        reader.close()
         print("\n  👋 ปิดโปรแกรมแล้ว\n")
 
 

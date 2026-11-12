@@ -3,6 +3,7 @@ const alertService      = require('../services/alertService')
 const dbService         = require('../services/dbService')
 const escalationService = require('../services/escalationService')
 const appAlertService   = require('../services/appAlertService')
+const accountService    = require('../services/accountService')
 
 // ผู้ดูแลกด "รับทราบ" ในแอป → ยกเลิก escalation
 router.post('/ack/:event_id', async (req, res) => {
@@ -13,6 +14,12 @@ router.post('/ack/:event_id', async (req, res) => {
     const event = await dbService.getEvent(event_id)
     if (!event) {
       return res.status(404).json({ error: 'event not found' })
+    }
+
+    // หลังเปิดระบบบัญชี: ต้อง login และเป็นสมาชิกบ้านของอุปกรณ์นี้ · ชื่อคนกดมาจากบัญชีที่ตรวจแล้ว
+    const auth = await accountService.authorizeAck(event, req.headers.authorization, acknowledged_by)
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: auth.error })
     }
 
     if (event.acknowledged) {
@@ -35,11 +42,11 @@ router.post('/ack/:event_id', async (req, res) => {
     }
 
     const cancelled = escalationService.cancel(event_id)
-    const updated   = await dbService.acknowledgeEvent(event_id, acknowledged_by)
+    const updated   = await dbService.acknowledgeEvent(event_id, auth.acknowledged_by)
 
     // อัปเดตสิ่งที่แอปเห็น — ไม่ await เพราะห้ามให้การแสดงผลถ่วงการตอบกลับ
     appAlertService
-      .markAcknowledged(event_id, acknowledged_by)
+      .markAcknowledged(event_id, auth.acknowledged_by)
       .catch((err) => console.error('update app alert failed:', err.message))
 
     res.json({

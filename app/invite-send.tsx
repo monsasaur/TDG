@@ -5,10 +5,10 @@ import PageHeader from "../components/PageHeader";
 
 export default function InviteSendScreen() {
   const router = useRouter();
-  const { house } = useLocalSearchParams<{ house?: string }>();
+  const { houseId, house } = useLocalSearchParams<{ houseId?: string; house?: string }>();
 
   const go = (path: "/invite-qr" | "/invite-code") => {
-    const query = house ? `?house=${encodeURIComponent(house)}` : "";
+    const query = `?houseId=${encodeURIComponent(houseId ?? "")}&house=${encodeURIComponent(house ?? "")}`;
     router.push(`${path}${query}` as never);
   };
 

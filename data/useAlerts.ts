@@ -19,20 +19,11 @@ export function useAlerts() {
 
   const fetchAlerts = useCallback(async () => {
       try {
+        // ใช้ * แทนการไล่ชื่อคอลัมน์ เพราะฐานข้อมูลที่ยังไม่ได้รัน schema.sql จะไม่มี
+        // คอลัมน์ fall_event_id — ถ้าระบุชื่อคอลัมน์ที่ไม่มีอยู่ ทั้งคำสั่งจะล้มและรายการว่างหมด
         const { data, error } = await supabase
           .from("alerts")
-          .select(`
-            id, 
-            title, 
-            description, 
-            location, 
-            status, 
-            answered_by, 
-            countdown, 
-            timeline, 
-            created_at,
-            houses(name)
-          `)
+          .select("*, houses(name)")
           .order("created_at", { ascending: false }); // ใหม่ล่าสุดขึ้นก่อน
 
         if (error) throw error;
@@ -43,7 +34,7 @@ export function useAlerts() {
             // (ในระบบจริง แนะนำให้ใช้ date-fns หรือ dayjs จัดการใน Component)
             const dateObj = new Date(a.created_at);
             const timeString = `${dateObj.getHours().toString().padStart(2, '0')}:${dateObj.getMinutes().toString().padStart(2, '0')}`;
-            
+
             return {
               id: a.id,
               title: a.title,
@@ -56,6 +47,7 @@ export function useAlerts() {
               countdown: a.countdown,
               answeredBy: a.answered_by,
               timeline: a.timeline || [], // Timeline ที่เก็บเป็น JSON
+              fallEventId: a.fall_event_id ?? null, // ใช้ตอนกดรับทราบ — ดู contexts/AlertsContext.tsx
             };
           });
           setAlerts(formattedAlerts);

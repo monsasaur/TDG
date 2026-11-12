@@ -79,13 +79,17 @@ describe('OpenAPI spec ถูกโครงสร้าง', () => {
     for (const name of used) expect(schemes.has(name)).toBe(true)
   })
 
-  test('ทุก operation มี summary, tag และ response 200', () => {
+  test('ทุก operation มี summary, tag และ response สำเร็จ (2xx)', () => {
     for (const [path, ops] of Object.entries(spec.paths)) {
       for (const [method, op] of Object.entries(ops)) {
         const where = `${method.toUpperCase()} ${path}`
         expect(`${where}: ${op.summary || ''}`).not.toBe(`${where}: `)
         expect(op.tags?.length ?? 0).toBeGreaterThan(0)
-        expect(Object.keys(op.responses)).toContain('200')
+        // ต้องมี response สำเร็จอย่างน้อยหนึ่งอัน — ไม่บังคับว่าต้องเป็น 200
+        // เส้นที่สร้าง resource ใหม่ควรตอบ 201 ตามมาตรฐาน (เช่น POST /admin/models)
+        const success = Object.keys(op.responses).filter(c => /^2\d\d$/.test(c))
+        expect(`${where}: ${success.join(',') || 'ไม่มี 2xx'}`)
+          .toMatch(/: 2\d\d/)
       }
     }
   })

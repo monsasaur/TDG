@@ -46,14 +46,16 @@
 ### 3.5 ML Architecture ⭐
 - LSTM(128) → Dropout → LSTM(64) → Dropout → LSTM(32) → Dense → Sigmoid
 - Input: (seq_len=10, features=416) — 8 stats × 52 subcarriers
-- **Tip:** ใช้ Netron เปิด `fall_detection_backend/ml_service/models/lstm_v3.h5` → export PNG อัตโนมัติ
+- ⚠️ **หัวข้อนี้อธิบาย LSTM แต่ระบบจริงใช้ RandomForest `rf_v1.pkl`** — บทที่ 3 ที่เขียนเสร็จแล้ว
+  (`report_chapter3_middle_draft.md`) อธิบาย Random Forest ถูกต้องแล้ว ให้ยึดตามนั้น
+- **Tip:** ใช้ Netron เปิด `fall_detection_backend/ml_service/models/lstm_v3_binary_99acc.h5` → export PNG อัตโนมัติ
 
 ### 3.6 Data Pipeline
 ```
 ESP32 UDP (100 pkt/s)
   → csi_collector.py → raw CSV (400 pkts/file) → data/raw/
   → preprocess_v2.py → X.npy (N, 416), y.npy → data/processed_v2/
-  → train_v3.ipynb   → lstm_v3.h5, scaler_v3.pkl → models/
+  → train_v3.ipynb   → lstm_v3_binary_99acc.h5, scaler_v3.pkl → models/
 ```
 
 ### 3.7 Sequence Diagram — Fall Alert

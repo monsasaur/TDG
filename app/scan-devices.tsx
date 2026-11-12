@@ -23,7 +23,10 @@ const SCAN_TIMEOUT_MS = 8000;
 
 export default function ScanDevicesScreen() {
   const router = useRouter();
-  const { deviceId } = useLocalSearchParams<{ deviceId?: string }>();
+  const { deviceId, houseId } = useLocalSearchParams<{
+    deviceId?: string;
+    houseId?: string;   // บ้านที่เลือกไว้จาก select-house — ต้องส่งต่อไปถึง device-setup
+  }>();
 
   const [locationPermission, setLocationPermission] =
     useState<Permission>("undetermined");
@@ -135,11 +138,12 @@ export default function ScanDevicesScreen() {
     if (Platform.OS !== "web") Linking.openSettings();
   };
 
+  // ไปกรอกรหัสจับคู่ก่อน — firmware ใช้ Security 1 เชื่อมต่อโดยไม่มีรหัสจะถูกปฏิเสธ
   const selectDevice = (code: string) =>
     router.push(
-      `/connect-device?device=${encodeURIComponent(code)}${
+      `/device-pairing-code?device=${encodeURIComponent(code)}${
         deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ""
-      }` as never
+      }${houseId ? `&houseId=${encodeURIComponent(houseId)}` : ""}` as never
     );
 
   const hasDevices = devices.length > 0;

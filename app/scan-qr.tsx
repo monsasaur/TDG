@@ -1,17 +1,27 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, Linking, Platform } from "react-native";
+import { View, Text, TouchableOpacity, Linking, Platform, ActivityIndicator } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { CameraView, scanFromURLAsync, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import PageHeader from "../components/PageHeader";
 import QrScannerFrame from "../components/QrScannerFrame";
 import ConfirmModal from "../components/ConfirmModal";
+import { useAlerts } from "../contexts/AlertsContext";
+import { useDevices } from "../contexts/DevicesContext";
+import { joinHouse, parseInviteQr } from "../data/houseInvites";
+
+const NOT_INVITE = "QR Code นี้ไม่ใช่คำเชิญเข้าบ้าน ลองใช้คิวอาร์โค้ดอื่นหรือเพิ่มด้วยวิธีอื่น";
 
 export default function ScanQrScreen() {
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
-  const [errorModal, setErrorModal] = useState(false);
+  const { refresh: refreshAlerts } = useAlerts();
+  const { refresh: refreshDevices } = useDevices();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  /** ชื่อบ้านที่เพิ่งเข้าร่วม · "" = อ่านชื่อไม่ได้ · null = ยังไม่ได้เข้าร่วม */
+  const [joined, setJoined] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [settingsModal, setSettingsModal] = useState(false);
   const scannedRef = useRef(false);
 
@@ -24,17 +34,39 @@ export default function ScanQrScreen() {
     }
   }, [permission, requestPermission]);
 
+  /** QR จากหน้า invite-qr ของเจ้าของบ้าน → เข้าร่วมบ้าน */
+  const tryJoin = async (raw: string) => {
+    const code = parseInviteQr(raw);
+    if (!code) {
+      setErrorMessage(NOT_INVITE);
+      return;
+    }
+    setBusy(true);
+    const res = await joinHouse(code);
+    setBusy(false);
+    if (!res.ok) {
+      setErrorMessage(res.message);
+      return;
+    }
+    void refreshDevices();
+    void refreshAlerts();
+    setJoined(res.houseName ?? "");
+  };
+
   const handleBarcode = ({ data }: { data: string }) => {
     if (scannedRef.current) return;
     scannedRef.current = true;
-    // Mock validation: any scanned QR is treated as invalid for now
-    void data;
-    setErrorModal(true);
+    void tryJoin(data);
   };
 
   const handleCloseError = () => {
-    setErrorModal(false);
+    setErrorMessage(null);
     scannedRef.current = false;
+  };
+
+  const closeJoined = () => {
+    setJoined(null);
+    router.back();
   };
 
   const handlePickImage = async () => {
@@ -47,9 +79,19 @@ export default function ScanQrScreen() {
       mediaTypes: ["images"],
       quality: 1,
     });
-    if (!result.canceled) {
-      // Mock: picked images fail QR decode in this flow
-      setErrorModal(true);
+    if (result.canceled) return;
+    scannedRef.current = true; // กันกล้องสแกนซ้อนระหว่างอ่านรูป
+    try {
+      const uri = result.assets[0]?.uri;
+      const found = uri ? await scanFromURLAsync(uri, ["qr"]) : [];
+      if (found.length === 0) {
+        setErrorMessage("ไม่พบ QR Code ในรูปนี้ ลองใช้รูปอื่นหรือเพิ่มด้วยวิธีอื่น");
+        return;
+      }
+      await tryJoin(found[0].data);
+    } catch (err) {
+      console.error("scan QR from image failed:", err);
+      setErrorMessage("อ่าน QR Code จากรูปนี้ไม่ได้ ลองสแกนด้วยกล้องหรือกรอกรหัสแทน");
     }
   };
 
@@ -73,7 +115,7 @@ export default function ScanQrScreen() {
           style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
           facing="back"
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-          onBarcodeScanned={errorModal ? undefined : handleBarcode}
+          onBarcodeScanned={errorMessage !== null || joined !== null || busy ? undefined : handleBarcode}
         />
       )}
 
@@ -97,11 +139,29 @@ export default function ScanQrScreen() {
         <Text className="text-xs text-white mt-1">เลือกรูปภาพ</Text>
       </TouchableOpacity>
 
+      {busy && (
+        <View className="absolute inset-0 items-center justify-center bg-black/40">
+          <ActivityIndicator size="large" color="#FFFFFF" />
+          <Text className="text-sm text-white mt-3">กำลังเข้าร่วมบ้าน...</Text>
+        </View>
+      )}
+
       <ConfirmModal
-        visible={errorModal}
+        visible={errorMessage !== null}
         onClose={handleCloseError}
         title="เข้าร่วมบ้านไม่ได้"
-        message="QR Code ไม่ถูกต้อง ลองใช้คิวอาร์โค้ดอื่นหรือเพิ่มด้วยวิธีอื่น"
+        message={errorMessage ?? ""}
+      />
+
+      <ConfirmModal
+        visible={joined !== null}
+        onClose={closeJoined}
+        title="เข้าร่วมบ้านแล้ว"
+        message={
+          joined
+            ? `ตอนนี้คุณเห็นการแจ้งเตือนและอุปกรณ์ของบ้าน ${joined} แล้ว`
+            : "ตอนนี้คุณเห็นการแจ้งเตือนและอุปกรณ์ของบ้านนี้แล้ว"
+        }
       />
 
       <ConfirmModal

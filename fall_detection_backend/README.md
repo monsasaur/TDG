@@ -34,7 +34,7 @@ ESP32 #1 (Receiver + CSI Sensor)
 Express API (Node.js) ── Render
     │  Forward features
     ▼
-ML Service (FastAPI + LSTM v3) ── Render
+ML Service (FastAPI + Random Forest) ── Render
     │  Binary: fall / no_fall
     ▼
 ┌──────────────────────────────────────────────────────────┐
@@ -57,7 +57,8 @@ ML Service (FastAPI + LSTM v3) ── Render
 ### Flow อธิบาย (Binary + Acknowledge System)
 1. **ESP32** เก็บสัญญาณ WiFi CSI และส่งข้อมูลผ่าน UDP ไปยัง Cloud
 2. **Express API** รับ features แล้วส่งต่อไปยัง ML Service
-3. **LSTM v3 Model** ทำนายแบบ binary: `fall` หรือ `no_fall`
+3. **Random Forest (`rf_v1.pkl`)** ทำนายแบบ binary: `fall` หรือ `no_fall` ที่ threshold 0.55
+   (LSTM v3 เทรนไว้แล้วแต่ `app/predict.py` ไม่ได้โหลด — ดู CLAUDE.md หัวข้อ ML Models)
 4. ถ้าตรวจพบการล้ม → บันทึก event ลง Supabase + **ส่ง Push Notification** ไปยังแอปผู้ดูแลทันที
 5. ระบบตั้ง timer รอ **Acknowledgement** ภายในเวลาที่กำหนด (default 60 วินาที)
    - ✅ **ผู้ดูแลกด "รับทราบ" ในแอป** → หยุดแจ้งเตือน + mark event เป็น acknowledged
@@ -176,8 +177,8 @@ fall-detection/
 |---|---|---|
 | Hardware | ESP32 × 2 (AP+STA) | เก็บ CSI Signal |
 | Backend API | Node.js + Express | รับข้อมูลจาก ESP32 + จัดการ Escalation |
-| ML Service | Python + FastAPI | รัน LSTM Model |
-| AI Model | TensorFlow / LSTM v3 | ตรวจจับการล้ม (Binary) |
+| ML Service | Python + FastAPI | รัน Random Forest Model |
+| AI Model | scikit-learn / RandomForest (`rf_v1.pkl`) | ตรวจจับการล้ม (Binary) |
 | Mobile App | React Native + Expo | แสดงแจ้งเตือน + ปุ่มรับทราบ |
 | Push Notification | Expo Push Notifications | แจ้งเตือนด่านแรก (ก่อน Twilio) |
 | Database | Supabase (PostgreSQL) | เก็บ Event Log + Acknowledge |

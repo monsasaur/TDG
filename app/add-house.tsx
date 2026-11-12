@@ -10,6 +10,7 @@ import PrimaryButton from "../components/PrimaryButton";
 import { MAX_HOUSES, useHouses } from "../data/useHouses";
 // อย่าลืม Import supabase client (ปรับ path ให้ตรงกับโปรเจกต์ของคุณ)
 import { supabase } from "../data/supabaseClient";
+import { houseRpcErrorMessage, isMissingRpc } from "../lib/authErrors";
 
 export default function AddHouseScreen() {
   const router = useRouter();
@@ -35,24 +36,25 @@ export default function AddHouseScreen() {
 
     setIsSaving(true);
     try {
-      // สร้าง ID สั้นๆ ไม่ซ้ำกัน (เช่น h1713829382) เพราะฐานข้อมูลเราใช้ TEXT
-      const newId = `h${Date.now()}`;
+      // สร้างผ่าน create_house() — สร้างบ้านและตั้งคนกดเป็นเจ้าของบ้านในคำสั่งเดียว (supabase/accounts.sql)
+      const { error } = await supabase.rpc("create_house", { p_name: trimmed });
 
-      // Insert ลง Supabase ตาราง houses
-      const { error } = await supabase
-        .from("houses")
-        .insert([{ id: newId, name: trimmed }]);
-
-      if (error) throw error;
+      if (error && isMissingRpc(error)) {
+        // ฐานข้อมูลยังไม่ได้รัน accounts.sql — สร้างแบบเดิม (บ้านยังไม่มีเจ้าของ)
+        // ID สั้นๆ ไม่ซ้ำกัน (เช่น h1713829382) เพราะฐานข้อมูลเราใช้ TEXT
+        const { error: insertError } = await supabase
+          .from("houses")
+          .insert([{ id: `h${Date.now()}`, name: trimmed }]);
+        if (insertError) throw insertError;
+      } else if (error) {
+        throw error;
+      }
 
       // บันทึกสำเร็จ กลับไปหน้าเดิม
       router.back();
     } catch (error) {
       console.error("Error adding house:", error);
-      Alert.alert(
-        "เกิดข้อผิดพลาด",
-        "ไม่สามารถเพิ่มบ้านได้ กรุณาลองใหม่อีกครั้ง",
-      );
+      Alert.alert("เพิ่มบ้านไม่ได้", houseRpcErrorMessage(error as { message?: string; code?: string }));
     } finally {
       setIsSaving(false);
     }

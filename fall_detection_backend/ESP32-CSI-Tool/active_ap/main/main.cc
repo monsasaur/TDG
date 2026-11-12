@@ -67,6 +67,18 @@
 #define SEND_CSI_TO_SERIAL 0
 #endif
 
+#ifdef CONFIG_SEND_CSI_TO_UDP
+#define SEND_CSI_TO_UDP 1
+#else
+#define SEND_CSI_TO_UDP 0
+#endif
+
+#ifdef CONFIG_CSI_UDP_TARGET_IP
+#define CSI_UDP_TARGET_IP_STR CONFIG_CSI_UDP_TARGET_IP
+#else
+#define CSI_UDP_TARGET_IP_STR "192.168.4.255"
+#endif
+
 #ifdef CONFIG_SEND_CSI_TO_SD
 #define SEND_CSI_TO_SD 1
 #else
@@ -113,19 +125,33 @@ void softap_init() {
 
     esp_wifi_set_ps(WIFI_PS_NONE);
     ESP_LOGI(TAG, "AP started: %s @ channel %d", ESP_WIFI_SSID, WIFI_CHANNEL);
+#if SEND_CSI_TO_UDP
+    ESP_LOGI(TAG, "Ready! CSI → UDP %s:5500 (คอมต้องเกาะ \"%s\" เพื่อรับ)",
+             CSI_UDP_TARGET_IP_STR, ESP_WIFI_SSID);
+#elif SEND_CSI_TO_SERIAL
     ESP_LOGI(TAG, "Ready! CSI → USB Serial");
+#else
+    ESP_LOGW(TAG, "Ready! แต่ไม่ได้เปิดทางส่ง CSI ออกเลย — เช็ค SEND_CSI_TO_* ใน menuconfig");
+#endif
 }
 
 void config_print() {
     printf("\n\n-----------------------\n");
-    printf("ESP32 CSI Tool — ACTIVE_AP (Serial Mode)\n");
+    printf("ESP32 CSI Tool — ACTIVE_AP\n");
     printf("-----------------------\n");
     printf("WIFI_CHANNEL     : %d\n", WIFI_CHANNEL);
     printf("AP SSID          : %s\n", ESP_WIFI_SSID);
-    printf("OUTPUT           : USB Serial (no UDP, no hotspot)\n");
+#if SEND_CSI_TO_UDP
+    printf("OUTPUT           : UDP %s:5500\n", CSI_UDP_TARGET_IP_STR);
+#elif SEND_CSI_TO_SERIAL
+    printf("OUTPUT           : USB Serial @ %d baud\n", CONFIG_ESP_CONSOLE_UART_BAUDRATE);
+#else
+    printf("OUTPUT           : (ไม่ได้เปิดทางส่ง CSI ออกเลย)\n");
+#endif
     printf("COLLECT_CSI      : %d\n", SHOULD_COLLECT_CSI);
     printf("ONLY_LLTF        : %d\n", SHOULD_COLLECT_ONLY_LLTF);
     printf("CSI_TO_SERIAL    : %d\n", SEND_CSI_TO_SERIAL);
+    printf("CSI_TO_UDP       : %d\n", SEND_CSI_TO_UDP);
     printf("CSI_TO_SD        : %d\n", SEND_CSI_TO_SD);
 #ifdef CONFIG_ENABLE_BLE_PROVISIONING
     printf("MODE             : production (BLE provisioning + AP/STA)\n");

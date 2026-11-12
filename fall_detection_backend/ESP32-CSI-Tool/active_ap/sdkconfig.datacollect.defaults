@@ -1,0 +1,52 @@
+# ค่าสำหรับ "โหมดเก็บข้อมูล" — AP อย่างเดียว ช่องคงที่ ส่ง CSI ออก USB Serial
+#
+# วิธีใช้
+#   rm sdkconfig
+#   idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.datacollect.defaults" reconfigure
+#   idf.py build && idf.py -p /dev/cu.usbserial-XXXX flash
+#
+# ไฟล์นี้สร้างขึ้น 2026-09-29 เพราะก่อนหน้านี้ค่าตั้งโหมดเก็บข้อมูลมีอยู่แค่ในไฟล์
+# sdkconfig บนเครื่องเดียว ซึ่ง git ไม่ได้ติดตาม — ถ้าเครื่องพังคือตั้งใหม่เองทั้งหมด
+# ค่าทุกตัวคัดมาจาก sdkconfig ที่ใช้เก็บ dataset จริง (ตรวจเทียบแล้ว)
+#
+# โหมด production (BLE provisioning) ใช้ sdkconfig.defaults แทน
+
+# --- serial baudrate ต้องตรงกับ csi_collector_serial.py ---
+# ⚠️ ต้องมี _CUSTOM=y ก่อน ไม่งั้น BAUDRATE ไม่มีผล ถูกบังคับเป็น 115200 แบบเงียบ ๆ
+CONFIG_ESP_CONSOLE_UART_CUSTOM=y
+CONFIG_ESP_CONSOLE_UART_CUSTOM_NUM_0=y
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=921600
+CONFIG_ESPTOOLPY_MONITOR_BAUD=921600
+
+# --- CSI ---
+# ⚠️ ขาดบรรทัดนี้ = esp_wifi_set_csi(1) คืน ESP_FAIL แล้ว abort() → reboot วนไม่จบ
+#    คนละตัวกับ CONFIG_SHOULD_COLLECT_CSI ซึ่งเป็นออปชันของโปรเจกต์เราเอง
+CONFIG_ESP_WIFI_CSI_ENABLED=y
+CONFIG_SHOULD_COLLECT_CSI=y
+CONFIG_SHOULD_COLLECT_ONLY_LLTF=y
+CONFIG_SEND_CSI_TO_SERIAL=y
+# CONFIG_SEND_CSI_TO_UDP is not set
+# ส่งเฉพาะ CSI จาก ESP32 #2 + ทิ้งเฟรมที่ #2 ส่งซ้ำ (เหมือนโหมด UDP) · เปลี่ยนบอร์ด #2 = แก้ค่านี้
+CONFIG_CSI_UDP_SOURCE_MAC="1c:c3:ab:b9:78:cc"
+# CONFIG_SEND_CSI_TO_SD is not set
+
+# --- AP ที่ ESP32 #2 เกาะเพื่อสร้าง packet ให้วัด CSI ---
+# ช่อง 6 คงที่ — จำเป็นเพื่อให้ข้อมูลทุก session เทียบกันได้
+CONFIG_WIFI_CHANNEL=6
+CONFIG_ESP_WIFI_SSID="myssid"
+CONFIG_ESP_WIFI_PASSWORD="mypassword"
+
+# --- ปิด BLE provisioning ---
+# ค่าเริ่มต้นของ Kconfig เป็น n อยู่แล้ว เขียนไว้ให้ชัดกันพลาด
+# CONFIG_ENABLE_BLE_PROVISIONING is not set
+
+# --- ปิด Bluetooth ---
+# โหมดนี้ไม่ใช้ BT เลย และถ้าคอมไพล์ไว้แต่ไม่ init จะกิน RAM ที่ CSI ต้องใช้
+CONFIG_BT_ENABLED=n
+
+# --- flash + partition ---
+# บอร์ดที่ใช้ยืนยันแล้วว่ามี flash 4MB (esptool.py flash_id · ESP32-D0WD-V3)
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="4MB"
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"

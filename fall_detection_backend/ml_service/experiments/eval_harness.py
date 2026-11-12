@@ -37,7 +37,12 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import LeaveOneGroupOut, StratifiedGroupKFold
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed_v2")
+# ตั้ง CSI_DATA_DIR เพื่อชี้ไป dataset อื่นได้ เช่น
+#   CSI_DATA_DIR=data/processed_v3_framed python experiments/check_dataset.py
+_DEFAULT_DATA = os.path.join(os.path.dirname(__file__), "..", "data", "processed_v2")
+DATA_DIR = os.environ.get("CSI_DATA_DIR") or _DEFAULT_DATA
+if not os.path.isabs(DATA_DIR):
+    DATA_DIR = os.path.join(os.path.dirname(__file__), "..", DATA_DIR)
 
 # label_map จาก metadata.json — fall = 0, non_fall = 1
 FALL, NON_FALL = 0, 1

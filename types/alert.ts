@@ -20,6 +20,11 @@ export type Alert = {
   countdown?: number;
   answeredBy?: string;
   timeline: TimelineStep[];
+  /**
+   * id ของแถวใน fall_events ที่ทำให้เกิด alert นี้ — ต้องใช้ตัวนี้ตอนกดรับทราบ ไม่ใช่ `id`
+   * ข้อมูลตัวอย่างใน seed ไม่มี (null)
+   */
+  fallEventId?: string | null;
 };
 
 export type SystemAlert = {
