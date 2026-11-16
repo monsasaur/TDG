@@ -11,6 +11,8 @@ fall_monitor.py — ตรวจจับการล้มสดจาก ESP32
     python data_collection/fall_monitor.py --env-file ../express_api/.env
     python data_collection/fall_monitor.py --dry-run                     # ไม่ส่งแจ้งเตือน ดูคะแนนอย่างเดียว
     python data_collection/fall_monitor.py --replay data/raw/s2026...csv # ทดสอบกับไฟล์ที่เก็บไว้ ไม่ต้องมีบอร์ด
+    # ส่งเข้า Express บน Render แผนฟรี: ปลุกก่อน (express_api/scripts/warm_render.sh) แล้ว
+    python data_collection/fall_monitor.py --env-file ../express_api/.env --api https://<tdg-express-api>.onrender.com
 
 ทำงานยังไง
 - อ่าน CSI ทาง USB Serial (921600) · ล็อก MAC ตัวส่ง (#2) จาก 200 บรรทัดแรก หรือ --mac
@@ -38,6 +40,7 @@ import json
 import os
 import pickle
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -173,20 +176,29 @@ class Monitor:
             self.log.close()
 
 
-def make_sender(api_url, api_key, device_id, location):
+def make_sender(api_url, api_key, device_id, location, timeout=150):
+    """ส่งเข้า Express ในเธรดเบื้องหลัง — ตัวตรวจยังอ่าน CSI ต่อระหว่างรอ
+    timeout ยาวเพราะ Render แผนฟรีหลับหลังไม่มีคนเรียก 15 นาที: Express ตื่น ~1 นาที แล้วไปปลุก ML service อีก ~1 นาที
+    (ปลุกก่อน demo ด้วย express_api/scripts/warm_render.sh จะได้ไม่ต้องรอ)"""
+    def post(body):
+        req = urllib.request.Request(f"{api_url}/api/v1/predict", data=body,
+                                     headers={"Content-Type": "application/json", "x-api-key": api_key})
+        t0 = time.time()
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                res = json.loads(r.read().decode())
+            msg = f"Express: {res.get('action')} (is_fall={res.get('is_fall')})"
+        except urllib.error.HTTPError as e:
+            msg = f"Express ตอบ {e.code}: {e.read().decode(errors='replace')[:120]}"
+        except Exception as e:                      # noqa: BLE001 — แสดงแล้วตรวจต่อ ห้ามหยุด
+            msg = f"ส่งไม่สำเร็จ: {e}"
+        print(f"\n📨 {msg} · {time.time() - t0:.1f} วิ", flush=True)
+
     def send(x, prob):
         body = json.dumps({"device_id": device_id, "timestamp": int(time.time() * 1000), "location": location,
                            "features": [x.tolist()]}).encode("utf-8")
-        req = urllib.request.Request(f"{api_url}/api/v1/predict", data=body,
-                                     headers={"Content-Type": "application/json", "x-api-key": api_key})
-        try:
-            with urllib.request.urlopen(req, timeout=8) as r:
-                res = json.loads(r.read().decode())
-            return f"Express: {res.get('action')} (is_fall={res.get('is_fall')})"
-        except urllib.error.HTTPError as e:
-            return f"Express ตอบ {e.code}: {e.read().decode(errors='replace')[:120]}"
-        except Exception as e:                      # noqa: BLE001 — แสดงแล้วตรวจต่อ ห้ามหยุด
-            return f"ส่งไม่สำเร็จ: {e}"
+        threading.Thread(target=post, args=(body,), daemon=True).start()
+        return f"กำลังส่งเข้า Express (รอได้ถึง {timeout:g} วิ)"
     return send
 
 
@@ -265,6 +277,8 @@ def main():
     ap.add_argument("--confirm", type=int, help="จำนวนกรอบติดกัน · ค่าเริ่มต้นจากโมเดล")
     ap.add_argument("--smooth", type=int, help="เฉลี่ยคะแนนกี่กรอบล่าสุด (1 = ไม่เฉลี่ย) · ค่าเริ่มต้นจากโมเดล")
     ap.add_argument("--api", default=os.getenv("EXPRESS_URL", "http://localhost:3000"))
+    ap.add_argument("--timeout", type=float, default=150,
+                    help="รอ Express ได้กี่วินาที (ค่าเริ่มต้น 150 — เผื่อ Render แผนฟรีที่ต้องปลุก Express + ML service)")
     ap.add_argument("--env-file", help="อ่าน DEVICE_API_KEY (หรือ API_KEY) จากไฟล์ .env ของ Express")
     ap.add_argument("--device-id", default=os.getenv("DEVICE_ID", "ESP-B96AB8"))
     ap.add_argument("--location", default=os.getenv("DEVICE_LOCATION", "ห้องทดสอบ"))
@@ -295,7 +309,7 @@ def main():
             env.update(load_env_file(args.env_file))
         key = env.get("DEVICE_API_KEY") or env.get("API_KEY")
         if key:
-            sender = make_sender(args.api.rstrip("/"), key, args.device_id, args.location)
+            sender = make_sender(args.api.rstrip("/"), key, args.device_id, args.location, args.timeout)
             print(f"📨 ล้มแล้วส่งเข้า {args.api} · device {args.device_id}")
         else:
             print("⚠️ ไม่พบ DEVICE_API_KEY / API_KEY — ดูคะแนนอย่างเดียว ไม่ส่งแจ้งเตือน (ใส่ --env-file ../express_api/.env)")

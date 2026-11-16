@@ -13,6 +13,14 @@ function normalizeUrl(raw) {
 
 const ML_URL   = normalizeUrl(process.env.ML_SERVICE_URL)
 const USE_MOCK = process.env.USE_MOCK_ML === 'true'
+
+// รอ ML service ได้นานเท่าไร — ค่าเริ่มต้น 5 วิ
+// แผนฟรีของ Render ML service หลับหลังไม่มีคนเรียก 15 นาที และตื่นราว 1 นาที → render.yaml ตั้ง ML_TIMEOUT_MS ให้ยาวกว่านั้น
+// ไม่งั้นการล้มครั้งแรกหลังหลับจะ error แล้วหายไปเลย ไม่ใช่แค่ช้า
+const ML_TIMEOUT_MS = (() => {
+  const n = Number(process.env.ML_TIMEOUT_MS)
+  return Number.isFinite(n) && n > 0 ? n : 5000
+})()
 const MOCK_IS_FALL = (process.env.MOCK_IS_FALL || 'true') === 'true'
 
 // Mock response ตอนโมเดลจริงยังไม่เสร็จ
@@ -38,7 +46,7 @@ module.exports = {
     try {
       const res = await axios.post(`${ML_URL}/predict`,
         { features },
-        { timeout: 5000 }
+        { timeout: ML_TIMEOUT_MS }
       )
       // normalize response — ML service ควรคืน {is_fall, confidence}
       // และตั้งแต่ 2026-09-09 คืน {model_name, model_version, risk_score} มาด้วย
