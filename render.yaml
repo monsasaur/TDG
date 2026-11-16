@@ -1,9 +1,8 @@
 # Render Blueprint — deploy ทั้งสอง service จาก repo นี้
 # ใช้โดยไปที่ Render → New → Blueprint แล้วชี้มาที่ repo
 #
-# ⚠️ ก่อน deploy ml_service ครั้งแรก: ไฟล์โมเดล models/*.pkl ถูก gitignore ไว้
-#    Render build จาก git จึงจะไม่มีไฟล์ → build fail พร้อมข้อความบอกสาเหตุ
-#    ดูทางเลือกและขั้นตอนทั้งหมดใน docs/reports/deploy_render_checklist.md
+# ไฟล์โมเดล models/*.pkl ถูก gitignore ไว้ — Dockerfile ของ ml_service ดาวน์โหลดจาก GitHub Release
+#    ตาม fall_detection_backend/ml_service/models/MANIFEST (ตรวจ sha256) · ขั้นตอนทั้งหมด docs/reports/deploy_render_checklist.md
 
 services:
   - type: web
@@ -20,10 +19,10 @@ services:
         value: "50"
       - key: CSI_SEQUENCE_LEN
         value: "10"
-      # rf_v1 = ตัวที่ใช้อยู่ · rf_v2_event ต้องมี models/rf_v2_event.pkl (43 MB) ใน build ด้วย
-      # Dockerfile เช็คแค่ไฟล์ของ rf_v1 — เปลี่ยนเป็น rf_v2_event แล้วไม่มีไฟล์จะพังตอน boot
+      # rf_v2_event = รุ่น 2 (39 ค่า · รับจาก fall_monitor.py) · rf_v1 = รุ่นแรก (416 ค่า)
+      # image มีไฟล์ของทั้งสองรุ่น — สลับได้ด้วยค่านี้อย่างเดียว ไม่ต้อง build ใหม่
       - key: FALL_MODEL
-        value: rf_v1
+        value: rf_v2_event
 
   - type: web
     name: tdg-express-api

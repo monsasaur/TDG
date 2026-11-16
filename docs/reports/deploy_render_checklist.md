@@ -5,19 +5,25 @@
 
 ---
 
-## 1. ต้องตัดสินใจก่อน: ไฟล์โมเดล
+## 1. ไฟล์โมเดล — ✅ ตัดสินใจแล้ว 2026-11-17: ดาวน์โหลดจาก GitHub Release ตอน build
 
-Render build จาก git แต่ `ml_service/models/*.pkl` ถูก gitignore ไว้
-→ Dockerfile ของ ml_service **ตั้งใจให้ build ล้ม** พร้อมข้อความบอกสาเหตุ (ดีกว่าไปพังตอน boot)
+Render build จาก git แต่ `ml_service/models/*.pkl` ถูก gitignore ไว้ → ไฟล์อยู่ที่ release
+[`models-2026-11-17`](https://github.com/monsasaur/TDG/releases/tag/models-2026-11-17) (repo เป็น public — ใครก็โหลดได้)
 
-| ทางเลือก | ข้อดี | ข้อเสีย |
-|---|---|---|
-| **1. เอา `rf_v1.pkl` + `scaler_rf_v1.pkl` เข้า git** (2.6 MB · ยกเว้นใน `ml_service/.gitignore`) | ง่ายสุด build ได้ทันที | ไฟล์อยู่ใน history ถาวร · ไม่เหมาะกับ `rf_v2_event.pkl` (43 MB) |
-| **2. เก็บไฟล์ไว้ที่อื่น** (Supabase Storage / GitHub Release) แล้วให้ Dockerfile ดาวน์โหลดตอน build + ตรวจ checksum | git สะอาด · ใช้กับไฟล์ใหญ่ได้ | ต้องเพิ่มขั้นใน Dockerfile และ URL ของไฟล์ |
-| 3. Render Disk | — | disk ใช้ได้ตอน runtime ไม่ใช่ตอน build · ต้องอัปโหลดเอง |
+- `ml_service/models/MANIFEST` — sha256 · ชื่อไฟล์ · URL ของ `rf_v2_event.pkl` · `rf_v1.pkl` · `scaler_rf_v1.pkl`
+- `ml_service/scripts/fetch_models.sh` — Dockerfile เรียกตอน build · โหลดเฉพาะไฟล์ที่ยังไม่มี · sha256 ไม่ตรง = build ล้ม
+  (build ในเครื่องที่มีไฟล์อยู่แล้วจะใช้ไฟล์ของเครื่อง)
+- image มีโมเดลทั้งสองรุ่น · `render.yaml` ตั้ง `FALL_MODEL=rf_v2_event` · สลับกลับ `rf_v1` ได้จาก env อย่างเดียว
+- ทดสอบสคริปต์แล้ว (โฟลเดอร์ว่าง → โหลดครบ sha ตรง · มีไฟล์แล้ว → ข้าม · sha ผิด → ล้ม) · **ยังไม่เคย build image จริง**
 
-แนะนำ **1** ถ้าใช้ `rf_v1` ไปก่อน · **2** ถ้าจะใช้ `rf_v2_event` บน cloud
-(`FALL_MODEL` ใน `render.yaml` ตั้งเป็น `rf_v1` — Dockerfile เช็คเฉพาะไฟล์ของ rf_v1)
+**เปลี่ยนโมเดลรอบหน้า**
+```bash
+cd fall_detection_backend/ml_service
+gh release create models-<วันที่> --repo monsasaur/TDG --target dev --latest=false \
+  --title "โมเดล ML service <วันที่>" --notes "..." models/rf_v2_event.pkl models/rf_v1.pkl models/scaler_rf_v1.pkl
+shasum -a 256 models/*.pkl      # → แก้ sha256 + URL ใน models/MANIFEST แล้ว commit
+```
+ห้ามอัปโหลดไฟล์ทับใน release เดิม — sha256 จะไม่ตรงกับ MANIFEST แล้ว build ล้ม (ตั้งใจให้เป็นแบบนั้น)
 
 ---
 
@@ -41,7 +47,7 @@ Render build จาก git แต่ `ml_service/models/*.pkl` ถูก gitigno
 
 ## 3. ลำดับ
 
-1. ตัดสินใจเรื่องไฟล์โมเดล (หัวข้อ 1)
+1. ~~ตัดสินใจเรื่องไฟล์โมเดล~~ (เสร็จแล้ว · หัวข้อ 1)
 2. Supabase: รัน `schema.sql` (ตัวที่รวม `escalation_method` แล้ว) · ถ้าจะเปิดระบบบัญชีด้วย ทำตาม `accounts_round1.md`
 3. Render → New → **Blueprint** → เลือก repo → branch ที่จะ deploy (`dev`)
 4. กรอก env ตามหัวข้อ 2
