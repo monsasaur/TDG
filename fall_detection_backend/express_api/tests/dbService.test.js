@@ -96,9 +96,13 @@ function fakeSupabase(h) {
           const res = h.upsert ? h.upsert(rows[0], calls.upserts.length) : { data: rows[0], error: null }
           return { select: () => ({ single: async () => res }) }
         },
-        select() {
+        select(_cols, opts) {
           calls.selects.push(table)
-          const res = h.select ? h.select(table) : { data: [], error: null }
+          calls.selectOpts = (calls.selectOpts || []).concat([opts || {}])
+          // จำลองพฤติกรรมจริงของ supabase-js: HEAD ไปตารางที่ไม่มี = 404 ไม่มี body → error เป็น null
+          const res = opts && opts.head && h.select && h.select(table).error?.code === 'PGRST205'
+            ? { data: null, error: null, count: null }
+            : (h.select ? h.select(table) : { data: [], error: null })
           return { limit: async () => res }
         },
       }
@@ -164,6 +168,14 @@ describe('dbService — บัญชีผู้ใช้ (Supabase)', () => {
     expect(again.calls.selects).toHaveLength(1)   // ครั้งที่สองใช้ผลที่จำไว้
     missing = false
     expect(calls.selects).toHaveLength(1)
+  })
+
+  test('accountsEnabled ไม่ใช้ HEAD — HEAD ไปตารางที่ไม่มีได้ error = null แล้วจะเข้าใจผิดว่าเปิดระบบบัญชีแล้ว', async () => {
+    const { db, calls } = loadWithSupabase({
+      select: () => ({ data: null, error: { code: 'PGRST205', message: 'not found' } }),
+    })
+    expect(await db.accountsEnabled()).toBe(false)
+    expect(calls.selectOpts.every((o) => !o.head)).toBe(true)
   })
 
   test('accountsEnabled: ถามไม่สำเร็จด้วยเหตุอื่น → false และไม่จำผล', async () => {

@@ -3,7 +3,7 @@ predict.py
 ==========
 Random Forest fall detection — classify ทีละ 1 window
 - rf_v1 (ค่าเริ่มต้น): 416 features จาก preprocess_v2
-- rf_v2_event (FALL_MODEL=rf_v2_event): 20 features จาก app/event_features.stream_feature_vector
+- rf_v2_event (FALL_MODEL=rf_v2_event): จำนวน feature ตามไฟล์โมเดล (รุ่น 2: 39 ค่าจาก app/event_features.feature_vector_v2)
 ไม่ต้องใช้ sequence เหมือน LSTM → เหมาะกับ real-time
 
 Label mapping (จาก preprocess_v2): 0=fall, 1=non_fall
@@ -21,7 +21,7 @@ import numpy as np
 
 # =================== เลือกโมเดล ===================
 # FALL_MODEL=rf_v1 (ค่าเริ่มต้น · ตัวเดิม · 416 ค่า/window จาก preprocess_v2)
-# FALL_MODEL=rf_v2_event (ตรวจแบบดูต่อเนื่อง · 20 ค่าจาก app/event_features.stream_feature_vector
+# FALL_MODEL=rf_v2_event (ตรวจแบบดูต่อเนื่อง · รุ่น 2: 39 ค่าจาก app/event_features.feature_vector_v2
 #                         · ส่งมาจาก data_collection/fall_monitor.py · เทรนด้วย experiments/train_rf_v2.py)
 # FALL_THRESHOLD แก้ทับ threshold ของ rf_v2_event ได้ (rf_v1 ใช้ 0.55 คงที่ตามเดิม)
 BASE_DIR   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

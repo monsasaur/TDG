@@ -250,7 +250,9 @@ module.exports = {
     const now = Date.now()
     if (accountsCache && now - accountsCache.at < ACCOUNTS_CACHE_MS) return accountsCache.value
 
-    const { error } = await client.from('house_members').select('user_id', { head: true }).limit(1)
+    // ห้ามใช้ { head: true } — HEAD ไปตารางที่ไม่มีได้ 404 แบบไม่มี body ซึ่ง supabase-js แปลงเป็น
+    // "สำเร็จ" (error = null) → จะเข้าใจผิดว่าเปิดระบบบัญชีแล้ว แล้วปฏิเสธการกดรับทราบทั้งที่ยังไม่ได้รัน accounts.sql
+    const { error } = await client.from('house_members').select('user_id').limit(1)
     if (error && !isMissingTable(error)) {
       // ถามไม่สำเร็จด้วยเหตุอื่น (เน็ต / คีย์) — ไม่จำผล ไม่เดา · ถือว่ายังไม่เปิดรอบนี้แล้วถามใหม่ครั้งหน้า
       console.error(`❌ เช็คระบบบัญชีไม่ได้: ${error.message}`)

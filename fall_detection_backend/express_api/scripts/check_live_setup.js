@@ -63,7 +63,8 @@ async function checkSupabase() {
   const db = createClient(url, key)
 
   // รัน accounts.sql แล้วหรือยัง (ดูจากตาราง house_members) — รันแล้ว RLS เปิด คีย์ที่ไม่ใช่ service_role เขียนอะไรไม่ได้
-  const hm = await db.from('house_members').select('user_id', { count: 'exact', head: true })
+  // ไม่ใช้ head: true — HEAD ไปตารางที่ไม่มี supabase-js คืน error = null (ดู dbService.accountsEnabled)
+  const hm = await db.from('house_members').select('user_id').limit(1)
   if (missing(hm.error)) info('ยังไม่ได้รัน accounts.sql — ยังไม่มีระบบบัญชี ทุกคนเห็นทุกบ้าน')
   else if (hm.error) warn(`เช็คตาราง house_members ไม่ได้: ${hm.error.message}`)
   else if (role === 'service_role') ok('รัน accounts.sql แล้ว · Express ใช้ service_role ข้าม RLS ได้')

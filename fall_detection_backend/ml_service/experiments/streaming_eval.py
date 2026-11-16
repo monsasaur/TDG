@@ -3,8 +3,13 @@ streaming_eval.py — ทดสอบแบบเลื่อนกรอบ (�
 =====================================================================================
 
     cd fall_detection_backend/ml_service && source venv/bin/activate
-    python experiments/streaming_eval.py                  # feature แบบดูต่อเนื่อง (rf_v2_event) ~2 นาที
-    python experiments/streaming_eval.py --features v1    # feature แบบเดียวกับผล 72.9% (กรอบ 410 packet)
+    python experiments/streaming_eval.py                  # รุ่น 2: 39 ค่า กรอบ 492 · แจ้งเฉพาะการล้ม (ตัวใน app)
+    python experiments/streaming_eval.py --target floor   # รุ่น 2 แจ้งเมื่อล้มหรือนอนบนพื้น
+    python experiments/streaming_eval.py --features stream --target fall   # รุ่นก่อน (28 ค่า · ผล 43% ~4/ชม.)
+    python experiments/streaming_eval.py --features v1 --target fall       # feature แบบเดียวกับผล 72.9% (กรอบ 410)
+
+⚠️ รุ่น 2 ดูหลังเหตุการณ์ 1.5 วิ แต่ไฟล์จบราว 2.2 วิหลังมาร์ค → กรอบที่ "จับได้" มีให้ตัดสินแค่ราว 5 กรอบต่อไฟล์
+   ยืนยันหลายกรอบ (K สูง) จึงถูกประเมินต่ำกว่าจริง · ต้องมีไฟล์ที่อัดต่อหลังเหตุการณ์ ≥5 วิ ถึงจะวัดได้ตรง
 
 ทำไมต้องมี
 ----------
@@ -15,6 +20,8 @@ streaming_eval.py — ทดสอบแบบเลื่อนกรอบ (�
 - เลื่อนกรอบ 410 packet ทุก 25 packet (0.25 วิ) ตลอดไฟล์ → คะแนนต่อกรอบ
 - ล้ม: จับได้ถ้ามีกรอบที่ m อยู่ในช่วง -0.5 .. +1.0 วิจากจุดตัวถึงพื้น ได้คะแนน ≥ threshold
 - กิจวัตร (ยืนนิ่ง · เดิน · ห้องว่าง · ช่วงยืนก่อนล้ม ≥1.5 วิ): นับครั้งที่แจ้ง (กรอบเกินติดกันนับเป็น 1 ครั้ง) ต่อชั่วโมง
+  ⚠️ (2026-11-17) การแจ้งผิดตัวนี้ส่วนใหญ่มาจากกรอบที่จบก่อนตัวถึงพื้น 0.2–1 วิ = คนกำลังล้ม ไม่ใช่กิจวัตร
+  → ดู routine_only_* (เฉพาะไฟล์ยืนนิ่ง/เดิน/ห้องว่าง ~8.5 นาที) คู่กันเสมอ
 - ท่าคล้ายล้ม (ก้มเก็บของ · นอนลงบนพื้น · สะดุดแต่ไม่ล้ม): % ของครั้งที่ทำแล้วโดนแจ้ง
 - ยืนยันด้วย K กรอบติดกัน: K=1 แจ้งทันที · K=2 ต้องเกินติดกัน 0.5 วิ (ช้าลง 0.25 วิ)
 
@@ -60,8 +67,30 @@ PREFALL_MAX = -150                     # กรอบที่จบก่อน
 ROUTINE = {"ยืนนิ่ง", "เดิน", "ห้องว่าง"}
 LOOKALIKE = {"ก้มเก็บของ", "นอนลงบนพื้น", "สะดุดแต่ไม่ล้ม"}
 THRESHOLDS = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-FEATURE_SETS = {"v1": (AF.feature_vector, AF.POST), "stream": (AF.stream_feature_vector, AF.STREAM_POST)}
+FEATURE_SETS = {"v1": (AF.feature_vector, AF.POST), "stream": (AF.stream_feature_vector, AF.STREAM_POST),
+                "v2": (AF.feature_vector_v2, AF.POST_V2)}
+FLOOR_ACTS = {"นอนลงบนพื้น"}           # target "floor" = แจ้งเมื่อล้มหรือลงไปนอนบนพื้น (87.1% บนหน้าอาจารย์ · ไม่ได้ใช้ใน app)
 OUT_DIR = os.path.join(BASE, "data", "processed_event")
+
+
+def label_of(r, target="fall"):
+    """1 = ต้องแจ้ง · fall: ล้มเท่านั้น · floor: ล้มหรือนอนลงบนพื้น"""
+    return int(r["y"] == 1 or (target == "floor" and r["act"] in FLOOR_ACTS))
+
+
+def prefall_max(post):
+    """กรอบที่จบก่อนเหตุการณ์อย่างน้อย 0.2 วิ = ยังปกติ (กรอบยาวขึ้นต้องถอยมากขึ้น · v1/stream คงค่าเดิม -150)"""
+    return min(PREFALL_MAX, -(post + 20))
+
+
+def smooth(scores, n):
+    """เฉลี่ยคะแนน n กรอบล่าสุด (ย้อนหลังอย่างเดียว เหมือนตอนใช้งานจริง) · n=1 = ไม่เฉลี่ย"""
+    if n <= 1:
+        return scores
+    c = np.cumsum(np.concatenate([[0.0], scores]))
+    i = np.arange(1, len(scores) + 1)
+    lo = np.maximum(i - n, 0)
+    return (c[i] - c[lo]) / (i - lo)
 
 
 def parse_file(path):
@@ -104,18 +133,19 @@ def build(kind="stream"):
     return rows
 
 
-def training_set(rows, idx, strategy):
+def training_set(rows, idx, strategy, target="fall", post=AF.STREAM_POST):
     X, y = [], []
     for i in idx:
         r = rows[i]
+        lab = label_of(r, target)
         if r["act"] != "ห้องว่าง":                       # A ไม่รวมห้องว่าง (แบบที่รายงาน)
             for v in r["aligned"].values():
-                X.append(v); y.append(r["y"])
+                X.append(v); y.append(lab)
         if strategy == "B":
-            if r["y"] == 0:
+            if lab == 0:
                 X.extend(r["Xs"]); y.extend([0] * len(r["Xs"]))
             else:
-                keep = r["pos"] - r["mark"] <= PREFALL_MAX
+                keep = r["pos"] - r["mark"] <= prefall_max(post)
                 X.extend(r["Xs"][keep]); y.extend([0] * int(keep.sum()))
     return np.array(X), np.array(y)
 
@@ -147,21 +177,26 @@ def detected(scores, ok, thr, k):
     return False
 
 
-def evaluate(rows, scores, thr, k):
+def evaluate(rows, scores, thr, k, target="fall", post=AF.STREAM_POST):
+    """fall_recall = % ของเหตุการณ์ที่ต้องแจ้งที่จับได้ (target floor รวมนอนลงบนพื้น)"""
     fall_hit, fall_n = 0, 0
     look = collections.Counter()
     routine_alarms, routine_sec = 0, 0.0
+    only_alarms, only_sec = 0, 0.0          # เฉพาะไฟล์กิจวัตรจริง — ช่วงก่อนเหตุการณ์ส่วนใหญ่คือ "กำลังล้ม" ไม่ใช่กิจวัตร
     for r, s in zip(rows, scores):
-        if r["y"] == 1:
+        if label_of(r, target) == 1:
             rel = r["pos"] - r["mark"]
             fall_n += 1
             fall_hit += detected(s, (rel >= DETECT_LO) & (rel <= DETECT_HI), thr, k)
-            pre = rel <= PREFALL_MAX
+            pre = rel <= prefall_max(post)
             routine_alarms += alarms(s[pre], thr, k)
             routine_sec += pre.sum() * STEP / 100
         elif r["act"] in ROUTINE:
-            routine_alarms += alarms(s, thr, k)
+            a = alarms(s, thr, k)
+            routine_alarms += a
             routine_sec += len(s) * STEP / 100
+            only_alarms += a
+            only_sec += len(s) * STEP / 100
         else:
             look["n"] += 1
             look["hit"] += alarms(s, thr, k) > 0
@@ -170,8 +205,10 @@ def evaluate(rows, scores, thr, k):
     return {"fall_recall": fall_hit / max(fall_n, 1),
             "routine_alarms_per_hour": routine_alarms / max(routine_sec, 1e-9) * 3600,
             "routine_hours": routine_sec / 3600,
+            "routine_only_alarms": only_alarms, "routine_only_hours": only_sec / 3600,
+            "routine_only_alarms_per_hour": only_alarms / max(only_sec, 1e-9) * 3600,
             "lookalike_alarm_rate": look["hit"] / max(look["n"], 1),
-            "per_lookalike": {a: look[a + "_hit"] / max(look[a + "_n"], 1) for a in LOOKALIKE}}
+            "per_lookalike": {a: look[a + "_hit"] / look[a + "_n"] for a in sorted(LOOKALIKE) if look[a + "_n"]}}
 
 
 def load_rows(kind="stream"):
@@ -187,8 +224,12 @@ def load_rows(kind="stream"):
 def main():
     import argparse
     ap = argparse.ArgumentParser()
-    ap.add_argument("--features", choices=sorted(FEATURE_SETS), default="stream")
-    kind = ap.parse_args().features
+    ap.add_argument("--features", choices=sorted(FEATURE_SETS), default="v2")
+    ap.add_argument("--target", choices=("fall", "floor"), default="fall",
+                    help="fall = ล้มเท่านั้น (ค่าเริ่มต้น · ตัวใน app) · floor = แจ้งเมื่อล้มหรือนอนลงบนพื้น")
+    args = ap.parse_args()
+    kind, target = args.features, args.target
+    post = FEATURE_SETS[kind][1]
     rows = load_rows(kind)
     actor = np.array([r["actor"] for r in rows])
     people = sorted(set(actor))
@@ -201,23 +242,24 @@ def main():
         scores = [None] * len(rows)
         for a in people:
             tr = np.where(actor != a)[0]
-            X, y = training_set(rows, tr, strategy)
+            X, y = training_set(rows, tr, strategy, target, post)
             m = make_model(strategy).fit(X, y)
             for i in np.where(actor == a)[0]:
                 scores[i] = m.predict_proba(rows[i]["Xs"])[:, 1]
         out[strategy] = {}
-        print(f"\n=== แบบ {strategy} ({'กรอบที่มาร์ค' if strategy == 'A' else '+ ตัวอย่างไม่ล้มจากการเลื่อนกรอบ'}) ===")
-        print("  K  threshold   จับล้มได้   แจ้งผิดตอนกิจวัตร/ชม.   ท่าคล้ายล้มโดนแจ้ง   (ก้ม · นอนลง · สะดุด)")
+        print(f"\n=== แบบ {strategy} ({'กรอบที่มาร์ค' if strategy == 'A' else '+ ตัวอย่างไม่ล้มจากการเลื่อนกรอบ'}) · "
+              f"เป้าหมาย {target} ===")
+        print("  K  threshold   จับได้    แจ้งผิด/ชม. (รวมช่วงก่อนเหตุการณ์ · กิจวัตรจริงอย่างเดียว)   ท่าคล้ายโดนแจ้ง (ต่อท่า)")
         for k in (1, 2, 3, 4):
             for thr in THRESHOLDS:
-                e = evaluate(rows, scores, thr, k)
+                e = evaluate(rows, scores, thr, k, target, post)
                 out[strategy][f"k{k}_t{thr}"] = e
-                pl = e["per_lookalike"]
-                print(f"  {k}    {thr:.1f}       {e['fall_recall']*100:5.1f}%          {e['routine_alarms_per_hour']:6.1f}"
-                      f"              {e['lookalike_alarm_rate']*100:5.1f}%     ({pl['ก้มเก็บของ']*100:.0f} · "
-                      f"{pl['นอนลงบนพื้น']*100:.0f} · {pl['สะดุดแต่ไม่ล้ม']*100:.0f})", flush=True)
+                pl = " · ".join(f"{a} {v*100:.0f}" for a, v in e["per_lookalike"].items())
+                print(f"  {k}    {thr:.1f}       {e['fall_recall']*100:5.1f}%    {e['routine_alarms_per_hour']:6.1f} · "
+                      f"{e['routine_only_alarms_per_hour']:5.1f} ({e['routine_only_alarms']} ครั้ง)"
+                      f"     {e['lookalike_alarm_rate']*100:5.1f}%  ({pl})", flush=True)
         out[strategy]["routine_hours"] = e["routine_hours"]
-    path = os.path.join(OUT_DIR, f"streaming_eval_{kind}.json")
+    path = os.path.join(OUT_DIR, f"streaming_eval_{kind}_{target}.json")
     json.dump(out, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print(f"\nเวลากิจวัตรที่ใช้ประมาณ: {out['A']['routine_hours']:.2f} ชม. → {path}")
 

@@ -8,6 +8,9 @@ python experiments/presentation_numbers.py      # คำนวณตัวเล
 python3 experiments/make_figures.py             # วาด PNG (python3 ของเครื่อง · venv ไม่มี matplotlib)
 ```
 
+รุ่น 2 (2026-11-17 · Doppler + ดูหลังเหตุการณ์): `python experiments/eval_event_v2.py --perm 10` → `numbers_v2.json`
+(ตัวเลขบนหน้าสรุปให้อาจารย์: แจ้งเมื่อล้ม 81.1% · แจ้งเมื่อล้มหรือนอนบนพื้น 87.1%)
+
 ทุกรูป 2000×1125 px (16:9) พื้นขาว · ตัวเลขทุกตัวอยู่ใน `numbers.json` · หน้าเว็บสรุปผล (artifact) ใช้ `dashboard_data.json`
 
 ## ตัวเลขหลักที่ใช้พูด
