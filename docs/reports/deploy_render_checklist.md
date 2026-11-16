@@ -3,6 +3,37 @@
 **สถานะ:** config พร้อม (`render.yaml` · Dockerfile ทั้งสอง service) · **ยังไม่เคย deploy จริง**
 และยังไม่เคย build image เลย (เครื่องที่พัฒนาไม่มี docker) — ครั้งแรกให้ดู log ของ Render ตอน build ด้วย
 
+> **2026-11-17: `render.yaml` ตั้งเป็นแผนฟรีสำหรับช่วง demo** — ดูหัวข้อ "แผนฟรีช่วง demo" ก่อน deploy
+> (แผนฟรีรับ private network ไม่ได้ → ต้องกรอก `ML_SERVICE_URL` เอง · หลับหลัง 15 นาที → ปลุกก่อน demo)
+
+---
+
+## 0. แผนฟรีช่วง demo (ตั้งไว้ 2026-11-17 · ยังไม่ deploy)
+
+ทั้งสอง service ใช้ `plan: free` · ประหยัดราว 475 บาท/เดือนเทียบ starter แต่มีข้อจำกัดที่ต้องรู้
+(ที่มา: [render.com/docs/free](https://render.com/docs/free) · [render.com/docs/private-network](https://render.com/docs/private-network))
+
+| ข้อจำกัดของแผนฟรี | ผลกับระบบนี้ | แก้ไว้แล้ว |
+|---|---|---|
+| **รับ private network ไม่ได้** (ส่งออกได้อย่างเดียว) | Express เรียก ML ผ่าน `fromService … hostport` ไม่ถึง | `ML_SERVICE_URL` เป็น `sync: false` → กรอก URL สาธารณะของ tdg-ml-service เอง (เช่น `https://tdg-ml-service.onrender.com`) |
+| **หลับหลังไม่มีคนเรียก 15 นาที · ตื่นราว 1 นาที** | timeout เดิมสั้นกว่าเวลาตื่น → การล้มครั้งแรกหลังหลับ error แล้วหายไปเลย | Express รอ ML ได้ 90 วิ (`ML_TIMEOUT_MS`) · `fall_monitor` ส่งในเธรดเบื้องหลัง รอได้ 150 วิ (`--timeout`) · **ก่อน demo รัน `express_api/scripts/warm_render.sh`** |
+| **750 ชม./เดือนต่อ workspace** (ช่วงที่หลับไม่นับ) · เกินแล้วถูกพักทั้งหมดจนขึ้นเดือนใหม่ | สองตัวเปิดตลอด = 1,440 ชม. | **ห้ามตั้งตัว ping กันหลับไว้ตลอด** — ปลุกเฉพาะวันที่ demo |
+| Render รีสตาร์ต service ฟรีได้ทุกเมื่อ · ไฟล์ในเครื่องหายเมื่อหลับ | ตัวจับเวลาโทรออกอยู่ในหน่วยความจำ | Express กู้ timer จาก Supabase ตอน boot — **ต้องตั้ง `SUPABASE_URL`/`SUPABASE_KEY`** ไม่งั้นเหตุการณ์หายทุกครั้งที่หลับ |
+| ไม่มี shell · instance เดียว | — | — |
+
+ML service ใช้ RAM ราว 250 MB ตอนโหลด `rf_v2_event` (วัดบนแมค) · CPU ของแผนฟรีน้อย ตอนตื่นอาจนานกว่า 1 นาที
+
+**ก่อน demo ทุกครั้ง**
+```bash
+cd fall_detection_backend/express_api
+sh scripts/warm_render.sh https://<tdg-express-api>.onrender.com https://<tdg-ml-service>.onrender.com
+#   ต้องได้ ✅ ทั้งสองตัว · ML ตอบ model_version rf_v2_event-r2-fall · n_features 39
+#   ระหว่าง demo อย่าเว้นเกิน 15 นาที ไม่งั้นต้องปลุกใหม่
+```
+
+**ขึ้นแผนเสียเงิน (ใช้งานจริง)** — แก้ `render.yaml` 3 จุด: `plan: starter` ทั้งสองตัว ·
+`ML_SERVICE_URL` กลับเป็น `fromService: { name: tdg-ml-service, type: web, property: hostport }` · ลบ `ML_TIMEOUT_MS`
+
 ---
 
 ## 1. ไฟล์โมเดล — ✅ ตัดสินใจแล้ว 2026-11-17: ดาวน์โหลดจาก GitHub Release ตอน build
@@ -50,7 +81,7 @@ shasum -a 256 models/*.pkl      # → แก้ sha256 + URL ใน models/MANIF
 1. ~~ตัดสินใจเรื่องไฟล์โมเดล~~ (เสร็จแล้ว · หัวข้อ 1)
 2. Supabase: รัน `schema.sql` (ตัวที่รวม `escalation_method` แล้ว) · ถ้าจะเปิดระบบบัญชีด้วย ทำตาม `accounts_round1.md`
 3. Render → New → **Blueprint** → เลือก repo → branch ที่จะ deploy (`dev`)
-4. กรอก env ตามหัวข้อ 2
+4. กรอก env ตามหัวข้อ 2 · แผนฟรี: กรอก `ML_SERVICE_URL` = URL สาธารณะของ tdg-ml-service ด้วย (หัวข้อ 0)
 5. ตรวจหลัง deploy
    - `GET https://<tdg-express-api>.onrender.com/health` → `{"status":"ok"}`
    - หน้า `/docs` เปิดได้ (ไม่อยากเปิดสาธารณะ ตั้ง `ENABLE_API_DOCS=false`)
@@ -66,5 +97,5 @@ shasum -a 256 models/*.pkl      # → แก้ sha256 + URL ใน models/MANIF
   deploy แล้วจึงทดสอบได้ด้วย `/demo/fire` หรือสคริปต์จากคอม ยังไม่ใช่ระบบที่ติดตั้งในบ้านจริง
 - **timer ของการโทรอยู่ในหน่วยความจำ** — deploy ใหม่ = restart · ตอน boot Express อ่านเหตุการณ์ที่ค้างจาก Supabase มาตั้ง timer ใหม่
   (ต้องต่อ Supabase แล้วเท่านั้น — ถ้าใช้ mock store ทุกอย่างหายตอน restart)
-- `render.yaml` ใช้ plan `starter` ทั้งสอง service — แผนฟรีของ Render หยุด service ที่ไม่มีคนเรียกสักพัก ซึ่งไม่เหมาะกับระบบแจ้งเหตุฉุกเฉิน
-  (ราคาดูที่ Render เอง ผมไม่ได้ใส่ตัวเลขเพราะไม่แน่ใจราคาปัจจุบัน)
+- `render.yaml` ตอนนี้ใช้แผน `free` สำหรับ demo (หัวข้อ 0) — ใช้งานจริงต้องเป็น `starter` เพราะแผนฟรีหลับเมื่อไม่มีคนเรียก
+  ไม่เหมาะกับระบบแจ้งเหตุฉุกเฉิน · starter ราว $7/service/เดือน (≈ 475 บาท/เดือนสำหรับสองตัว · ตามเว็บเปรียบเทียบ 2026-11 · เช็ค render.com/pricing ก่อนจ่าย)
