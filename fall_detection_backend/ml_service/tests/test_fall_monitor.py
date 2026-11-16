@@ -48,3 +48,59 @@ def test_moving_after_detection_is_cancelled():
 def test_without_rule_fires_immediately():
     mon, sent = _run(moving_after=True, stay_still=0.0)
     assert len(sent) == 1 and not mon.cancelled
+
+
+class SequenceModel:
+    """คะแนนล้มตามลำดับที่กำหนด ทีละกรอบ"""
+    classes_ = np.array([0, 1])
+
+    def __init__(self, probs):
+        self.probs = list(probs)
+
+    def predict_proba(self, X):
+        p = self.probs.pop(0)
+        return np.array([[1 - p, p]])
+
+
+def _feed(mon, packets, seed=0):
+    rng = np.random.default_rng(seed)
+    for i in range(1, packets + 1):
+        an = 1.0 + 0.01 * rng.standard_normal(52)
+        mon.add((an, an * 20, -45), i / 100, i)
+
+
+def test_window_and_features_follow_the_model_bundle():
+    """โมเดลรุ่น 2 (ค่าเริ่มต้น) ใช้กรอบ 492 · โมเดลเก่าที่เก็บชื่อเต็ม app.event_features.stream_feature_vector ยังใช้ได้"""
+    new = FM.Monitor({"model": FakeModel()}, 0.4, 2, None, None, quiet=True)
+    assert new.window == FM.AF.WINDOW_V2 == 492 and new.fv is FM.AF.feature_vector_v2
+    old = FM.Monitor({"model": FakeModel(), "feature_fn": "app.event_features.stream_feature_vector", "window": 472},
+                     0.4, 2, None, None, quiet=True)
+    assert old.window == 472 and old.fv is FM.AF.stream_feature_vector
+    _feed(old, 600)
+    assert old.n_windows > 0
+
+
+def test_smoothing_sends_the_window_with_the_highest_raw_score():
+    """เฉลี่ย 3 กรอบผ่าน threshold แต่กรอบล่าสุดไม่ผ่าน → ต้องส่งกรอบที่คะแนนดิบสูงสุด ไม่ใช่กรอบล่าสุด"""
+    sent = []
+    probs = [0.1] * 20 + [0.9, 0.6, 0.2] + [0.1] * 40
+    mon = FM.Monitor({"model": SequenceModel(probs)}, threshold=0.5, confirm=2,
+                     sender=lambda x, p: sent.append(x.copy()) or "ok", log_path=None, quiet=True, smooth=3)
+    seen = []
+    orig = mon.fv
+    mon.fv = lambda *a: seen.append(orig(*a)) or seen[-1]
+    _feed(mon, mon.window + 25 * (len(probs) - 1), seed=1)       # ครบทุกคะแนนพอดี กรอบละ 25 packet
+    assert len(sent) == 1
+    # เฉลี่ยของ (0.9, 0.6, 0.2) = 0.57 ≥ 0.5 ที่กรอบของ 0.2 → ส่งกรอบของ 0.9 (ลำดับที่ 21)
+    assert np.allclose(sent[0], seen[20])
+
+
+def test_feature_vector_v2_shape_and_prefix():
+    rng = np.random.default_rng(2)
+    n = FM.AF.WINDOW_V2
+    An = 1.0 + 0.02 * rng.standard_normal((n, 52))
+    Ar = An * 20
+    R = rng.integers(-46, -40, n)
+    v = FM.AF.feature_vector_v2(An, Ar, R, FM.AF.PRE)
+    assert v.shape == (len(FM.AF.KEYS_V2),) == (39,) and np.all(np.isfinite(v))
+    assert np.allclose(v[:18], FM.AF.feature_vector(An, Ar, R, FM.AF.PRE))

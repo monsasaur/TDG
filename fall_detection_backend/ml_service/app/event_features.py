@@ -5,7 +5,11 @@ event_features.py (app) — feature แบบ "เหตุการณ์" ท�
 ใครใช้:
 - experiments/event_features.py · streaming_eval.py · train_rf_v2.py  (เทรน/ประเมิน)
 - data_collection/fall_monitor.py                                     (ตรวจจับสดจาก ESP32)
-- app/predict.py เมื่อ FALL_MODEL=rf_v2_event                         (รับ 18 ค่าไปตัดสิน)
+- app/predict.py เมื่อ FALL_MODEL=rf_v2_event                         (รับเวกเตอร์ตามที่โมเดลเทรนมา)
+- experiments/eval_event_v2.py                                        (ตัวเลขแบบรู้จังหวะของรุ่น 2)
+
+รุ่นที่ใช้ตอนนี้ (2026-11-17): feature_vector_v2 = 39 ค่า กรอบ 492 packet (ท้ายไฟล์)
+รุ่นก่อน: stream_feature_vector (28 ค่า · 472) · feature_vector (18 ค่า · 410)
 
 **แก้สูตรที่นี่ที่เดียว** ถ้าแก้ฝั่งเทรนแต่ไม่แก้ฝั่งใช้งาน (หรือกลับกัน) โมเดลจะได้ค่าที่ไม่เคยเห็นตอนเทรน
 โดยไม่มี error บอก
@@ -148,3 +152,90 @@ def stream_feature_vector(An, Ar, R, m):
     f.append(_rms(seg[a0:a0 + half].mean(0) - seg[a0 + half:a1].mean(0)) / (sigma * np.sqrt(2 / half)))
     f += [float(np.std(rs[a0:a1])), float(np.std(rs[B]))]
     return np.array(f, dtype=float)
+
+
+# ---------------------------------------------------------------- รุ่น 2 (2026-11-17): เหตุการณ์ + Doppler + หลังเหตุการณ์
+# 39 ค่า = feature เหตุการณ์ 18 (features) + Doppler 11 + หลังเหตุการณ์ 10 · กรอบ 492 packet (342 ก่อน m · 150 หลัง)
+# ตอนใช้งานจริง m = packet ล่าสุด − 150 → รู้ผลช้ากว่าเหตุการณ์ 1.5 วิ (ระบบรอกดรับทราบ 60 วิอยู่แล้ว)
+# ผลแบบรู้จังหวะ (unseen · experiments/eval_event_v2.py): แจ้งเมื่อล้ม ~81% · แจ้งเมื่อล้มหรือนอนบนพื้น ~87%
+POST_V2 = 150
+WINDOW_V2 = PRE + POST_V2
+LATE_WIN = slice(PRE + 80, PRE + POST_V2)          # 0.8–1.5 วิหลัง m: ล้มแล้วยังอยู่ที่พื้น vs สะดุดแล้วลุก
+DOP_HP, DOP_NFFT, DOP_HOP = 50, 64, 8               # high-pass 0.5 วิ · STFT 0.64 วิ เลื่อนทีละ 0.08 วิ
+DOP_PCS = slice(1, 6)                               # PC2–PC6 — PC1 ส่วนใหญ่เป็น noise ของลิงก์ (ใส่ PC1 แล้วไม่ได้อะไร)
+DOP_BANDS = ((2, 6), (6, 12), (12, 25), (25, 50))   # Hz ที่ 100 pkt/s · แถบสูง = ขยับเร็ว
+DOPPLER_KEYS = [f"dop_{lo}_{hi}hz_{s}" for lo, hi in DOP_BANDS for s in ("max", "mean")] + \
+    ["dop_f80_max", "dop_f80_mean", "dop_fast_t"]
+LATE_KEYS = ["late_posture_z", "late_vs_early_z", "late_keep_ratio", "late_level_db", "late_rssi_chg",
+             "late_rssi_vs_early", "late_still", "late_still_ratio", "late_mot10", "late_rssi_std"]
+KEYS_V2 = FEATURE_KEYS + DOPPLER_KEYS + LATE_KEYS
+
+
+def _stft_power(x, win, hop):
+    """พลังงาน STFT รวมทุกคอลัมน์ของ x → (จำนวนกรอบ, win/2+1) + ตำแหน่งกึ่งกลางกรอบ"""
+    w = np.hanning(win)
+    n = (len(x) - win) // hop + 1
+    frames = np.stack([x[i * hop:i * hop + win] * w[:, None] for i in range(n)])
+    return (np.abs(np.fft.rfft(frames, axis=1)) ** 2).sum(2), np.arange(n) * hop + win // 2
+
+
+def doppler_features(An, m):
+    """11 ค่า: สัญญาณสั่นเร็วแค่ไหนตอนเหตุการณ์ เทียบช่วงก่อนทำท่า (แนวเดียวกับ CARM) · ใช้ An[m-342 : m+68]
+    ลบค่าเฉลี่ยเคลื่อนที่ 0.5 วิ → PCA → STFT ของ PC2–6 → พลังงานแต่ละแถบความถี่ + ความถี่ที่ครอบ 80% ของพลังงาน"""
+    seg = np.asarray(An[m - PRE:m + POST], dtype=float)
+    k = DOP_HP
+    ma = _ma(seg, k)
+    hp = seg[k // 2:k // 2 + len(ma)] - ma
+    hp = hp - hp.mean(0)
+    _, _, Vt = np.linalg.svd(hp, full_matrices=False)
+    P, cen = _stft_power(hp @ Vt[DOP_PCS].T, DOP_NFFT, DOP_HOP)
+    cen = cen + k // 2
+    freqs = np.fft.rfftfreq(DOP_NFFT, 1 / 100)
+    base, ev = cen < BASE_WIN.stop, (cen >= BASE_WIN.stop) & (cen < PRE + 20)
+    out = []
+    for lo, hi in DOP_BANDS:
+        e = P[:, (freqs >= lo) & (freqs < hi)].sum(1)
+        bm = max(np.median(e[base]), 1e-12)
+        out += [np.log(e[ev].max() / bm), np.log(e[ev].mean() / bm)]
+    tot = P[:, freqs >= 2]
+    f2 = freqs[freqs >= 2]
+    cum = np.cumsum(tot, 1) / np.maximum(tot.sum(1, keepdims=True), 1e-12)
+    f80 = f2[(cum < 0.8).sum(1).clip(max=len(f2) - 1)]
+    out += [f80[ev].max() - np.median(f80[base]), f80[ev].mean() - np.median(f80[base])]
+    fast = P[:, freqs >= 12].sum(1)
+    out.append((cen[ev][fast[ev].argmax()] - PRE) / 100)
+    return np.nan_to_num(np.array(out, dtype=float))
+
+
+def late_features(An, Ar, R, m):
+    """10 ค่า: ช่วง 0.8–1.5 วิหลัง m ยังต่างจากก่อนทำท่าไหม · เปลี่ยนต่อจากช่วงต้นหลังเหตุการณ์ไหม (ลุก) · นิ่งไหม
+    ใช้ An[m-342 : m+150]"""
+    seg = np.asarray(An[m - PRE:m + POST_V2], dtype=float)
+    raw = np.asarray(Ar[m - PRE:m + POST_V2], dtype=float)
+    rs = np.asarray(R[m - PRE:m + POST_V2], dtype=float)
+    B, E1, L = BASE_WIN, AFTER_WIN, LATE_WIN
+    sigma = np.median(_rms(np.diff(seg[B], axis=0))) / np.sqrt(2)
+    nb, ne, nl = B.stop - B.start, E1.stop - E1.start, L.stop - L.start
+    base, early, late = seg[B].mean(0), seg[E1].mean(0), seg[L].mean(0)
+    sm = _ma(seg, 10)
+    post_std = sm[L.start:L.stop - 9].std(0).mean() / sigma
+    base_std = sm[B.stop - nl:B.stop - 9].std(0).mean() / sigma
+    mot = _rms(sm[10:] - sm[:-10]) / sigma
+    return np.nan_to_num(np.array([
+        _rms(late - base) / (sigma * np.sqrt(1 / nl + 1 / nb)),
+        _rms(late - early) / (sigma * np.sqrt(1 / nl + 1 / ne)),
+        _rms(late - base) / max(_rms(early - base), 1e-9),          # ≈1 = ยังอยู่ท่าใหม่ · ≈0 = กลับท่าเดิม
+        20 * np.log10(raw[L].mean() / raw[B].mean()),
+        float(np.median(rs[L]) - np.median(rs[B])),
+        float(np.median(rs[L]) - np.median(rs[E1])),
+        post_std, post_std / max(base_std, 1e-9),
+        mot[L.start:L.stop - 10].mean(),
+        float(np.std(rs[L])),
+    ], dtype=float))
+
+
+def feature_vector_v2(An, Ar, R, m):
+    """39 ค่าตามลำดับ KEYS_V2 ของกรอบ m-342 .. m+150 — ตัวเดียวที่ทั้งเทรนและ fall_monitor ใช้"""
+    f = features(An, Ar, R, m)
+    v = np.concatenate([[f[k] for k in FEATURE_KEYS], doppler_features(An, m), late_features(An, Ar, R, m)])
+    return np.nan_to_num(v.astype(float))

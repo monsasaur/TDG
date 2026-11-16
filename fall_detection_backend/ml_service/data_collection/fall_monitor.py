@@ -14,18 +14,20 @@ fall_monitor.py — ตรวจจับการล้มสดจาก ESP32
 
 ทำงานยังไง
 - อ่าน CSI ทาง USB Serial (921600) · ล็อก MAC ตัวส่ง (#2) จาก 200 บรรทัดแรก หรือ --mac
-- ทุก 25 packet (0.25 วิ) คิด feature ของกรอบ 472 packet ล่าสุด (app/event_features.stream_feature_vector
-  ตัวเดียวกับตอนเทรน) → คะแนนจากโมเดลในเครื่อง (models/rf_v2_event.pkl)
+- ทุก 25 packet (0.25 วิ) คิด feature ของกรอบล่าสุดด้วยฟังก์ชันที่โมเดลเทรนมา (เก็บชื่อไว้ในไฟล์โมเดล)
+  รุ่น 2 (2026-11-17): app/event_features.feature_vector_v2 · 39 ค่า · กรอบ 492 packet
+  → คะแนนจากโมเดลในเครื่อง (models/rf_v2_event.pkl)
+- --smooth N เฉลี่ยคะแนน N กรอบล่าสุด (ค่าเริ่มต้นจากโมเดล) · ตอนแจ้งส่งกรอบที่คะแนนดิบสูงสุดในช่วงนั้น
 - คะแนน ≥ threshold ติดกัน --confirm กรอบ = ล้ม → POST /api/v1/predict ที่ Express (มี x-api-key)
 - --stay-still 3 = ล้มแล้วต้องนิ่งอยู่ที่พื้นอีก 3 วิก่อนแจ้ง (นิ่ง ≥ 80% ของช่วง) · ขยับต่อ/ลุก = ไม่แจ้ง
   ตัดการแจ้งผิดตอนเดิน แต่แจ้งช้าลงตามจำนวนวินาที · log บันทึก PENDING (= จุดที่ถ้าไม่ใช้กฎนี้จะแจ้ง)
   แล้วตามด้วย FALL หรือ CANCEL รอบเดียวจึงเทียบได้ทั้งแบบมีและไม่มีกฎ
   Express ถาม ML service ซ้ำ → บันทึก fall_events → push → นับถอยหลังโทร (กันแจ้งซ้ำ 300 วิต่ออุปกรณ์อยู่ที่ Express)
-- รู้ผลช้ากว่าตัวถึงพื้นราว 1.3 วิ + (confirm-1)×0.25 วิ
+- รุ่น 2 ดูหลังจุดอ้างอิง 1.5 วิ · บนไฟล์ที่เก็บไว้มักแจ้งได้ไม่นานหลังตัวถึงพื้น เพราะเห็นช่วงกำลังล้มแล้ว
 - บันทึกคะแนนทุกกรอบลง data/realtime/monitor_<เวลา>.csv ไว้ดูย้อนหลัง
 
-⚠️ ประเมินแบบ unseen ไว้ราว: จับล้ม 43% · แจ้งผิด ~4/ชม. ตอนกิจวัตร (ส่วนใหญ่ตอนเดิน) ที่ threshold 0.4 ยืนยัน 5 กรอบ
-   (models/report_rf_v2_event.json) — ประเมินจากไฟล์สั้น ๆ ต้องยืนยันด้วยการทดสอบสด
+⚠️ ประเมินแบบ unseen ไว้ราว (รุ่น 2 · threshold 0.5 · ยืนยัน 2 กรอบ): จับล้ม 64.2% · ไม่แจ้งผิดในไฟล์กิจวัตรจริง 8.5 นาที
+   · นอนลงบนพื้นโดนแจ้ง ~65% (models/report_rf_v2_event.json) — ประเมินจากไฟล์สั้น ๆ ต้องยืนยันด้วยการทดสอบสด
 """
 
 import argparse
@@ -51,6 +53,11 @@ MODEL_PATH = os.path.join(BASE, "models", "rf_v2_event.pkl")
 LOG_DIR = os.path.join(BASE, "data", "realtime")
 
 
+def feature_fn(bundle):
+    """ฟังก์ชัน feature ตามที่โมเดลเทรนมา (เก็บชื่อไว้ในไฟล์โมเดล) · โมเดลเก่าเก็บเป็น app.event_features.<ชื่อ>"""
+    return getattr(AF, bundle.get("feature_fn", "feature_vector_v2").rsplit(".", 1)[-1])
+
+
 def load_env_file(path):
     """อ่าน KEY=VALUE จากไฟล์ .env (ไม่พิมพ์ค่าออกมา)"""
     out = {}
@@ -65,12 +72,15 @@ def load_env_file(path):
 
 class Monitor:
     def __init__(self, bundle, threshold, confirm, sender, log_path, quiet=False,
-                 stay_still=0.0, still_threshold=0.43, still_fraction=0.8):
+                 stay_still=0.0, still_threshold=0.43, still_fraction=0.8, smooth=1):
         self.model = bundle["model"]
         self.fall_class = list(self.model.classes_).index(1)
+        self.fv = feature_fn(bundle)
+        self.window = int(bundle.get("window", AF.WINDOW_V2))
         self.threshold, self.confirm = threshold, confirm
         self.sender, self.quiet = sender, quiet
-        self.buf = collections.deque(maxlen=AF.STREAM_WINDOW)
+        self.recent = collections.deque(maxlen=max(1, int(smooth)))   # (คะแนนดิบ, feature) ของกรอบล่าสุด
+        self.buf = collections.deque(maxlen=self.window)
         self.since = 0
         self.run = 0
         self.n_windows = 0
@@ -84,10 +94,11 @@ class Monitor:
             os.makedirs(os.path.dirname(log_path), exist_ok=True)
             self.log = open(log_path, "w", newline="", encoding="utf-8")
             self.logw = csv.writer(self.log)
-            self.logw.writerow(["time", "packet", "fall_prob", "run", "event"])
+            self.logw.writerow(["time", "packet", "fall_prob", "raw_prob", "run", "event"])
 
     def reset(self):
         self.buf.clear()
+        self.recent.clear()
         self.since = self.run = 0
         self.pending = None
         self.hold_until = 0.0                       # replay: ไฟล์ใหม่ = เวลาเริ่มใหม่ ห้ามติดช่วงกันซ้ำจากไฟล์ก่อน
@@ -122,14 +133,19 @@ class Monitor:
     def add(self, parsed, now, packet_no):
         self.buf.append(parsed)
         self.since += 1
-        if len(self.buf) < AF.STREAM_WINDOW or self.since < 25:
+        if len(self.buf) < self.window or self.since < 25:
             return None
         self.since = 0
         An = np.array([p[0] for p in self.buf])
         Ar = np.array([p[1] for p in self.buf])
         R = np.array([p[2] for p in self.buf])
-        x = AF.stream_feature_vector(An, Ar, R, AF.PRE)
-        prob = float(self.model.predict_proba(x.reshape(1, -1))[0][self.fall_class])
+        x_now = self.fv(An, Ar, R, AF.PRE)
+        raw = float(self.model.predict_proba(x_now.reshape(1, -1))[0][self.fall_class])
+        # เฉลี่ยคะแนนหลายกรอบล่าสุด · ตอนแจ้งส่งกรอบที่คะแนนดิบสูงสุด — Express ถาม ML service ซ้ำจากกรอบเดียวที่ส่งไป
+        # คะแนนดิบสูงสุด ≥ ค่าเฉลี่ย ≥ threshold จึงไม่เกิดกรณีที่นี่บอกล้มแต่ ML service บอกไม่ล้ม
+        self.recent.append((raw, x_now))
+        prob = float(np.mean([r for r, _ in self.recent]))
+        x = max(self.recent, key=lambda t: t[0])[1]
         self.n_windows += 1
         self.run = self.run + 1 if prob >= self.threshold else 0
         event = ""
@@ -146,7 +162,7 @@ class Monitor:
             else:
                 event = self._fire(x, prob, now, packet_no)
         if self.log:
-            self.logw.writerow([f"{now:.2f}", packet_no, f"{prob:.4f}", self.run, event])
+            self.logw.writerow([f"{now:.2f}", packet_no, f"{prob:.4f}", f"{raw:.4f}", self.run, event])
         if not self.quiet:
             bar = "█" * int(prob * 20) + "·" * (20 - int(prob * 20))
             print(f"\r  คะแนนล้ม {prob:4.2f} [{bar}] ติดกัน {self.run}/{self.confirm}   ", end="", flush=True)
@@ -245,8 +261,9 @@ def main():
     ap = argparse.ArgumentParser(description="ตรวจจับการล้มสดด้วย rf_v2_event")
     ap.add_argument("--port", help="พอร์ต serial (ค่าเริ่มต้น: หา /dev/cu.usbserial-* เอง)")
     ap.add_argument("--mac", default=os.getenv("CSI_MAC"), help="MAC ตัวส่ง (#2) ถ้าไม่ใส่จะล็อกตัวที่เจอบ่อยสุด")
-    ap.add_argument("--threshold", type=float, help="ค่าเริ่มต้นจากโมเดล (0.5)")
-    ap.add_argument("--confirm", type=int, help="จำนวนกรอบติดกัน · ค่าเริ่มต้นจากโมเดล (4)")
+    ap.add_argument("--threshold", type=float, help="ค่าเริ่มต้นจากโมเดล")
+    ap.add_argument("--confirm", type=int, help="จำนวนกรอบติดกัน · ค่าเริ่มต้นจากโมเดล")
+    ap.add_argument("--smooth", type=int, help="เฉลี่ยคะแนนกี่กรอบล่าสุด (1 = ไม่เฉลี่ย) · ค่าเริ่มต้นจากโมเดล")
     ap.add_argument("--api", default=os.getenv("EXPRESS_URL", "http://localhost:3000"))
     ap.add_argument("--env-file", help="อ่าน DEVICE_API_KEY (หรือ API_KEY) จากไฟล์ .env ของ Express")
     ap.add_argument("--device-id", default=os.getenv("DEVICE_ID", "ESP-B96AB8"))
@@ -263,8 +280,11 @@ def main():
     threshold = args.threshold if args.threshold is not None else bundle["threshold"]
     confirm = args.confirm if args.confirm is not None else bundle["confirm"]
     still_thr = args.still_threshold if args.still_threshold is not None else bundle.get("still_threshold", 0.43)
-    delay = 1.3 + (confirm - 1) * 0.25 + args.stay_still
-    print(f"🧠 {bundle['version']} · threshold {threshold} · ยืนยัน {confirm} กรอบ"
+    smooth = args.smooth if args.smooth is not None else bundle.get("smooth", 1)
+    delay = bundle.get("post", AF.STREAM_POST) / 100 + (confirm - 1) * 0.25 + args.stay_still
+    print(f"🧠 {bundle['version']} · {feature_fn(bundle).__name__} ({len(bundle.get('keys', []))} ค่า · กรอบ "
+          f"{bundle.get('window', AF.WINDOW_V2)}) · {bundle.get('label', '1 = fall')}")
+    print(f"   threshold {threshold} · ยืนยัน {confirm} กรอบ · เฉลี่ย {smooth} กรอบ"
           + (f" · ล้มแล้วนิ่ง {args.stay_still:g} วิ (เกณฑ์ {still_thr:.2f} · {args.still_fraction * 100:.0f}%)" if args.stay_still else "")
           + f" · แจ้งราว {delay:.1f} วิหลังตัวถึงพื้น")
 
@@ -282,7 +302,8 @@ def main():
 
     log_path = None if args.no_log or args.replay else os.path.join(LOG_DIR, f"monitor_{datetime.now():%Y%m%d_%H%M%S}.csv")
     mon = Monitor(bundle, threshold, confirm, sender, log_path, quiet=bool(args.replay),
-                  stay_still=args.stay_still, still_threshold=still_thr, still_fraction=args.still_fraction)
+                  stay_still=args.stay_still, still_threshold=still_thr, still_fraction=args.still_fraction,
+                  smooth=smooth)
     try:
         if args.replay:
             run_replay(mon, args.replay)
