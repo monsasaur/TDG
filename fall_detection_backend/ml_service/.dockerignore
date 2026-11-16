@@ -17,7 +17,11 @@ data_collection
 tests
 docs
 
-# โมเดลที่ไม่ได้ใช้ตอน serve (serving ใช้แค่ rf_v1.pkl + scaler_rf_v1.pkl)
+# โมเดลที่ไม่ได้ใช้ตอน serve — เก็บเฉพาะ 3 ไฟล์ที่ serve ใช้ (ไฟล์สำรอง/รุ่นเก่าไม่ต้องเข้า image)
+models/*.pkl
+!models/rf_v1.pkl
+!models/scaler_rf_v1.pkl
+!models/rf_v2_event.pkl
 models/*.h5
 models/*.keras
 models/*.png

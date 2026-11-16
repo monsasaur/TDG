@@ -1,0 +1,6 @@
+# ไฟล์โมเดลที่ Dockerfile ดาวน์โหลดตอน build (models/*.pkl ไม่อยู่ใน git) — scripts/fetch_models.sh
+# รูปแบบ: <sha256> <ชื่อไฟล์ใน models/> <URL>
+# เปลี่ยนโมเดล: gh release create models-<วันที่> ... แนบไฟล์ใหม่ → แก้บรรทัดที่นี่ (sha256 จาก shasum -a 256)
+eb5426df039f20424c24b440a5b74c6d2e1717fbaf12b0ecdad0e00b40954050 rf_v2_event.pkl https://github.com/monsasaur/TDG/releases/download/models-2026-11-17/rf_v2_event.pkl
+d18a9e948fd200751bfe06ca3e36e463144742b3c4b030da73fccde8aef7050e rf_v1.pkl https://github.com/monsasaur/TDG/releases/download/models-2026-11-17/rf_v1.pkl
+03b3c2e7f5e2bbcb4f1b5a0964e994253987136baa813b17aa1759c514917772 scaler_rf_v1.pkl https://github.com/monsasaur/TDG/releases/download/models-2026-11-17/scaler_rf_v1.pkl

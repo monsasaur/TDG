@@ -33,7 +33,7 @@
 | Unseen test scenario | **High** | test set ต้องเป็น session ที่ไม่เคยเห็น ไม่ใช่แค่ไฟล์ที่ไม่เคยเห็น |
 | **CSI uplink ในบ้านลูกค้า** | **High** | 🔴 **ยังไม่มีอะไรส่ง CSI ขึ้น cloud เลย** — ทั้งสองทางที่มีอยู่ต้องมีคอมเปิดในบ้าน และ `csi_streamer.py` ยิงตรงไป ML service ข้าม Express API (ไม่มี event/alert/push/escalation) · ตัวเลข + ทางเลือก: `docs/reports/production_csi_uplink_decision.md` |
 | **ฐานข้อมูลจริง + Express ยังไม่ต่อกัน** | **High** | ตรวจ 2026-11-13: schema ✅ แล้ว · เหลือ 1) Express `.env` ยังไม่มี `SUPABASE_URL`/`SUPABASE_KEY` (ต้องเป็น service_role) → ยังใช้ mock store 2) **ทุกตารางที่แอป (anon) เห็นมี 0 แถว** — ข้อมูลว่างจริง หรือมี RLS ที่เปิดไว้ใน dashboard โดยไม่มี policy · ดูใน Table Editor ก่อน ถ้าว่างจริงค่อยรัน `seed.sql` (seed **ลบข้อมูลเดิมทั้งหมด**) 3) ลงทะเบียน `ESP-B96AB8` ใน `devices` · วิธีแก้: `docs/reports/live_test_rf_v2.md` หัวข้อ "ให้เหตุการณ์ขึ้นในแอป" |
-| Production Cloud deploy | Med | **Dockerfile + render.yaml + compose พร้อมแล้ว** · แก้ 13 พ.ย.: `ML_SERVICE_URL` จาก Render ไม่มี `http://` (เดิม Express เรียก ML ไม่ได้) + เติม env ที่ขาดใน `render.yaml` · เหลือ: ตัดสินใจเรื่องไฟล์โมเดลที่ถูก gitignore · กรอก env ใน Render · ยังไม่เคย build image (เครื่องนี้ไม่มี docker) · รายการตรวจ: `docs/reports/deploy_render_checklist.md` |
+| Production Cloud deploy | Med | **Dockerfile + render.yaml + compose พร้อมแล้ว** · แก้ 13 พ.ย.: `ML_SERVICE_URL` จาก Render ไม่มี `http://` (เดิม Express เรียก ML ไม่ได้) + เติม env ที่ขาดใน `render.yaml` · ไฟล์โมเดลดาวน์โหลดจาก GitHub Release `models-2026-11-17` ตอน build (`ml_service/models/MANIFEST` + `scripts/fetch_models.sh` · ตรวจ sha256) · `render.yaml` ใช้ `rf_v2_event` · เหลือ: สร้าง Blueprint + กรอก env ใน Render · ยังไม่เคย build image (เครื่องนี้ไม่มี docker) · รายการตรวจ: `docs/reports/deploy_render_checklist.md` |
 
 ---
 
@@ -519,7 +519,7 @@ PUSH_MODE=real              # real = ยิง FCM จริง | fake = log con
 
 ## Important Notes
 
-- ไฟล์โมเดล (`rf_v1.pkl`, `scaler_rf_v1.pkl`, `lstm_v3_binary_99acc.h5`, `scaler_v3.pkl`) NOT committed to git — must be obtained separately · git ติดตามเฉพาะ `report_*.json` กับรูป `.png` ใน `models/`
+- ไฟล์โมเดล (`rf_v1.pkl`, `scaler_rf_v1.pkl`, `rf_v2_event.pkl`, `lstm_v3_binary_99acc.h5`, `scaler_v3.pkl`) NOT committed to git — ตัวที่ serve ใช้อยู่บน GitHub Release ตาม `ml_service/models/MANIFEST` (`sh scripts/fetch_models.sh` โหลดให้ · Dockerfile เรียกเอง) · git ติดตามเฉพาะ `report_*.json` กับรูป `.png` ใน `models/`
 - `fall_detection_backend/ESP32-CSI-Tool/` **ไม่ใช่ submodule** — เป็นโฟลเดอร์ธรรมดาในรีโปหลัก (ไม่มี `.gitmodules` ไม่มี `.git` ข้างใน · git ติดตามไฟล์ในนั้น 50 ไฟล์) แก้ตรงได้เลย
 - **`lib/api.ts`** — URL/คีย์ย้ายไป `app.config.js` แล้ว ตั้งผ่าน `EXPO_PUBLIC_API_BASE_URL` / `EXPO_PUBLIC_API_KEY` · แต่คีย์ยังเป็นตัวเดียวกับ ESP32 อยู่ ดู `docs/reports/deploy_render_checklist.md`
 - **ฐานข้อมูลจริงยังไม่ได้รัน `schema.sql`** (ตรวจ 2026-11-12 แบบอ่านอย่างเดียว) — ไม่มี `alerts.fall_event_id` (Express สร้าง alert ในแอปไม่ได้) · `devices.last_seen_at`/`is_active`/`installed_at` (หน้า Admin พัง) · ตาราง `ml_models` · แก้: วาง `schema.sql` ทั้งไฟล์ใน Supabase SQL Editor แล้วรัน (ทุกคำสั่งเป็น IF NOT EXISTS รันซ้ำได้)

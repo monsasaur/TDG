@@ -19,16 +19,19 @@ RUN pip install --no-cache-dir -r requirements-serve.txt
 
 COPY app ./app
 COPY models ./models
+COPY scripts/fetch_models.sh ./scripts/fetch_models.sh
 
-# โมเดลถูก gitignore ไว้ (models/*.pkl) — ถ้า build จาก git clone เปล่า ๆ ไฟล์จะไม่มา
-# เช็คตั้งแต่ตอน build จะได้ fail พร้อมข้อความที่อ่านรู้เรื่อง
-# แทนที่จะไป crash ตอน container boot ด้วย FileNotFoundError เปล่า ๆ
-RUN test -f models/rf_v1.pkl && test -f models/scaler_rf_v1.pkl || ( \
+# โมเดลถูก gitignore ไว้ (models/*.pkl) — build จาก git (Render) จะไม่มีไฟล์
+# → ดาวน์โหลดจาก GitHub Release ตาม models/MANIFEST และตรวจ sha256 (ไฟล์ที่มีอยู่แล้วในเครื่องใช้ตามเดิม)
+RUN sh scripts/fetch_models.sh
+
+# เช็คอีกชั้นตอน build จะได้ fail พร้อมข้อความที่อ่านรู้เรื่อง แทนที่จะไป crash ตอน boot
+# rf_v1 (+ scaler) และ rf_v2_event มีครบทั้งคู่ → สลับด้วย FALL_MODEL ได้โดยไม่ต้อง build ใหม่
+RUN test -f models/rf_v1.pkl && test -f models/scaler_rf_v1.pkl && test -f models/rf_v2_event.pkl || ( \
       echo "" && \
       echo "❌ ไม่พบไฟล์โมเดลใน models/" && \
-      echo "   ต้องมี: rf_v1.pkl และ scaler_rf_v1.pkl" && \
-      echo "   ไฟล์เหล่านี้ถูก gitignore ไว้ (ml_service/.gitignore: models/*.pkl)" && \
-      echo "   ต้องคัดลอกเข้ามาใน build context ก่อน build" && \
+      echo "   ต้องมี: rf_v1.pkl · scaler_rf_v1.pkl · rf_v2_event.pkl" && \
+      echo "   ดู models/MANIFEST และ scripts/fetch_models.sh" && \
       echo "" && exit 1 )
 
 RUN useradd --create-home --uid 10001 app && chown -R app:app /app
