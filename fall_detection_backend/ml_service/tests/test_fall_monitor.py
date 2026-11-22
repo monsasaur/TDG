@@ -104,3 +104,43 @@ def test_feature_vector_v2_shape_and_prefix():
     v = FM.AF.feature_vector_v2(An, Ar, R, FM.AF.PRE)
     assert v.shape == (len(FM.AF.KEYS_V2),) == (39,) and np.all(np.isfinite(v))
     assert np.allclose(v[:18], FM.AF.feature_vector(An, Ar, R, FM.AF.PRE))
+
+
+def test_sender_posts_in_background_without_blocking():
+    """ส่งเข้า Express ในเธรดเบื้องหลัง — server ตอบช้า (เหมือน Render แผนฟรีกำลังตื่น) ตัวตรวจต้องไม่ค้าง"""
+    import http.server
+    import json
+    import threading
+    import time
+
+    got = {}
+    done = threading.Event()
+
+    class Slow(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            got["key"] = self.headers.get("x-api-key")
+            got["body"] = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            time.sleep(0.5)
+            out = json.dumps({"action": "awaiting_acknowledge", "is_fall": True}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(out)))
+            self.end_headers()
+            self.wfile.write(out)
+            done.set()
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Slow)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        send = FM.make_sender(f"http://127.0.0.1:{srv.server_address[1]}", "k123", "ESP-TEST", "ห้อง", timeout=5)
+        t0 = time.time()
+        msg = send(np.arange(39, dtype=float), 0.9)
+        assert time.time() - t0 < 0.3 and "กำลังส่ง" in msg
+        assert done.wait(5)
+        assert got["key"] == "k123" and got["body"]["device_id"] == "ESP-TEST"
+        assert len(got["body"]["features"][0]) == 39
+    finally:
+        srv.shutdown()

@@ -33,7 +33,7 @@
 | Unseen test scenario | **High** | test set ต้องเป็น session ที่ไม่เคยเห็น ไม่ใช่แค่ไฟล์ที่ไม่เคยเห็น |
 | **CSI uplink ในบ้านลูกค้า** | **High** | 🔴 **ยังไม่มีอะไรส่ง CSI ขึ้น cloud เลย** — ทั้งสองทางที่มีอยู่ต้องมีคอมเปิดในบ้าน และ `csi_streamer.py` ยิงตรงไป ML service ข้าม Express API (ไม่มี event/alert/push/escalation) · ตัวเลข + ทางเลือก: `docs/reports/production_csi_uplink_decision.md` |
 | **ฐานข้อมูลจริง + Express ยังไม่ต่อกัน** | **High** | ตรวจ 2026-11-13: schema ✅ แล้ว · เหลือ 1) Express `.env` ยังไม่มี `SUPABASE_URL`/`SUPABASE_KEY` (ต้องเป็น service_role) → ยังใช้ mock store 2) **ทุกตารางที่แอป (anon) เห็นมี 0 แถว** — ข้อมูลว่างจริง หรือมี RLS ที่เปิดไว้ใน dashboard โดยไม่มี policy · ดูใน Table Editor ก่อน ถ้าว่างจริงค่อยรัน `seed.sql` (seed **ลบข้อมูลเดิมทั้งหมด**) 3) ลงทะเบียน `ESP-B96AB8` ใน `devices` · วิธีแก้: `docs/reports/live_test_rf_v2.md` หัวข้อ "ให้เหตุการณ์ขึ้นในแอป" |
-| Production Cloud deploy | Med | **Dockerfile + render.yaml + compose พร้อมแล้ว** · แก้ 13 พ.ย.: `ML_SERVICE_URL` จาก Render ไม่มี `http://` (เดิม Express เรียก ML ไม่ได้) + เติม env ที่ขาดใน `render.yaml` · ไฟล์โมเดลดาวน์โหลดจาก GitHub Release `models-2026-11-17` ตอน build (`ml_service/models/MANIFEST` + `scripts/fetch_models.sh` · ตรวจ sha256) · `render.yaml` ใช้ `rf_v2_event` · เหลือ: สร้าง Blueprint + กรอก env ใน Render · ยังไม่เคย build image (เครื่องนี้ไม่มี docker) · รายการตรวจ: `docs/reports/deploy_render_checklist.md` |
+| Production Cloud deploy | Med | **Dockerfile + render.yaml + compose พร้อมแล้ว** · แก้ 13 พ.ย.: `ML_SERVICE_URL` จาก Render ไม่มี `http://` (เดิม Express เรียก ML ไม่ได้) + เติม env ที่ขาดใน `render.yaml` · ไฟล์โมเดลดาวน์โหลดจาก GitHub Release `models-2026-11-17` ตอน build (`ml_service/models/MANIFEST` + `scripts/fetch_models.sh` · ตรวจ sha256) · `render.yaml` ใช้ `rf_v2_event` · **ตั้งเป็นแผนฟรีช่วง demo (17 พ.ย. · ยังไม่ deploy)** — กรอก `ML_SERVICE_URL` เอง · ปลุกด้วย `express_api/scripts/warm_render.sh` ก่อน demo · checklist หัวข้อ 0 · เหลือ: สร้าง Blueprint + กรอก env ใน Render · ยังไม่เคย build image (เครื่องนี้ไม่มี docker) · รายการตรวจ: `docs/reports/deploy_render_checklist.md` |
 
 ---
 
@@ -247,6 +247,7 @@ All endpoints require `x-api-key` header.
 PORT=3000
 API_KEY=...
 ML_SERVICE_URL=http://localhost:8000
+ML_TIMEOUT_MS=5000            # รอ ML กี่ ms (Render แผนฟรีตั้ง 90000 เพราะ ML ต้องตื่นก่อน)
 SUPABASE_URL=...
 SUPABASE_KEY=...              # service_role ไม่ใช่ anon — จำเป็นหลังรัน accounts.sql (RLS)
 TWILIO_ACCOUNT_SID=...

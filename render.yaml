@@ -1,6 +1,12 @@
 # Render Blueprint — deploy ทั้งสอง service จาก repo นี้
 # ใช้โดยไปที่ Render → New → Blueprint แล้วชี้มาที่ repo
 #
+# ⚠️ ตอนนี้ตั้งเป็นแผนฟรีสำหรับช่วง demo (2026-11-17) — ไม่เหมาะกับใช้งานจริง:
+#    หลับหลังไม่มีคนเรียก 15 นาที (ตื่นราว 1 นาที) · 750 ชม./เดือนต่อ workspace · รับ private network ไม่ได้
+#    → Express เรียก ML ผ่าน URL สาธารณะ (ML_SERVICE_URL กรอกเอง) · ก่อน demo ปลุกด้วย express_api/scripts/warm_render.sh
+#    ขึ้นแผนเสียเงิน: plan → starter ทั้งสองตัว · ML_SERVICE_URL กลับไปใช้ fromService hostport · ลบ ML_TIMEOUT_MS
+#    รายละเอียด docs/reports/deploy_render_checklist.md หัวข้อ "แผนฟรีช่วง demo"
+#
 # ไฟล์โมเดล models/*.pkl ถูก gitignore ไว้ — Dockerfile ของ ml_service ดาวน์โหลดจาก GitHub Release
 #    ตาม fall_detection_backend/ml_service/models/MANIFEST (ตรวจ sha256) · ขั้นตอนทั้งหมด docs/reports/deploy_render_checklist.md
 
@@ -11,7 +17,7 @@ services:
     dockerfilePath: ./fall_detection_backend/ml_service/Dockerfile
     dockerContext: ./fall_detection_backend/ml_service
     healthCheckPath: /health
-    plan: starter
+    plan: free          # demo · ใช้งานจริง = starter
     envVars:
       - key: CSI_WINDOW_SIZE
         value: "200"
@@ -30,14 +36,17 @@ services:
     dockerfilePath: ./fall_detection_backend/express_api/Dockerfile
     dockerContext: ./fall_detection_backend/express_api
     healthCheckPath: /health
-    plan: starter
+    plan: free          # demo · ใช้งานจริง = starter
     envVars:
-      # ชี้ไปที่ ml service ตัวข้างบนโดยอัตโนมัติ ไม่ต้องกรอก URL เอง
+      # แผนฟรีรับ private network ไม่ได้ → กรอก URL สาธารณะของ tdg-ml-service เอง
+      # เช่น https://tdg-ml-service.onrender.com (ดู URL จริงในหน้า service — ถ้าชื่อซ้ำ Render จะต่อท้ายให้)
+      # ขึ้นแผนเสียเงินแล้วเปลี่ยนกลับเป็น:
+      #   fromService: { name: tdg-ml-service, type: web, property: hostport }
       - key: ML_SERVICE_URL
-        fromService:
-          name: tdg-ml-service
-          type: web
-          property: hostport
+        sync: false
+      # รอ ML service ที่กำลังตื่นได้ 90 วิ (ค่าเริ่มต้น 5 วิ ซึ่งสั้นกว่าเวลาตื่นของแผนฟรี)
+      - key: ML_TIMEOUT_MS
+        value: "90000"
 
       # ค่าที่ต้องกรอกเองใน Render dashboard (sync: false = ไม่เก็บไว้ในไฟล์นี้)
       # คีย์แยกตามผู้เรียก — ตั้งให้ครบใน production ไม่งั้นทุก scope ถอยไปใช้ API_KEY ตัวเดียว

@@ -4,7 +4,7 @@ let axios
 
 function loadService(env = {}) {
   jest.resetModules()
-  for (const key of ['USE_MOCK_ML', 'MOCK_IS_FALL', 'ML_SERVICE_URL']) {
+  for (const key of ['USE_MOCK_ML', 'MOCK_IS_FALL', 'ML_SERVICE_URL', 'ML_TIMEOUT_MS']) {
     delete process.env[key]
   }
   Object.assign(process.env, env)
@@ -70,6 +70,20 @@ describe('mlService.predict — real branch', () => {
     axios.post.mockResolvedValueOnce({ data: { is_fall: false, confidence: 0.1 } })
     await ml.predict([[1]])
     expect(axios.post.mock.calls[0][0]).toBe('http://tdg-ml-service:10000/predict')
+  })
+
+  test('ML_TIMEOUT_MS ตั้งเวลารอ ML service ได้ (แผนฟรีของ Render ต้องรอให้ ML ตื่น)', async () => {
+    const ml = loadService({ ML_SERVICE_URL: 'http://ml:8000', ML_TIMEOUT_MS: '70000' })
+    axios.post.mockResolvedValueOnce({ data: { is_fall: false, confidence: 0.1 } })
+    await ml.predict([[1]])
+    expect(axios.post.mock.calls[0][2]).toEqual({ timeout: 70000 })
+  })
+
+  test('ML_TIMEOUT_MS ที่อ่านไม่ได้ → ถอยไปใช้ 5 วิ', async () => {
+    const ml = loadService({ ML_SERVICE_URL: 'http://ml:8000', ML_TIMEOUT_MS: 'abc' })
+    axios.post.mockResolvedValueOnce({ data: { is_fall: false, confidence: 0.1 } })
+    await ml.predict([[1]])
+    expect(axios.post.mock.calls[0][2]).toEqual({ timeout: 5000 })
   })
 
   test('https:// เดิมไม่ถูกแตะ', async () => {
