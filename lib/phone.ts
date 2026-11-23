@@ -58,6 +58,56 @@ export function sanitizePhoneInput(input: string, prev: string): string {
   return digits.slice(0, max);
 }
 
+// ── เบอร์ผู้ติดต่อฉุกเฉิน ─────────────────────────────────────────
+// ต่างจากเบอร์ login: ผู้ติดต่ออาจเป็นเบอร์บ้านได้ ไม่ใช่มือถือเสมอ
+// เก็บในฐานแบบเลขในประเทศล้วน "0812345678" / "021234567" ให้ทุกแถวรูปแบบเดียวกัน
+// (เดิมเก็บตัวเลขอะไรก็ได้ 1–20 หลัก วาง +66 มาก็ได้ "66812345678")
+// เบอร์สั้นอย่าง 1669 ยังไม่รับ — Twilio โทรเบอร์สั้นของไทยไม่ได้ (รอ PM ตัดสินใจ)
+
+const CONTACT_MOBILE = /^0?([689]\d{8})$/; // มือถือ 10 หลัก · พิมพ์ไม่มี 0 นำหน้าก็รับ
+const CONTACT_LANDLINE = /^0[2-7]\d{7}$/; // เบอร์บ้าน 9 หลัก (02 กรุงเทพ · 03x–07x ต่างจังหวัด)
+
+export const CONTACT_PHONE_ERROR = "กรอกเบอร์มือถือ 10 หลัก หรือเบอร์บ้าน 9 หลัก ขึ้นต้นด้วย 0";
+
+// ตัด +66 / 66 แล้วเติม 0 กลับ — "+66 81-234-5678" → "0812345678" · "+66 2 123 4567" → "021234567"
+function toNationalDigits(input: string): string {
+  const digits = input.replace(/\D/g, "");
+  const stripped = stripCountryCode(input);
+  return stripped !== digits && !stripped.startsWith("0") ? `0${stripped}` : stripped;
+}
+
+/**
+ * ตัวกรองช่องเบอร์ผู้ติดต่อฉุกเฉิน (หน้าเพิ่ม / แก้ผู้ติดต่อ)
+ * ตัด +66 แล้วเติม 0 · เก็บเฉพาะตัวเลข · ยาวสุด 10 หลัก
+ * คนพิมพ์ 66812345678 ทีละตัว: ค้างที่ 10 หลักก่อน พอหลักที่ 11 มาจะถูกตัด 66 เหลือ 0812345678
+ * ตรวจว่าเป็นเบอร์ที่ใช้ได้ตอนกดบันทึก (normalizeContactPhone) ไม่ใช่ระหว่างพิมพ์
+ */
+export function sanitizeContactPhoneInput(input: string): string {
+  return toNationalDigits(input).slice(0, 10);
+}
+
+/** เบอร์ผู้ติดต่อที่จะบันทึก "0812345678" / "021234567" · ไม่ใช่มือถือหรือเบอร์บ้านไทยคืน null */
+export function normalizeContactPhone(input: string): string | null {
+  const d = toNationalDigits(input);
+  const mobile = CONTACT_MOBILE.exec(d);
+  if (mobile) return `0${mobile[1]}`;
+  if (CONTACT_LANDLINE.test(d)) return d;
+  return null;
+}
+
+/**
+ * แสดงเบอร์ผู้ติดต่อ: มือถือ "081-234-5678" · กรุงเทพ "02-123-4567" · ต่างจังหวัด "053-123-456"
+ * แถวเก่าที่อ่านไม่ออก (เช่นเบอร์ 1 หลักที่บันทึกไว้ก่อนมีการตรวจ) แสดงตามที่เก็บไว้
+ */
+export function formatContactPhone(value: string | null | undefined): string {
+  if (!value) return "";
+  const n = normalizeContactPhone(value);
+  if (!n) return value;
+  if (n.length === 10) return `${n.slice(0, 3)}-${n.slice(3, 6)}-${n.slice(6)}`;
+  if (n.startsWith("02")) return `${n.slice(0, 2)}-${n.slice(2, 5)}-${n.slice(5)}`;
+  return `${n.slice(0, 3)}-${n.slice(3, 6)}-${n.slice(6)}`;
+}
+
 /**
  * เบอร์ที่พิมพ์ไว้หน้า welcome — ส่งต่อให้หน้า login / register
  * เก็บในหน่วยความจำแทนการใส่ใน route params เพราะบนเว็บ params กลายเป็น URL (ติดประวัติเบราว์เซอร์)
