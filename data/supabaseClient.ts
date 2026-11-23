@@ -1,9 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
+import Constants from 'expo-constants';
 import { AppState, Platform } from 'react-native';
 
-const supabaseUrl = 'https://uszsloljezycwqebultu.supabase.co';
+// URL / คีย์มาจาก app.config.js (อ่าน EXPO_PUBLIC_SUPABASE_URL / _ANON_KEY ตอนเปิด Expo หรือตอน build)
+// ไม่ตั้ง = ฐานจริงของทีม · ฐานทดสอบ: ตั้งใน .env.local ดู .env.example
+type SupabaseExtra = { supabaseUrl?: string; supabaseAnonKey?: string };
+const extra = (Constants.expoConfig?.extra ?? {}) as SupabaseExtra;
 
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzenNsb2xqZXp5Y3dxZWJ1bHR1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxMTI1ODcsImV4cCI6MjA4ODY4ODU4N30.HRt07mguyz1Is-0PaCVcw-qtdIQYleolbBckFv4cpYM';
+if (!extra.supabaseUrl || !extra.supabaseAnonKey) {
+  // ไม่ถอยไปใช้ค่าฝังในโค้ด — ถอยแบบเงียบ ๆ คือวิธีที่คนเทสบนฐานทดสอบแล้วเผลอเขียนลงฐานจริง
+  throw new Error('[supabase] ไม่พบ supabaseUrl/supabaseAnonKey ใน expoConfig.extra — ตรวจ app.config.js');
+}
+
+const supabaseUrl = extra.supabaseUrl;
+const supabaseKey = extra.supabaseAnonKey;
+
+// บอกใน console ว่าคุยกับโปรเจกต์ไหน — เห็นทันทีถ้าลืมตั้ง .env.local แล้วไปโดนฐานจริง
+if (__DEV__) {
+  console.info(`[supabase] project: ${supabaseUrl.replace(/^https:\/\//, '').split('.')[0]}`);
+}
 
 type SessionStorage = {
   getItem: (key: string) => string | null | Promise<string | null>;
