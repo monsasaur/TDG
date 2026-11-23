@@ -60,14 +60,15 @@ export default function RegisterScreen() {
       return;
     }
     rememberPhone(phone);
+    // บัญชีใหม่ยังไม่มีบ้าน — พาไปสร้างบ้านหรือเข้าร่วมบ้านก่อน แทนหน้า home ที่ว่างเปล่า
     if (router.canDismiss()) router.dismissAll();
-    router.replace("/home" as any);
+    router.replace("/get-started" as any);
   };
 
   const goLogin = () => {
     rememberPhone(phone);
     if (router.canGoBack()) router.back();
-    else router.replace("/login" as any);
+    else router.replace("/welcome" as any);
   };
 
   return (
