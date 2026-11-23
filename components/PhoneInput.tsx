@@ -81,7 +81,9 @@ export default function PhoneInput({
           onChangeText={onChangeText}
           onBlur={onBlur}
           keyboardType="number-pad"
-          maxLength={10}
+          // ยาวพอให้วาง "+66 81-234-5678" ได้ทั้งก้อน — ตัวกรองของหน้า (sanitizePhoneInput) ตัดเหลือ ≤ 10 หลักเอง
+          // เดิม 10 ทำให้เบอร์ที่วางมาแบบ +66 โดนตัดท้ายก่อนถึงตัวกรอง (BUG-008)
+          maxLength={16}
           autoFocus={autoFocus}
         />
       </View>
