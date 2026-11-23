@@ -61,7 +61,16 @@ module.exports = {
         risk_score:    risk === undefined || risk === null ? null : Number(risk)
       }
     } catch (err) {
-      throw new Error(`ML Service error: ${err.message}`)
+      const wrapped = new Error(`ML Service error: ${err.message}`)
+      // ML ตอบ 4xx = ข้อมูลที่ส่งมาผิด (เช่นจำนวน feature ไม่ตรงโมเดล: rf_v1 416 · rf_v2_event 39)
+      // ไม่ใช่ server พัง — ส่งต่อเป็น 400 ให้ฝั่งอุปกรณ์รู้ว่าต้องแก้ข้อมูล (BUG-011 · เดิมกลายเป็น 500)
+      const status = err.response?.status
+      if (status >= 400 && status < 500) {
+        wrapped.badInput = true
+        const detail = err.response.data?.detail
+        wrapped.detail = typeof detail === 'string' ? detail : null
+      }
+      throw wrapped
     }
   }
 }

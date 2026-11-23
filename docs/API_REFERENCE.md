@@ -90,16 +90,16 @@ _ESP32 ส่งข้อมูลเข้ามา_
 | `device_id` | `string` | ✔ | เช่น `ESP-0001A` |
 | `timestamp` | `integer` |  | ไม่ส่งมาก็ใช้เวลาปัจจุบัน |
 | `location` | `string` |  | ค่าเริ่มต้น `unknown` · เช่น `ห้องนอน` |
-| `features` | `array` | ✔ | array ของ array — (sequence_len, 416) |
+| `features` | `array` | ✔ | array ของ array — (จำนวนกรอบ, จำนวนค่า) · จำนวนค่าต่อกรอบขึ้นกับโมเดลที่ ML service โหลด: rf_v1 = 416 · rf_v2_event = 39 (ดู `GET /health` ของ ML service → n_features) |
 
 **Responses**
 
 | รหัส | ความหมาย |
 |---|---|
 | `200` | ทำนายเสร็จ — action บอกว่าเกิดอะไรต่อ |
-| `400` | device_id หรือ features ไม่ถูกต้อง |
+| `400` | device_id หรือ features ไม่ถูกต้อง — รวมถึงจำนวนค่าต่อกรอบไม่ตรงกับโมเดล (มี `detail` จาก ML service) |
 | `401` | คีย์ผิด หรือใช้คีย์ผิด scope |
-| `500` | ทำนายไม่สำเร็จ |
+| `500` | ทำนายไม่สำเร็จ (ML service ล่ม / หมดเวลา / ฐานข้อมูลพัง) |
 
 <details><summary>ตัวอย่าง — ไม่ล้ม</summary>
 
