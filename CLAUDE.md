@@ -514,6 +514,7 @@ idf.py -p /dev/cu.usbserial-XXXX flash monitor
 # Escalation timing
 ACK_TIMEOUT_SECONDS=60     # วินาทีที่รอ ack ก่อน escalate (default 60)
 COOLDOWN_SECONDS=300        # cooldown ระหว่าง alert ต่อ device (default 300)
+ACK_DEDUP_SECONDS=30        # กดรับทราบแล้ว cooldown เหลือแค่นี้นับจากเวลาเกิดเหตุ (BUG-014 · ล้มซ้ำหลังรับทราบต้องแจ้งได้)
 
 # Push mode
 PUSH_MODE=real              # real = ยิง FCM จริง | fake = log console แทน

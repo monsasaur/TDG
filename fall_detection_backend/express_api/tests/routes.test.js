@@ -15,7 +15,7 @@ jest.mock('../src/services/dbService', () => ({
   getDeviceContext:  jest.fn(),
   isHouseMember:     jest.fn(),
 }))
-jest.mock('../src/services/escalationService', () => ({ cancel: jest.fn() }))
+jest.mock('../src/services/escalationService', () => ({ cancel: jest.fn(), releaseCooldown: jest.fn() }))
 jest.mock('../src/services/appAlertService', () => ({ markAcknowledged: jest.fn() }))
 jest.mock('../src/services/alertService', () => ({ sendSms: jest.fn(), makeCall: jest.fn() }))
 jest.mock('../src/services/pushService', () => ({ sendFallAlert: jest.fn() }))
@@ -72,6 +72,20 @@ describe('POST /api/v1/alert/ack — ก่อนรัน accounts.sql (แบ�
     expect(appAlert.markAcknowledged).toHaveBeenCalledWith('evt-1', 'ชื่อที่แอปส่งมา')
   })
 
+  // BUG-014: กดรับทราบแล้วต้องปลด cooldown ไม่งั้นล้มอีกครั้งใน 5 นาทีจะไม่แจ้งและไม่บันทึก
+  test('รับทราบแล้วปลด cooldown ของอุปกรณ์นั้น', async () => {
+    const res = await ack()
+    expect(res.status).toBe(200)
+    expect(escalation.releaseCooldown).toHaveBeenCalledWith('ESP-0001A', 'evt-1')
+  })
+
+  test('กดซ้ำหลังรับทราบไปแล้ว → ไม่แตะ cooldown', async () => {
+    db.getEvent.mockResolvedValue({ ...pendingEvent, acknowledged: true })
+    const res = await ack()
+    expect(res.status).toBe(200)
+    expect(escalation.releaseCooldown).not.toHaveBeenCalled()
+  })
+
   test('ส่ง token เสียมา → 401 และไม่ยกเลิกการโทร', async () => {
     const res = await ack({ Authorization: 'Bearer expired' })
     expect(res.status).toBe(401)
@@ -113,6 +127,8 @@ describe('POST /api/v1/alert/ack — หลังรัน accounts.sql', () => 
     const res = await ack({ Authorization: 'Bearer good' })
     expect(res.status).toBe(409)
     expect(escalation.cancel).not.toHaveBeenCalled()
+    // โทรออกไปแล้ว — คง cooldown เต็มไว้ ไม่ให้โทรซ้ำเรื่องเดิม
+    expect(escalation.releaseCooldown).not.toHaveBeenCalled()
   })
 
   test('ไม่พบเหตุการณ์ → 404', async () => {

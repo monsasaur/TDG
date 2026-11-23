@@ -28,6 +28,11 @@ const demoLog = require("../utils/demoLog");
 const ACK_TIMEOUT_SECONDS = Number(process.env.ACK_TIMEOUT_SECONDS || 60);
 const COOLDOWN_SECONDS = Number(process.env.COOLDOWN_SECONDS || 300);
 
+// หลังผู้ดูแลกดรับทราบ บล็อกต่อแค่ช่วงนี้ (นับจากเวลาเกิดเหตุ) แทน COOLDOWN_SECONDS เต็ม
+// โมเดลยิงซ้ำหลายกรอบจากการล้มครั้งเดียวกัน ช่วงสั้น ๆ นี้กันไม่ให้ครั้งเดิมเด้งเป็นเหตุการณ์ใหม่
+// แต่การล้มครั้งใหม่หลังจากนั้นต้องแจ้งได้ (BUG-014 · เดิมเงียบไปทั้ง 5 นาทีและไม่บันทึกด้วย)
+const ACK_DEDUP_SECONDS = Number(process.env.ACK_DEDUP_SECONDS || 30);
+
 // ตาข่ายรองรับ — เรียก recoverPending ซ้ำทุกกี่วินาที
 const SWEEP_SECONDS = Number(process.env.ESCALATION_SWEEP_SECONDS || 60);
 
@@ -46,24 +51,39 @@ const MAX_ESCALATION_AGE_SECONDS = Number(
 // event_id → timeout handle
 const pendingTimers = new Map();
 
-// device_id → timestamp ของ alert ล่าสุด (กัน spam)
+// device_id → { at, until, event_id } ของ alert ล่าสุด (กัน spam)
+//   at    = เวลาเกิดเหตุ · until = บล็อกถึงเมื่อไร · event_id = เหตุการณ์เจ้าของ cooldown
 const deviceCooldown = new Map();
 
 let sweepTimer = null;
 let sweeping = false;
 
 function inCooldown(device_id) {
-  const last = deviceCooldown.get(device_id);
-  if (!last) return false;
-  const elapsed = (Date.now() - last) / 1000;
-  return elapsed < COOLDOWN_SECONDS;
+  const entry = deviceCooldown.get(device_id);
+  if (!entry) return false;
+  return Date.now() < entry.until;
 }
 
 // at = เวลาที่เกิดเหตุการณ์ ไม่ใช่เวลาที่บันทึก — ตอนกู้คืนต้องนับจากของเดิม
 // ไม่งั้นเหตุการณ์เก่าที่เพิ่งกู้มาจะไปบล็อก alert ใหม่ของอุปกรณ์นั้น
-function markCooldown(device_id, at = Date.now()) {
+function markCooldown(device_id, at = Date.now(), event_id = null) {
   const prev = deviceCooldown.get(device_id);
-  if (!prev || at > prev) deviceCooldown.set(device_id, at);
+  if (!prev || at > prev.at) {
+    deviceCooldown.set(device_id, {
+      at,
+      until: at + COOLDOWN_SECONDS * 1000,
+      event_id,
+    });
+  }
+}
+
+// ผู้ดูแลกดรับทราบแล้ว → ไม่ต้องกัน spam ต่ออีก 5 นาที เหลือแค่ช่วงกันซ้ำ ACK_DEDUP_SECONDS
+// ลดเฉพาะเมื่อ cooldown เป็นของเหตุการณ์นี้ — ถ้ามีเหตุการณ์ใหม่กว่ามาแทนแล้ว ห้ามไปลดของมัน
+function releaseCooldown(device_id, event_id) {
+  const entry = deviceCooldown.get(device_id);
+  if (!entry || entry.event_id !== event_id) return false;
+  entry.until = Math.min(entry.until, entry.at + ACK_DEDUP_SECONDS * 1000);
+  return true;
 }
 
 function eventTimeMs(event) {
@@ -192,7 +212,7 @@ function schedule(event, { delayMs, cooldownAt } = {}) {
     return;
   }
 
-  markCooldown(device_id, cooldownAt);
+  markCooldown(device_id, cooldownAt, event_id);
 
   const delay = Number.isFinite(delayMs)
     ? Math.max(delayMs, 0)
@@ -255,7 +275,7 @@ async function recoverPending() {
         await markDropped(event);
         summary.dropped += 1;
       } else {
-        markCooldown(event.device_id, createdMs);
+        markCooldown(event.device_id, createdMs, event.id);
         await escalate(event);
         summary.escalated += 1;
       }
@@ -279,10 +299,12 @@ async function recoverPending() {
 module.exports = {
   ACK_TIMEOUT_SECONDS,
   COOLDOWN_SECONDS,
+  ACK_DEDUP_SECONDS,
   SWEEP_SECONDS,
   MAX_ESCALATION_AGE_SECONDS,
 
   inCooldown,
+  releaseCooldown,
   schedule,
   recoverPending,
 
