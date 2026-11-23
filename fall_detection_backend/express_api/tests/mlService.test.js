@@ -133,4 +133,33 @@ describe('mlService.predict — real branch', () => {
 
     await expect(ml.predict([[0]])).rejects.toThrow(/ML Service error: ECONNREFUSED/)
   })
+
+  // BUG-011: ML ตอบ 400 (จำนวน feature ไม่ตรงโมเดล) ต้องถูกระบุว่าเป็นข้อมูลผิด ไม่ใช่ server พัง
+  test('ML ตอบ 4xx → ติดป้าย badInput พร้อม detail', async () => {
+    const ml = loadService({ ML_SERVICE_URL: 'http://ml:8000' })
+    const err = Object.assign(new Error('Request failed with status code 400'), {
+      response: { status: 400, data: { detail: 'rf_v2_event ต้องการ 39 ค่าต่อ window แต่ได้ 416' } }
+    })
+    axios.post.mockRejectedValueOnce(err)
+
+    await expect(ml.predict([[0]])).rejects.toMatchObject({
+      badInput: true,
+      detail: 'rf_v2_event ต้องการ 39 ค่าต่อ window แต่ได้ 416'
+    })
+  })
+
+  test('ML ตอบ 422 แบบ detail เป็น array (pydantic) → badInput แต่ detail = null', async () => {
+    const ml = loadService({ ML_SERVICE_URL: 'http://ml:8000' })
+    axios.post.mockRejectedValueOnce(Object.assign(new Error('422'), {
+      response: { status: 422, data: { detail: [{ loc: ['body'], msg: 'x' }] } }
+    }))
+    await expect(ml.predict([[0]])).rejects.toMatchObject({ badInput: true, detail: null })
+  })
+
+  test('ML ตอบ 5xx หรือเชื่อมต่อไม่ได้ → ไม่ใช่ badInput', async () => {
+    const ml = loadService({ ML_SERVICE_URL: 'http://ml:8000' })
+    axios.post.mockRejectedValueOnce(Object.assign(new Error('500'), { response: { status: 500, data: {} } }))
+    const err = await ml.predict([[0]]).catch((e) => e)
+    expect(err.badInput).toBeUndefined()
+  })
 })

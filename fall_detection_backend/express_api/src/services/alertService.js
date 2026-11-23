@@ -45,7 +45,32 @@ function fakeBox(title, lines) {
   console.log("╚" + "═".repeat(W - 2) + "╝");
 }
 
+// ข้อความที่ใส่ใน TwiML ต้อง escape — ชื่อบริเวณมาจากผู้ใช้ และบทพูดมาจาก AI
+// ถ้ามี & หรือ < หลุดเข้าไป XML จะเสีย Twilio ปฏิเสธทั้งสาย = ไม่มีใครได้รับโทรฉุกเฉิน (BUG-013)
+function escapeXml(text) {
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function buildCallTwiml(message) {
+  const say = escapeXml(message);
+  return `
+              <Response>
+                <Say language="th-TH" voice="Google.th-TH-Chirp3-HD-Kore">${say}</Say>
+                <Pause length="1"/>
+                <Say language="th-TH" voice="Google.th-TH-Chirp3-HD-Kore">ย้ำ ${say}</Say>
+              </Response>
+            `;
+}
+
 module.exports = {
+  escapeXml,
+  buildCallTwiml,
+
   // SMS — ใช้ตอน escalation (ไม่มีการตอบรับภายใน timeout)
   sendSms: async ({ device_id, location, confidence, event_id }) => {
     const phones = recipients();
@@ -165,13 +190,7 @@ module.exports = {
     const results = await Promise.allSettled(
       phones.map((to) =>
         getClient().calls.create({
-          twiml: `
-              <Response>
-                <Say language="th-TH" voice="Google.th-TH-Chirp3-HD-Kore">${voiceMessage}</Say>
-                <Pause length="1"/>
-                <Say language="th-TH" voice="Google.th-TH-Chirp3-HD-Kore">ย้ำ ${voiceMessage}</Say>
-              </Response>
-            `,
+          twiml: buildCallTwiml(voiceMessage),
           from: process.env.TWILIO_PHONE,
           to,
         }),
