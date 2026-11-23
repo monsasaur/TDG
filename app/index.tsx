@@ -12,6 +12,8 @@ import SpinningLogo from "../components/SpinningLogo";
 import { useAuth } from "../contexts/AuthContext";
 
 const RING_SIZE = 280;
+/** เวลาขั้นต่ำที่โชว์ splash ให้โลโก้ขึ้นครบ — อ่าน session เสร็จก่อนก็ยังรอถึงตรงนี้ (เดิมรอ 5 วิทุกครั้ง) */
+const MIN_SPLASH_MS = 1800;
 
 export default function SplashScreen() {
   const router = useRouter();
@@ -25,17 +27,17 @@ export default function SplashScreen() {
 
   useEffect(() => {
     bgOpacity.value = withDelay(
-      600,
-      withTiming(1, { duration: 500, easing: Easing.inOut(Easing.ease) })
+      200,
+      withTiming(1, { duration: 400, easing: Easing.inOut(Easing.ease) })
     );
 
-    ringOpacity.value = withDelay(1100, withTiming(1, { duration: 400 }));
+    ringOpacity.value = withDelay(500, withTiming(1, { duration: 300 }));
     ringScale.value = withDelay(
-      1100,
-      withTiming(1, { duration: 700, easing: Easing.out(Easing.back(1.2)) })
+      500,
+      withTiming(1, { duration: 600, easing: Easing.out(Easing.back(1.2)) })
     );
 
-    const timeout = setTimeout(() => setAnimDone(true), 5000);
+    const timeout = setTimeout(() => setAnimDone(true), MIN_SPLASH_MS);
 
     return () => clearTimeout(timeout);
   }, []);
@@ -61,7 +63,7 @@ export default function SplashScreen() {
       <Animated.View style={[StyleSheet.absoluteFillObject, bgStyle]} />
       <View className="flex-1 justify-center items-center">
         <Animated.View style={containerStyle}>
-          <SpinningLogo size={RING_SIZE} delay={1400} />
+          <SpinningLogo size={RING_SIZE} delay={800} />
         </Animated.View>
       </View>
     </View>

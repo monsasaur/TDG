@@ -12,7 +12,7 @@
 | Escalation / Acknowledge flow | ✅ | escalationService.js — timer in-memory, Twilio fallback |
 | Push token registration | ✅ | `POST /api/v1/push/register` |
 | Demo trigger endpoint | ✅ | `POST /api/v1/demo/fire` — ข้าม ML ไปยิง push ตรงๆ |
-| Mobile app (Expo) | ✅ | 32 หน้า — login/สมัคร/บ้าน/สมาชิก/ผู้ติดต่อฉุกเฉิน/อุปกรณ์/แจ้งเตือน/ประวัติการเปลี่ยนแปลง · รับ push · รายการแจ้งเตือนดึงตาราง `alerts` ทุก 10 วิ · กดรับทราบส่ง `alerts.fall_event_id` (แก้ 12 พ.ย. — เดิมส่ง `alerts.id` ได้ 404 แบบเงียบ) · แก้ 13 พ.ย.: นับถอยหลังคิดจาก `created_at` (เดิมเริ่ม 60 ใหม่ทุกครั้งที่เปิดแอป) · ลบการแจ้งเตือน = ซ่อนต่อบัญชีต่อเครื่อง ไม่ซ่อนการ์ดที่ยังรอ · ปุ่มบันทึก/ลบอุปกรณ์ทำงานจริง (เดิมแค่ย้อนกลับ) · ผู้ดูแลไม่เห็นปุ่มของเจ้าของบ้าน · สวิตช์แจ้งเตือน = สิทธิ์จริงของเครื่อง · **ทดสอบบนเว็บเท่านั้น ยังไม่ได้ลองบนมือถือ** → `docs/reports/device_test_checklist.md` |
+| Mobile app (Expo) | ✅ | 33 หน้า — login/สมัคร/เริ่มต้นใช้งาน/บ้าน/สมาชิก/ผู้ติดต่อฉุกเฉิน/อุปกรณ์/แจ้งเตือน/ประวัติการเปลี่ยนแปลง · รับ push · รายการแจ้งเตือนดึงตาราง `alerts` ทุก 10 วิ · กดรับทราบส่ง `alerts.fall_event_id` (แก้ 12 พ.ย. — เดิมส่ง `alerts.id` ได้ 404 แบบเงียบ) · แก้ 13 พ.ย.: นับถอยหลังคิดจาก `created_at` (เดิมเริ่ม 60 ใหม่ทุกครั้งที่เปิดแอป) · ลบการแจ้งเตือน = ซ่อนต่อบัญชีต่อเครื่อง ไม่ซ่อนการ์ดที่ยังรอ · ปุ่มบันทึก/ลบอุปกรณ์ทำงานจริง (เดิมแค่ย้อนกลับ) · ผู้ดูแลไม่เห็นปุ่มของเจ้าของบ้าน · สวิตช์แจ้งเตือน = สิทธิ์จริงของเครื่อง · **ทดสอบบนเว็บเท่านั้น ยังไม่ได้ลองบนมือถือ** → `docs/reports/device_test_checklist.md` |
 | Supabase schema | ✅ | รัน `schema.sql` (ตัวบน dev) บนฐานจริงแล้ว 2026-11-13 — ตรวจแบบอ่านอย่างเดียว: คอลัมน์/ตารางใหม่ครบ · Phone provider เปิดแล้ว (ปิด phone confirmations) · `accounts.sql` ยังไม่รัน (ตั้งใจ — หลังทดสอบสด) |
 | ESP32 USB Serial mode | ✅ | csi_collector_serial.py @ 921600 baud |
 | End-to-end demo flow | ⚠️ | ESP32 → API → Push → Twilio ใช้ได้ · **รายการในแอปยังไม่เห็นเหตุการณ์จริง** จึงกดรับทราบจากรายการไม่ได้ (ตรวจ 2026-11-12 — ดูแถว "ฐานข้อมูลจริง + Express ยังไม่ต่อกัน") |
@@ -45,9 +45,10 @@ Hybrid AI-driven fall detection system using WiFi CSI (Channel State Information
 
 ```
 TDG/
-├── app/                          # React Native + Expo (expo-router) — 32 หน้า
+├── app/                          # React Native + Expo (expo-router) — 33 หน้า
 │   ├── _layout.tsx  index.tsx  welcome.tsx  home.tsx  settings.tsx
-│   ├── login.tsx  register.tsx                                    # เบอร์โทร + รหัสผ่าน (Supabase Auth)
+│   ├── welcome.tsx (เข้าสู่ระบบ: เบอร์+รหัสผ่านหน้าเดียว · ปุ่มสมัคร) · login.tsx (ส่งต่อไป welcome) · register.tsx  # Supabase Auth
+│   ├── get-started.tsx                                            # ยังไม่มีบ้าน → สร้างบ้าน / QR / รหัสเชิญ / ข้าม (หลังสมัคร · login แล้วไม่เห็นบ้าน)
 │   ├── houses.tsx  add-house.tsx  select-house.tsx  manage-home.tsx
 │   ├── devices.tsx  device-details.tsx
 │   ├── scan-devices.tsx  device-pairing-code.tsx  connect-device.tsx  # ← BLE provisioning flow

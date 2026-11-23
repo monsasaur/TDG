@@ -38,6 +38,17 @@ export function useHouses() {
   return { houses, isLoading, refetch: fetchHouses };
 }
 
+/**
+ * บัญชีที่ login อยู่มองเห็นบ้านอย่างน้อยหนึ่งหลังไหม — ใช้ตัดสินว่าหลัง login ไปหน้า home หรือหน้าเริ่มต้นใช้งาน
+ * null = เช็คไม่ได้ (เน็ตหลุด / ฐานข้อมูลตอบ error) → ผู้เรียกควรถือว่ามีไว้ก่อน ไม่ขวางทางเข้าแอป
+ * หลังรัน accounts.sql RLS กรองให้เห็นเฉพาะบ้านที่เป็นสมาชิก · ก่อนรันจะเห็นทุกบ้านในตาราง
+ */
+export async function hasAnyHouse(): Promise<boolean | null> {
+  const { data, error } = await supabase.from("houses").select("id").limit(1);
+  if (error) return null;
+  return (data?.length ?? 0) > 0;
+}
+
 export type HouseRole = "owner" | "caregiver";
 
 /**

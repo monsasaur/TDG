@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { requestNotificationPermissions } from "../lib/notifications";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -27,10 +27,23 @@ const PAGE_SIZE = 5;
 export default function HomeScreen() {
   const router = useRouter();
   const { alerts, systemAlerts, setAlerts, acknowledgeAlert } = useAlerts();
-  const { houses: dbHouses } = useHouses();
+  const { houses: dbHouses, isLoading: housesLoading, refetch: refetchHouses } = useHouses();
 
   // แปลงบ้านจาก Database ให้กลายเป็น Array
   const HOUSES = useMemo(() => dbHouses.map((h) => h.name), [dbHouses]);
+  const noHouse = !housesLoading && dbHouses.length === 0;
+
+  // กลับมาจากหน้าเริ่มต้นใช้งาน / สร้างบ้าน / เข้าร่วมบ้าน → ดึงบ้านใหม่ (เปิดหน้าครั้งแรก hook ดึงให้แล้ว)
+  const firstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return;
+      }
+      refetchHouses();
+    }, [refetchHouses]),
+  );
 
   const [activeTab, setActiveTab] = useState<"fall" | "system">("fall");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -253,6 +266,22 @@ export default function HomeScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {noHouse && (
+        <View className="mx-5 mt-3 rounded-2xl bg-white px-5 py-4">
+          <Text className="text-sm font-semibold text-[#1A1A1A]">ยังไม่มีบ้าน</Text>
+          <Text className="text-xs text-[#888888] mt-1 leading-[18px]">
+            สร้างบ้านใหม่ หรือเข้าร่วมบ้านด้วยรหัสเชิญ เพื่อเริ่มรับการแจ้งเตือนเมื่อมีคนล้ม
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.push("/get-started" as any)}
+            activeOpacity={0.8}
+            className="mt-3 h-[40px] rounded-[20px] bg-[#FF3055] items-center justify-center"
+          >
+            <Text className="text-sm font-semibold text-white">เพิ่มบ้าน</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {ackNotice && (
         <View className="mx-5 mt-3 rounded-xl bg-[#FFE5E8] px-4 py-3 flex-row items-start">
