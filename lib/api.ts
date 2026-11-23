@@ -5,7 +5,7 @@
  * ตั้งค่าตอน dev บนเครื่องตัวเองด้วย .env.local:
  *
  *   EXPO_PUBLIC_API_BASE_URL=http://192.168.1.42:3000   # IP เครื่องคุณ ถ้าใช้มือถือจริง
- *   EXPO_PUBLIC_API_KEY=dev-secret-key-123
+ *   EXPO_PUBLIC_API_KEY=<ค่าเดียวกับ APP_API_KEY ของ Express>   # บังคับ — ไม่ตั้ง app.config.js หยุด
  *
  * ตอน build ผ่าน EAS ให้ตั้งเป็น environment variable ต่อ profile (ดู eas.json)
  *
@@ -26,7 +26,11 @@ const fallbackBaseUrl =
   Platform.OS === "web" ? "http://localhost:3000" : "http://10.0.2.2:3000";
 
 export const API_BASE_URL = extra.apiBaseUrl ?? fallbackBaseUrl;
-export const API_KEY = extra.apiKey ?? "dev-secret-key-123";
+if (!extra.apiKey) {
+  // app.config.js หยุดไปก่อนแล้วถ้าไม่ได้ตั้ง — มาถึงตรงนี้แปลว่า config ไม่ผ่าน app.config.js
+  throw new Error("[api] ไม่พบ apiKey ใน expoConfig.extra — ตรวจ app.config.js / EXPO_PUBLIC_API_KEY");
+}
+export const API_KEY = extra.apiKey;
 
 const headers = {
   "x-api-key": API_KEY,

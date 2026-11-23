@@ -71,6 +71,22 @@ function resolveSupabase(env) {
   return { supabaseUrl: url.replace(/\/$/, ""), supabaseAnonKey: key };
 }
 
+/**
+ * คีย์ x-api-key ของแอป (= APP_API_KEY ของ Express) — ไม่มีค่าสำรองแล้ว
+ * เดิมถอยไปใช้ "dev-secret-key-123" ถ้าลืมตั้ง คีย์ที่อยู่ในรีโปสาธารณะจึงติดไปกับแอปที่ build แบบเงียบ ๆ (SEC-008)
+ * ตอน dev ใส่ใน .env.local · EAS ตั้งเป็น environment variable ของแต่ละ profile
+ */
+function resolveApiKey(env) {
+  const key = (env.EXPO_PUBLIC_API_KEY || "").trim();
+  if (!key) {
+    throw new Error(
+      "[app.config] ยังไม่ได้ตั้ง EXPO_PUBLIC_API_KEY — ใส่ค่าเดียวกับ APP_API_KEY ของ Express " +
+        "ใน .env.local (ดู .env.example) หรือใน environment variable ของ EAS แล้วเปิด Expo ใหม่",
+    );
+  }
+  return key;
+}
+
 module.exports = ({ config }) => {
   const android = { ...(config.android || {}) };
 
@@ -91,7 +107,7 @@ module.exports = ({ config }) => {
   //   (`ipconfig getifaddr en0`) หรือ URL ของ Render ตอน deploy แล้ว
   const apiBaseUrl =
     process.env.EXPO_PUBLIC_API_BASE_URL || "http://10.0.2.2:3000";
-  const apiKey = process.env.EXPO_PUBLIC_API_KEY || "dev-secret-key-123";
+  const apiKey = resolveApiKey(process.env);
 
   const { supabaseUrl, supabaseAnonKey } = resolveSupabase(process.env);
 
@@ -110,4 +126,5 @@ module.exports = ({ config }) => {
 
 // ให้ตรวจ resolveSupabase แยกได้ (node -e) โดยไม่ต้องเปิด Expo
 module.exports.resolveSupabase = resolveSupabase;
+module.exports.resolveApiKey = resolveApiKey;
 module.exports.LIVE_SUPABASE_URL = LIVE_SUPABASE_URL;
