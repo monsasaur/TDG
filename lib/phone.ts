@@ -7,9 +7,25 @@
 
 const THAI_MOBILE = /^0?([689]\d{8})$/;
 
-/** "0812345678" · "812345678" · "081-234-5678" → "+66812345678" · ไม่ใช่มือถือไทยคืน null */
+/**
+ * ตัดรหัสประเทศ 66 ออกจากเบอร์ที่วาง/พิมพ์มาแบบสากล (BUG-008)
+ * เดิม "+66812345678" ถูกตัดเหลือ 9 หลักเป็น "668123456" = เบอร์ของคนอื่น โดยไม่มี error
+ *
+ * ตัดเฉพาะเมื่อแน่ใจว่าเป็นรหัสประเทศ — ไม่งั้นจะชนกับเบอร์ 06x ที่พิมพ์โดยไม่มี 0 นำหน้า ("66xxxxxxx" 9 หลัก):
+ *   - มี + นำหน้า ("+66 81 234 5678" · "+660812345678")
+ *   - หรือตัวเลขยาว 11 หลักขึ้นไปที่ขึ้นต้น 66 (เบอร์ไทยแบบไม่มี 0 ยาวสุด 9 หลัก จึงไม่มีทางยาวขนาดนี้)
+ * เหลือ 0 นำหน้าหลังตัด ("+66 081...") ก็คงไว้ ตัวกรองถัดไปรับได้
+ */
+function stripCountryCode(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  const hadPlus = raw.trim().startsWith("+");
+  if (digits.startsWith("66") && (hadPlus || digits.length >= 11)) return digits.slice(2);
+  return digits;
+}
+
+/** "0812345678" · "812345678" · "081-234-5678" · "+66812345678" → "+66812345678" · ไม่ใช่มือถือไทยคืน null */
 export function toE164TH(input: string): string | null {
-  const m = THAI_MOBILE.exec(input.replace(/\D/g, ""));
+  const m = THAI_MOBILE.exec(stripCountryCode(input));
   return m ? `+66${m[1]}` : null;
 }
 
@@ -29,13 +45,17 @@ const VALID_FIRST_DIGITS = ["0", "6", "8", "9"];
 
 /**
  * ตัวกรองช่องกรอกเบอร์ (ใช้ร่วมกันหน้า welcome / login / register)
- * เก็บเฉพาะตัวเลข · ตัวแรกต้องเป็น 0 6 8 9 ไม่งั้นคงค่าเดิมไว้ · ยาวสุด 10 หลักถ้าขึ้นต้น 0 ไม่งั้น 9
+ * ตัดรหัสประเทศ 66 ออกก่อน (ดู stripCountryCode) · เก็บเฉพาะตัวเลข · ตัวแรกต้องเป็น 0 6 8 9 ไม่งั้นคงค่าเดิมไว้
+ * ยาวสุด 10 หลักถ้าขึ้นต้น 0 ไม่งั้น 9 — ยกเว้นขึ้นต้น 66 ยอมให้ถึง 10 หลักไว้ก่อน
+ * เพราะอาจเป็นคนพิมพ์ 66812345678 ทีละตัว พอครบ 11 หลักจะถูกตัด 66 ออกเหลือ 812345678
+ * (ถ้าหยุดที่ 9 หลัก = เบอร์ 066... ตามปกติ · ค้างที่ 10 หลัก toE164TH จะไม่ผ่าน หน้าจอขึ้นว่าเบอร์ไม่ถูกต้อง)
  */
 export function sanitizePhoneInput(input: string, prev: string): string {
-  const digits = input.replace(/\D/g, "");
+  const digits = stripCountryCode(input);
   if (digits.length === 0) return "";
   if (!VALID_FIRST_DIGITS.includes(digits[0])) return prev;
-  return digits.slice(0, digits[0] === "0" ? 10 : 9);
+  const max = digits[0] === "0" || digits.startsWith("66") ? 10 : 9;
+  return digits.slice(0, max);
 }
 
 /**
