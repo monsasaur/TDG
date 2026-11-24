@@ -9,6 +9,8 @@ const { createClient } = (() => {
   catch { return { createClient: null } }
 })()
 
+const crypto = require('crypto')
+
 let supabase = null
 const mockStore = new Map()        // fallback เมื่อไม่มี Supabase (fall_events + push_tokens)
 const mockDevices = new Map()      // fallback ของตาราง devices
@@ -55,9 +57,11 @@ module.exports = {
       return record
     }
 
+    // ใส่ id เอง ไม่พึ่ง DEFAULT ของฐาน — fall_events บนฐานจริงเป็น id TEXT ที่ไม่มีค่าเริ่มต้น
+    // (สร้างก่อน schema.sql) ส่ง insert โดยไม่มี id จะล้มด้วย not-null ทุกครั้ง · แบบเดียวกับ alerts
     const { data, error } = await client
       .from('fall_events')
-      .insert([event])
+      .insert([{ id: crypto.randomUUID(), ...event }])
       .select()
       .single()
 

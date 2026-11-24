@@ -120,6 +120,12 @@ CREATE INDEX IF NOT EXISTS idx_push_device_id ON push_tokens(device_id);
 -- ส่วน `code` คือรหัสที่พิมพ์อยู่บนตัวเครื่อง ซึ่ง BLE provisioning เขียนลง NVS
 -- และผู้ใช้สแกน QR ได้อยู่แล้ว — log กับหน้า admin ก็อ่านรู้เรื่องด้วย
 
+-- ── เวลาเกิดเหตุจากอุปกรณ์ (เพิ่ม 2026-11-24) ─────────────────────────────
+-- ฐานจริงมีตาราง fall_events อยู่ก่อนที่ CREATE TABLE ด้านบนจะมี timestamp
+-- (CREATE TABLE IF NOT EXISTS จึงข้ามไป) — Express เขียนและเรียงตามคอลัมน์นี้
+-- ขาดแล้วสร้างเหตุการณ์ไม่ได้เลย: "Could not find the 'timestamp' column"
+ALTER TABLE fall_events ADD COLUMN IF NOT EXISTS "timestamp" BIGINT;
+
 -- ── ที่มาของการทำนาย (เพิ่ม 2026-09-09 สำหรับหน้า Admin) ────────────────
 -- บันทึกว่าเหตุการณ์นี้ตัดสินด้วยโมเดลตัวไหน เพื่อให้ย้อนตรวจได้ว่า
 -- ตอนเปลี่ยนโมเดลแล้วผลเปลี่ยนไปยังไง
@@ -162,6 +168,12 @@ ALTER TABLE alerts ADD COLUMN IF NOT EXISTS fall_event_id TEXT;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_fall_event_id
   ON alerts(fall_event_id) WHERE fall_event_id IS NOT NULL;
+
+-- สถานะที่แอปรู้จัก (types/alert.ts) — ฐานจริงมี CHECK เก่าที่ไม่มี 'in_progress' (พบ 2026-11-24)
+-- Express ตั้ง in_progress ตอนหมดเวลาแล้วโทรออก → ถูกปฏิเสธ การ์ดค้าง "active" ทั้งที่ระบบโทรไปแล้ว
+ALTER TABLE alerts DROP CONSTRAINT IF EXISTS alerts_status_check;
+ALTER TABLE alerts ADD CONSTRAINT alerts_status_check
+  CHECK (status IN ('active', 'completed', 'no_response', 'in_progress'));
 
 
 -- ============================================================

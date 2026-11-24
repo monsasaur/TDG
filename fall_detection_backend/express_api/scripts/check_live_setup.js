@@ -78,6 +78,11 @@ async function checkSupabase() {
   }
   ok(`ต่อฐานข้อมูลได้ · fall_events มี ${fe.count ?? '?'} แถว`)
 
+  const ts = await db.from('fall_events').select('timestamp').limit(1)
+  if (missing(ts.error)) fail('fall_events ยังไม่มีคอลัมน์ timestamp — Express บันทึกการล้มไม่ได้เลย',
+                              `${FIX} ข้อ 1 (รัน schema.sql)`)
+  else if (!ts.error) ok('fall_events มีคอลัมน์ timestamp')
+
   const al = await db.from('alerts').select('id, fall_event_id').limit(1)
   if (missing(al.error)) fail('alerts ยังไม่มีคอลัมน์ fall_event_id — Express สร้างการ์ดในแอปไม่ได้', `${FIX} ข้อ 1 (รัน schema.sql)`)
   else if (al.error) fail(`อ่านตาราง alerts ไม่ได้: ${al.error.message}`)
