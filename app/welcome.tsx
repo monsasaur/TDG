@@ -13,7 +13,6 @@ import AuthField from "../components/AuthField";
 import PhoneInput from "../components/PhoneInput";
 import SpinningLogo from "../components/SpinningLogo";
 import { useAuth } from "../contexts/AuthContext";
-import { hasAnyHouse } from "../data/useHouses";
 import { rememberedPhone, rememberPhone, sanitizePhoneInput, toE164TH } from "../lib/phone";
 import { BTN } from "../components/buttonTheme";
 import IconField from "../components/IconField";
@@ -64,11 +63,10 @@ export default function WelcomeScreen() {
       return;
     }
     rememberPhone(phone);
-    // เช็คไม่ได้ (null) ให้ไปหน้า home ไว้ก่อน — หน้า home มีปุ่มเพิ่มบ้านให้อยู่แล้วถ้ายังไม่มีบ้าน
-    const anyHouse = await hasAnyHouse();
     // ล้างหน้านี้ออกจาก stack — กดย้อนจากหน้าถัดไปแล้วไม่วนกลับมาหน้า login
     if (router.canDismiss()) router.dismissAll();
-    router.replace((anyHouse === false ? "/get-started" : "/home") as any);
+    // ไม่มีบ้านก็เข้าหน้าหลักได้ — ระบบสร้างบ้านพื้นฐาน "บ้าน" ให้เอง (app/_layout.tsx)
+    router.replace("/home" as any);
   };
 
   const goRegister = () => {

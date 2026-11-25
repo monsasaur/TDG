@@ -4,6 +4,7 @@ import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import HousePicker from "../components/HousePicker";
 import PageHeader from "../components/PageHeader";
 import PrimaryButton from "../components/PrimaryButton";
+import { useHouseFilter } from "../contexts/HouseFilterContext";
 import { useHouses } from "../data/useHouses";
 import { useOwnerAccess } from "../data/useOwnerAccess";
 
@@ -19,10 +20,13 @@ export default function SelectHouseScreen() {
   // (devices.house_id เป็น FK บังคับ — ไม่มี id ก็ insert ไม่ได้)
   const [selectedId, setSelectedId] = useState<string | undefined>();
 
-  // บ้านโหลดเสร็จแล้วค่อยเลือกตัวแรกให้ ไม่ใช่ตั้งค่าตั้งต้นจากของปลอม
+  // ตั้งต้นที่บ้านที่กำลังกรองอยู่ (ตัวกรองเป็น "ทั้งหมด" หรือบ้านนั้นเลือกไม่ได้ → บ้านบนสุด)
+  const { selected: filteredHouse } = useHouseFilter();
   useEffect(() => {
-    if (!selectedId && houses.length > 0) setSelectedId(houses[0].id);
-  }, [houses, selectedId]);
+    if (selectedId || houses.length === 0) return;
+    const match = houses.find((h) => h.name === filteredHouse);
+    setSelectedId((match ?? houses[0]).id);
+  }, [houses, selectedId, filteredHouse]);
 
   const selectedName = houses.find((h) => h.id === selectedId)?.name ?? "";
 

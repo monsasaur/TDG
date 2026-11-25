@@ -1,7 +1,11 @@
+import { useEffect, useMemo } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAlerts } from "../contexts/AlertsContext";
+import { ALL_HOUSES, useHouseFilter } from "../contexts/HouseFilterContext";
+import { useReadState } from "../contexts/ReadStateContext";
 
 /**
  * แถบเมนูล่าง ดีไซน์ v2 — หน้าหลัก (เหตุการณ์ล้ม) · แจ้งเตือนระบบ (สถานะอุปกรณ์) · ตั้งค่า · โปรไฟล์
@@ -16,9 +20,31 @@ const TABS: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap; 
   { key: "profile", label: "โปรไฟล์", icon: "person-outline", iconActive: "person", path: "/profile" },
 ];
 
-export default function BottomTabBar({ active, badge }: { active: TabKey; badge?: Partial<Record<TabKey, number>> }) {
+/**
+ * จุดแดงคิดในนี้ที่เดียว ทุกแท็บจึงเห็นเท่ากัน — เดิมแต่ละหน้าส่งเลขมาเอง
+ * หน้าตั้งค่า/โปรไฟล์ไม่ได้ส่ง เลยไม่ขึ้นจุดแดงทั้งที่มีเหตุการณ์ค้างอยู่
+ * นับเฉพาะ "ยังไม่อ่าน" ของบ้านที่กรองอยู่ — กดดูการ์ดแล้วเลขลดลงทันที
+ */
+export default function BottomTabBar({ active }: { active: TabKey }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { systemAlerts } = useAlerts();
+  const { selected } = useHouseFilter();
+  const { unreadCount, prune } = useReadState();
+
+  const visible = useMemo(
+    () => (selected === ALL_HOUSES ? systemAlerts : systemAlerts.filter((a) => a.houseName === selected)),
+    [systemAlerts, selected],
+  );
+  const ids = useMemo(() => visible.map((a) => a.id), [visible]);
+
+  // อุปกรณ์กลับมาออนไลน์แล้วหลุดใหม่ ต้องนับเป็นของใหม่ที่ยังไม่อ่าน
+  const allIds = useMemo(() => systemAlerts.map((a) => a.id).join("|"), [systemAlerts]);
+  useEffect(() => {
+    prune("sa-", allIds ? allIds.split("|") : []);
+  }, [allIds, prune]);
+
+  const badge: Partial<Record<TabKey, number>> = { notifications: unreadCount(ids) };
   return (
     <View
       style={{ paddingBottom: Math.max(insets.bottom, 8) }}

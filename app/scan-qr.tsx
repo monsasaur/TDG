@@ -10,6 +10,7 @@ import ConfirmModal from "../components/ConfirmModal";
 import { useAlerts } from "../contexts/AlertsContext";
 import { useDevices } from "../contexts/DevicesContext";
 import { joinHouse, parseInviteQr } from "../data/houseInvites";
+import { notifyHousesChanged } from "../data/useHouses";
 import { C } from "../components/theme";
 
 const NOT_INVITE = "QR Code นี้ไม่ใช่คำเชิญเข้าบ้าน ลองใช้คิวอาร์โค้ดอื่นหรือเพิ่มด้วยวิธีอื่น";
@@ -49,6 +50,8 @@ export default function ScanQrScreen() {
       setErrorMessage(res.message);
       return;
     }
+    // บ้านที่มองเห็นเปลี่ยน — ดึงรายการบ้าน อุปกรณ์ และการแจ้งเตือนใหม่ทันที
+    notifyHousesChanged();
     void refreshDevices();
     void refreshAlerts();
     setJoined(res.houseName ?? "");

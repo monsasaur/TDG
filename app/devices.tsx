@@ -3,10 +3,11 @@ import { Stack, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import AddActionPill from "../components/AddActionPill";
-import FilterPillButton from "../components/FilterPillButton";
+import FilterPillButton, { DropdownAnchor } from "../components/FilterPillButton";
 import HouseFilterDropdown from "../components/HouseFilterDropdown";
 import PageHeader from "../components/PageHeader";
 import { useDevices } from "../contexts/DevicesContext";
+import { ALL_HOUSES, useHouseFilter } from "../contexts/HouseFilterContext";
 import { Device } from "../data/useDevices";
 import { useHouses } from "../data/useHouses"; // Import เพิ่ม
 
@@ -19,16 +20,13 @@ export default function DevicesScreen() {
   const showAll = HOUSES.length > 1;
   const defaultLabel = showAll ? "ทั้งหมด" : "ทุกบ้าน";
 
-  const [selectedHouse, setSelectedHouse] = useState(defaultLabel);
+  // ตัวกรองบ้านตัวเดียวกับหน้าหลัก — เลือกไว้ที่ไหนก็ติดทั้งแอป (contexts/HouseFilterContext)
+  const { selected: selectedHouse, setSelected: setSelectedHouse } = useHouseFilter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  // ตำแหน่งปุ่มกรอง — ให้เมนูโผล่ใต้ปุ่มพอดีทุกหน้า
+  const [anchor, setAnchor] = useState<DropdownAnchor | undefined>(undefined);
 
-  useEffect(() => {
-    if (HOUSES.length > 0) {
-      setSelectedHouse(showAll ? "ทั้งหมด" : HOUSES[0]);
-    }
-  }, [dbHouses]);
-
-  const isAll = selectedHouse === "ทั้งหมด" || !showAll;
+  const isAll = selectedHouse === ALL_HOUSES || !showAll;
   const housesToShow = isAll ? HOUSES : [selectedHouse];
 
   const devicesByHouse = useMemo(() => {
@@ -39,7 +37,7 @@ export default function DevicesScreen() {
     return map;
   }, [housesToShow, devices]);
 
-  const dropdownOptions = showAll ? ["ทั้งหมด", ...HOUSES] : [defaultLabel];
+  const dropdownOptions = showAll ? [ALL_HOUSES, ...HOUSES] : [defaultLabel];
 
   return (
     <View className="flex-1 bg-page">
@@ -49,8 +47,11 @@ export default function DevicesScreen() {
 
       <View className="bg-white px-5 pb-4 flex-row justify-end">
         <FilterPillButton
-          label={selectedHouse}
-          onPress={() => setDropdownOpen(true)}
+          label={showAll ? selectedHouse : defaultLabel}
+          onPress={(a) => {
+            setAnchor(a);
+            setDropdownOpen(true);
+          }}
         />
       </View>
 
@@ -80,6 +81,7 @@ export default function DevicesScreen() {
       </ScrollView>
 
       <HouseFilterDropdown
+        anchor={anchor}
         visible={dropdownOpen}
         onClose={() => setDropdownOpen(false)}
         options={dropdownOptions}

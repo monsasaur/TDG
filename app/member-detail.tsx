@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import ConfirmModal from "../components/ConfirmModal";
 import PageHeader from "../components/PageHeader";
+import { maskThaiPhone } from "../lib/phone";
 
 // 1. Import Hooks และ Supabase Client
 import { supabase } from "../data/supabaseClient";
@@ -117,17 +118,18 @@ function ContactMemberDetail() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="bg-white mx-5 mt-2 rounded-2xl px-4 py-4 flex-row items-center">
+          {/* รูปโปรไฟล์อยู่หน้าข้อความ ให้ตรงกับการ์ดในหน้ารายชื่อสมาชิก */}
+          <View className="w-10 h-10 rounded-full bg-brand-soft items-center justify-center mr-3">
+            <Text className="text-base font-semibold text-brand-strong">
+              {initial}
+            </Text>
+          </View>
           <View className="flex-1">
             <Text className="text-base font-semibold text-ink">
               {member.name}
             </Text>
             <Text className="text-xs text-sub mt-1">
               เบอร์โทร : {member.phone}
-            </Text>
-          </View>
-          <View className="w-10 h-10 rounded-full bg-brand-soft items-center justify-center ml-3">
-            <Text className="text-base font-semibold text-brand-strong">
-              {initial}
             </Text>
           </View>
         </View>
@@ -246,16 +248,19 @@ function AccountMemberDetail({ memberId }: { memberId: string }) {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="bg-white mx-5 mt-2 rounded-2xl px-4 py-4 flex-row items-center">
-          <View className="flex-1">
-            <Text className="text-base font-semibold text-ink">{member.name}</Text>
-            {member.phone ? (
-              <Text className="text-xs text-sub mt-1">เบอร์โทร : {member.phone}</Text>
-            ) : null}
-          </View>
-          <View className="w-10 h-10 rounded-full bg-brand-soft items-center justify-center ml-3">
+          {/* รูปโปรไฟล์อยู่หน้าข้อความ ให้ตรงกับการ์ดในหน้ารายชื่อสมาชิก */}
+          <View className="w-10 h-10 rounded-full bg-brand-soft items-center justify-center mr-3">
             <Text className="text-base font-semibold text-brand-strong">
               {member.name.trim().charAt(0)}
             </Text>
+          </View>
+          <View className="flex-1">
+            <Text className="text-base font-semibold text-ink">{member.name}</Text>
+            {member.phone ? (
+              <Text className="text-xs text-sub mt-1">
+                เบอร์โทร : {member.isMe ? member.phone : maskThaiPhone(member.phone)}
+              </Text>
+            ) : null}
           </View>
         </View>
 

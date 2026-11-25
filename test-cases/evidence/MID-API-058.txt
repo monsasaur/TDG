@@ -1,0 +1,12 @@
+MID-API-058  23/11/2026 13:54  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
+13:54:26 POST /api/v1/admin/login  key=- bearer=-
+  body: {"username": "qa-admin", "password": "***"}
+  -> 200 (33 ms) {"token":"***","expires_at":"2026-11-23T14:54:26.020Z","username":"qa-admin"}
+13:54:26 POST /api/v1/admin/logout  key=- bearer=มี
+  body: -
+  -> 200 (1 ms) {"logged_out":true}
+13:54:26 GET /api/v1/admin/summary  key=- bearer=มี
+  body: -
+  -> 401 (0 ms) {"error":"Unauthorized"}
+  ✔ logout 200
+  ✔ token เดิม 401 มี error

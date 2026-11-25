@@ -1,0 +1,7 @@
+GET /health -> 200 {"status":"ok","model_version":"rf_v2_event-r2-fall","n_features":39,"threshold":0.5}
+15:01:06 POST /api/v1/predict  key=device bearer=-
+  body: {"device_id": "QA_F39", "location": "bathroom", "features": [[4.783432339649551, -0.5909800822539409, 2.5, 1.8989354074001312, 0.55404894053936, 1.6815302371978
+  -> 200 (61 ms) {"is_fall":false,"confidence":0.8061,"action":"monitoring","timestamp":"2026-11-23T08:01:06.218Z"}
+15:01:06 POST /api/v1/predict  key=device bearer=-
+  body: {"device_id": "QA_F416", "location": "bathroom", "features": [[0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.
+  -> 500 (3 ms) {"error":"Prediction failed"}

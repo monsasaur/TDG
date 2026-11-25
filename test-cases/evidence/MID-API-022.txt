@@ -1,0 +1,2 @@
+POST /predict -> 500 Internal Server Error
+POST /predict -> 400 {"detail":"rf_v2_event-r2-fall ต้องการ 39 ค่าต่อ window แต่ได้ 38 (ตั้ง FALL_MODEL ให้ตรงกับตัวที่ส่งข้อมูลมาหรือยัง)"}

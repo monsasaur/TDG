@@ -1,0 +1,67 @@
+{
+ "MID-API-020": {
+  "status": "Passed",
+  "note": "200 {'status': 'ok', 'model_version': 'rf_v2_event-r2-fall', 'n_features': 39, 'threshold': 0.5}",
+  "bad": []
+ },
+ "MID-MLS-001": {
+  "status": "Passed",
+  "note": "{'status': 'ok', 'model_version': 'rf_v2_event-r2-fall', 'n_features': 39, 'threshold': 0.5}",
+  "bad": []
+ },
+ "MID-API-021": {
+  "status": "Pending",
+  "note": "{'prediction': 'fall', 'confidence': 0.619, 'is_fall': True, 'model_name': 'RandomForest', 'model_version': 'rf_v2_event-r2-fall', 'risk_score': 62} (ใช้กรอบจำลอง ไม่ใช่ CSI จริง) รอคำถามข้อ 50, 62",
+  "bad": []
+ },
+ "MID-API-025": {
+  "status": "Pending",
+  "note": "3 ครั้งได้ fall 0.619 เท่ากัน (ใช้กรอบจำลอง ไม่ใช่ CSI จริง) · ยังไม่ใช่ข้อมูล D8 ตามเงื่อนไขเคส",
+  "bad": []
+ },
+ "MID-API-022": {
+  "status": "Pending",
+  "note": "ไม่มีแถว (0 แถว) ได้ 500 Internal Server Error · ขาด 1 ค่า ได้ 400 {'detail': 'rf_v2_event-r2-fall ต้องการ 39 ค่าต่อ window แต่ได้ 38 (ตั้ง FALL_MODEL ให้ตรงกับตัวที่ส่งข้อมูลมาหรือยัง)'} · โมเดลนี้ใช้ 1 กรอบ จึงทดสอบ \"สั้นกว่า 1 แถว\" ด้วย 0 แถว",
+  "bad": []
+ },
+ "MID-MLS-005": {
+  "status": "Pending",
+  "note": "ล้ม: confidence 0.619 risk 62 · ไม่ล้ม: 0.8061 risk 19 ตรงสมมติฐาน=True (ใช้กรอบจำลอง ไม่ใช่ CSI จริง) รอคำถามข้อ 62, 102",
+  "bad": []
+ },
+ "MID-MLS-006": {
+  "status": "Pending",
+  "note": "ใช้กรอบสุดท้าย=True (ใช้กรอบจำลอง ไม่ใช่ CSI จริง) รอคำถามข้อ 102",
+  "bad": []
+ },
+ "MID-MLS-004": {
+  "status": "Pending",
+  "note": "threshold 0.5 = fall · 0.9 = no_fall risk 62→62 (ใช้กรอบจำลอง ไม่ใช่ CSI จริง) · ยังไม่ใช่ข้อมูล D8 ตามเงื่อนไขเคส",
+  "bad": []
+ },
+ "MID-MLS-002": {
+  "status": "Passed",
+  "note": "{'status': 'ok', 'model_version': 'rf_v1', 'n_features': 416, 'threshold': 0.55}",
+  "bad": []
+ },
+ "MID-MLS-007": {
+  "status": "Failed",
+  "note": "ขั้น 1 โหลดครบ exit 0 · ขั้น 2 ตามขั้นตอนตรงตัว (ไฟล์ .pkl ยังอยู่ แก้ sha256 ใน MANIFEST) ได้ exit 0 ไม่ตรวจไฟล์เดิม · ถ้าลบ rf_v2_event.pkl ก่อน ได้ exit 1 ตามคาด (ทำในโฟลเดอร์สำเนา)",
+  "bad": []
+ },
+ "MID-API-077": {
+  "status": "Pending",
+  "note": "39 ค่าได้ 200 {'is_fall': False, 'confidence': 0.8061, 'action': 'monitoring', 'timestamp': '2026-11-23T08:01:06.218Z'} · 416 ค่าได้ 500 {'error': 'Prediction failed'} สมมติฐานคือ 400 (คำถามข้อ 94) (ใช้กรอบจำลอง ไม่ใช่ CSI จริง)",
+  "bad": []
+ },
+ "MID-API-087": {
+  "status": "Pending",
+  "note": "health = rf_v2_event-r2-fall · เหตุการณ์ = rf_v2_event-r2-fall · escalated = True (ใช้กรอบจำลอง ไม่ใช่ CSI จริง) ยังไม่ได้ดูคอลัมน์จริงใน Supabase",
+  "bad": []
+ },
+ "MID-API-013": {
+  "status": "Pending",
+  "note": "300 ครั้ง ไม่ได้ 200 = 0 เฉลี่ย 41 ms p95 59 ms สูงสุด 89 ms (เครื่องเดียวกัน · ใช้กรอบจำลอง ไม่ใช่ CSI จริง) รอคำถามข้อ 42",
+  "bad": []
+ }
+}

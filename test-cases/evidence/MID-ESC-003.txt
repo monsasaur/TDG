@@ -1,0 +1,10 @@
+MID-ESC-003  23/11/2026 13:58  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
+13:58:30 POST /api/v1/demo/fire  key=demo bearer=-
+  body: {"device_id": "QA-0002"}
+  -> 200 (8 ms) {"event_id":"mock-1795417110122-1","is_fall":true,"confidence":0.987,"action":"awaiting_acknowledge","ack_timeout_seconds":60,"timestamp":"2026-11-23T06:58:30.123Z"}
+  (รอ 65 วินาที )
+13:59:35 POST /api/v1/alert/ack/mock-1795417110122-1  key=app bearer=-
+  body: {"acknowledged_by": "QA"}
+  -> 409 (19 ms) {"event_id":"mock-1795417110122-1","error":"event already escalated (timeout exceeded)","escalated_at":"2026-11-23T06:59:30.152Z"}
+  ✔ demo/fire 200
+  ✔ ack 409 {'event_id': 'mock-1795417110122-1', 'error': 'event already escalated (timeout exceeded)', 'escalated_at': '2026-11-23T06:59:30.152Z'}

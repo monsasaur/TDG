@@ -27,6 +27,7 @@ import { Alert as AlertType, SystemAlert } from "../types/alert";
 
 // Import Hook สำหรับดึงบ้านจริง
 import { useHouses } from "../data/useHouses";
+import { useHouseFilter } from "../contexts/HouseFilterContext";
 import { BTN } from "../components/buttonTheme";
 import { C } from "../components/theme";
 
@@ -59,19 +60,12 @@ export default function HomeScreen() {
   const [activeTab, setActiveTab] = useState<"fall" | "system" | "history">("fall");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // ให้ค่าเริ่มต้นเป็น "ทั้งหมด" ไว้ก่อน
-  const [selectedHouse, setSelectedHouse] = useState("ทั้งหมด");
+  // ตัวกรองบ้านใช้ร่วมกันทั้งแอปและจำข้ามการเปิดแอป (contexts/HouseFilterContext)
+  const { selected: selectedHouse, setSelected: setSelectedHouse } = useHouseFilter();
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   // แจ้งผู้ใช้เมื่อการกดรับทราบไปไม่ถึงระบบ — เดิมเงียบ ทั้งที่ระบบยังจะโทรฉุกเฉิน
   const [ackNotice, setAckNotice] = useState<string | null>(null);
-
-  // อัปเดต SelectedHouse เมื่อดึงข้อมูลบ้านเสร็จ
-  useEffect(() => {
-    if (HOUSES.length > 0) {
-      setSelectedHouse(HOUSES.length > 1 ? "ทั้งหมด" : HOUSES[0]);
-    }
-  }, [dbHouses]);
 
   useEffect(() => {
     requestPermissions();
@@ -277,20 +271,7 @@ export default function HomeScreen() {
   if (V2) {
     return (
       <View className={`flex-1 ${V2C.page}`}>
-        <TabHeader
-          bordered
-          title="เหตุการณ์ล้ม"
-          right={
-            <View accessibilityLabel={activeCount > 0 ? `รอตรวจสอบ ${activeCount} รายการ` : "ไม่มีรายการรอตรวจสอบ"}>
-              <Ionicons name="notifications-outline" size={24} color="#292A32" />
-              {activeCount > 0 && (
-                <View className="absolute -top-1 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-[#DC2626] items-center justify-center">
-                  <Text className="text-[10px] font-bold text-white">{activeCount}</Text>
-                </View>
-              )}
-            </View>
-          }
-        >
+        <TabHeader bordered title="เหตุการณ์ล้ม">
           {!noHouse && HOUSES.length > 0 && (
             <View className="mt-3">
               <HouseDropdown variant="chip" houses={HOUSES} selected={selectedHouse} onSelect={setSelectedHouse} />
@@ -345,7 +326,7 @@ export default function HomeScreen() {
           )}
         </View>
 
-        <BottomTabBar active="home" badge={{ notifications: filteredSystemAlerts.length }} />
+        <BottomTabBar active="home" />
       </View>
     );
   }

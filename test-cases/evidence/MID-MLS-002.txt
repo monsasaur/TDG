@@ -1,0 +1,1 @@
+GET /health -> 200 {"status":"ok","model_version":"rf_v1","n_features":416,"threshold":0.55}

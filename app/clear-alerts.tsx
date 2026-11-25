@@ -4,7 +4,7 @@ import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAlerts } from "../contexts/AlertsContext";
 import PageHeader from "../components/PageHeader";
-import FilterPillButton from "../components/FilterPillButton";
+import FilterPillButton, { DropdownAnchor } from "../components/FilterPillButton";
 import HouseFilterDropdown from "../components/HouseFilterDropdown";
 import ConfirmModal from "../components/ConfirmModal";
 import { useHouses } from "../data/useHouses";
@@ -28,6 +28,8 @@ export default function ClearAlertsScreen() {
   const [clearFall, setClearFall] = useState(true);
   const [clearSystem, setClearSystem] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  // ตำแหน่งปุ่มกรอง — ให้เมนูโผล่ใต้ปุ่มพอดีทุกหน้า
+  const [anchor, setAnchor] = useState<DropdownAnchor | undefined>(undefined);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const isAll = selectedHouse === "ทั้งหมด";
@@ -79,7 +81,10 @@ export default function ClearAlertsScreen() {
         <Text className="text-sm text-ink">บ้าน</Text>
         <FilterPillButton
           label={selectedHouse}
-          onPress={() => setDropdownOpen(true)}
+          onPress={(a) => {
+            setAnchor(a);
+            setDropdownOpen(true);
+          }}
         />
       </View>
 
@@ -120,6 +125,7 @@ export default function ClearAlertsScreen() {
       </View>
 
       <HouseFilterDropdown
+        anchor={anchor}
         visible={dropdownOpen}
         onClose={() => setDropdownOpen(false)}
         options={dropdownOptions}

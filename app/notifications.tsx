@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, Switch, Linking, Platform, AppState, ScrollView } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import PageHeader from "../components/PageHeader";
@@ -7,7 +7,10 @@ import EmptyState from "../components/EmptyState";
 import SystemAlertCard from "../components/SystemAlertCard";
 import TabHeader from "../components/TabHeader";
 import { V2, V2C } from "../components/designVersion";
+import HouseDropdown from "../components/HouseDropdown";
 import { useAlerts } from "../contexts/AlertsContext";
+import { ALL_HOUSES, useHouseFilter } from "../contexts/HouseFilterContext";
+import { useHouses } from "../data/useHouses";
 import ConfirmModal from "../components/ConfirmModal";
 import {
   getNotificationPermissions,
@@ -20,6 +23,14 @@ type Permission = "undetermined" | "granted" | "denied";
 export default function NotificationsScreen() {
   const router = useRouter();
   const { systemAlerts } = useAlerts();
+  // ตัวกรองบ้านตัวเดียวกับหน้าหลัก (contexts/HouseFilterContext)
+  const { selected: selectedHouse, setSelected: setSelectedHouse } = useHouseFilter();
+  const { houses: dbHouses } = useHouses();
+  const HOUSES = useMemo(() => dbHouses.map((h) => h.name), [dbHouses]);
+  const visibleSystemAlerts = useMemo(
+    () => (selectedHouse === ALL_HOUSES ? systemAlerts : systemAlerts.filter((a) => a.houseName === selectedHouse)),
+    [systemAlerts, selectedHouse],
+  );
 
   const [permission, setPermission] = useState<Permission>("undetermined");
   const [settingsPrompt, setSettingsPrompt] = useState(false);
@@ -119,16 +130,22 @@ export default function NotificationsScreen() {
     return (
       <View className={`flex-1 ${V2C.page}`}>
         <Stack.Screen options={{ animation: "none" }} />
-        <TabHeader title="แจ้งเตือนระบบ" />
+        <TabHeader title="แจ้งเตือนระบบ">
+          {HOUSES.length > 0 && (
+            <View className="mt-3">
+              <HouseDropdown variant="chip" houses={HOUSES} selected={selectedHouse} onSelect={setSelectedHouse} />
+            </View>
+          )}
+        </TabHeader>
         <ScrollView className="flex-1" contentContainerStyle={{ paddingVertical: 20 }}>
           <Text className="text-sm text-[#858891] mb-1 mx-6">สถานะอุปกรณ์</Text>
-          {systemAlerts.length === 0 ? (
+          {visibleSystemAlerts.length === 0 ? (
             <EmptyState compact icon="hardware-chip-outline" title="อุปกรณ์ทำงานปกติ" description="ถ้าอุปกรณ์ขาดการเชื่อมต่อ จะแจ้งที่นี่" />
           ) : (
-            systemAlerts.map((a) => <SystemAlertCard key={a.id} alert={a} />)
+            visibleSystemAlerts.map((a) => <SystemAlertCard key={a.id} alert={a} />)
           )}
         </ScrollView>
-        <BottomTabBar active="notifications" badge={{ notifications: systemAlerts.length }} />
+        <BottomTabBar active="notifications" />
         {modals}
       </View>
     );

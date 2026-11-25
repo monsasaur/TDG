@@ -3,9 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, View, ActivityIndicator } from "react-native";
 import AddActionPill from "../components/AddActionPill";
 import ContactCard from "../components/ContactCard";
-import FilterPillButton from "../components/FilterPillButton";
+import FilterPillButton, { DropdownAnchor } from "../components/FilterPillButton";
 import HouseFilterDropdown from "../components/HouseFilterDropdown";
 import PageHeader from "../components/PageHeader";
+import { maskThaiPhone } from "../lib/phone";
 
 // 1. เปลี่ยนมา Import Hooks แทน mock data
 import { EmergencyContact, useContacts } from "../data/useContacts";
@@ -47,6 +48,8 @@ export default function MembersScreen() {
 
   const [selectedHouse, setSelectedHouse] = useState(defaultLabel);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  // ตำแหน่งปุ่มกรอง — ให้เมนูโผล่ใต้ปุ่มพอดีทุกหน้า
+  const [anchor, setAnchor] = useState<DropdownAnchor | undefined>(undefined);
 
   // อัปเดต selectedHouse เมื่อโหลดข้อมูลบ้านเสร็จ
   useEffect(() => {
@@ -106,7 +109,10 @@ export default function MembersScreen() {
       <View className="bg-white px-5 pb-4 flex-row justify-end">
         <FilterPillButton
           label={selectedHouse}
-          onPress={() => setDropdownOpen(true)}
+          onPress={(a) => {
+            setAnchor(a);
+            setDropdownOpen(true);
+          }}
         />
       </View>
 
@@ -124,7 +130,7 @@ export default function MembersScreen() {
               <ContactCard
                 key={m.userId}
                 name={m.isMe ? `${m.name} (คุณ)` : m.name}
-                phone={m.phone}
+                phone={m.isMe ? m.phone : maskThaiPhone(m.phone)}
                 tags={m.houses.map((h) => ({
                   label: h.role === "owner" ? `${h.name} · เจ้าของบ้าน` : h.name,
                   active: isAll || h.name === selectedHouse,
@@ -164,6 +170,7 @@ export default function MembersScreen() {
       </ScrollView>
 
       <HouseFilterDropdown
+        anchor={anchor}
         visible={dropdownOpen}
         onClose={() => setDropdownOpen(false)}
         options={dropdownOptions}

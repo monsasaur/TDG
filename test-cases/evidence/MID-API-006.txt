@@ -1,0 +1,8 @@
+MID-API-006  23/11/2026 13:55  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
+13:55:57 POST /api/v1/predict  key=device bearer=-
+  body: {"device_id": "QA_PREDICT", "timestamp": 1795416957962, "location": "bathroom", "features": [[0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0
+  -> 200 (9 ms) {"is_fall":false,"confidence":0.08,"action":"monitoring","timestamp":"2026-11-23T06:55:57.971Z"}
+  ✔ 200 is_fall = false action = monitoring
+  ✔ ไม่มีแถวใหม่
+  (รอ 70 วินาที )
+  ✔ ครบ 70 วินาที ยังไม่มีแถวและไม่มีการโทร

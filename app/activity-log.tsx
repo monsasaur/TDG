@@ -1,8 +1,9 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import PageHeader from "../components/PageHeader";
 import { useAuth } from "../contexts/AuthContext";
+import { useReadState } from "../contexts/ReadStateContext";
 import { describeAudit, useAuditLog } from "../data/useAuditLog";
 import { useHouseMembers } from "../data/useHouseMembers";
 import { useHouses } from "../data/useHouses";
@@ -26,6 +27,13 @@ export default function ActivityLogScreen() {
   const { entries, unavailable, isLoading } = useAuditLog(user?.id);
   const { members } = useHouseMembers(user?.id);
   const { houses } = useHouses();
+
+  // เปิดหน้านี้ = อ่านรายการที่เห็นแล้ว จุดแดงในหน้าตั้งค่าจึงหาย
+  const { markRead } = useReadState();
+  const seenIds = useMemo(() => entries.map((e) => `audit-${e.id}`).join("|"), [entries]);
+  useEffect(() => {
+    if (seenIds) markRead(seenIds.split("|"));
+  }, [seenIds, markRead]);
 
   const houseName = useMemo(() => new Map(houses.map((h) => [h.id, h.name])), [houses]);
   const nameOf = useCallback(

@@ -1,0 +1,72 @@
+MID-ESC-018  23/11/2026 14:10  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
+14:10:48 POST /api/v1/demo/fire  key=demo bearer=-
+  body: {"device_id": "QA-0002", "location": "ห้องน้ำ"}
+  -> 200 (9 ms) {"event_id":"mock-1795417848610-1","is_fall":true,"confidence":0.963,"action":"awaiting_acknowledge","ack_timeout_seconds":60,"timestamp":"2026-11-23T07:10:48.611Z"}
+--- console ---
+📝 [DB mock] saveEvent: mock-1795417848610-1 FALL
+⏱  [ESCALATE] scheduled event=mock-1795417848610-1 timeout=60s
+Inference complete: is_fall=true confidence=0.963
+[DEMO FIRE] event=mock-1795417848610-1 device=QA-0002
+⚠️  [ALERT] device="QA-0002" ยังไม่ได้ผูกกับบ้าน — ข้ามการสร้าง alert ในแอป (event mock-1795417848610-1 ยังบันทึกปกติ)
+⚠️  no push tokens registered — skip push (event=mock-1795417848610-1)
+🚨 [ESCALATE] event=mock-1795417848610-1 device=QA-0002
+╔════════════════════════════════════════════════════════════╗
+║ 💬 TWILIO SMS (simulated)                                   ║
+╠════════════════════════════════════════════════════════════╣
+║ From    : +1xxxxxxxxxx                                     ║
+║ To      : +66800000001                                     ║
+║ Event   : mock-1795417848610-1                             ║
+║ ─── body ───                                               ║
+║ 🚨 Fall Alert!                                              ║
+║ 📍 Location   : ห้องน้ำ                                     ║
+║ 📟 Device     : QA-0002                                     ║
+║ 📊 Confidence : 96%                                         ║
+║ 🕐 เวลา       : 23/11/2569 14:11:48                         ║
+║                                                            ║
+║ ⚠️ ไม่มีผู้ตอบรับในแอป กรุณาตรวจสอบผู้สูงอายุทันที         ║
+╚════════════════════════════════════════════════════════════╝
+╔════════════════════════════════════════════════════════════╗
+║ 💬 TWILIO SMS (simulated)                                   ║
+╠════════════════════════════════════════════════════════════╣
+║ From    : +1xxxxxxxxxx                                     ║
+║ To      : +66800000002                                     ║
+║ Event   : mock-1795417848610-1                             ║
+║ ─── body ───                                               ║
+║ 🚨 Fall Alert!                                              ║
+║ 📍 Location   : ห้องน้ำ                                     ║
+║ 📟 Device     : QA-0002                                     ║
+║ 📊 Confidence : 96%                                         ║
+║ 🕐 เวลา       : 23/11/2569 14:11:48                         ║
+║                                                            ║
+║ ⚠️ ไม่มีผู้ตอบรับในแอป กรุณาตรวจสอบผู้สูงอายุทันที         ║
+╚════════════════════════════════════════════════════════════╝
+✅ SMS (fake) sent 2/2 (event=mock-1795417848610-1)
+[AI Service] เกิดข้อผิดพลาดหรือหมดเวลา: This operation was aborted
+╔════════════════════════════════════════════════════════════╗
+║ 📞 TWILIO VOICE CALL (simulated) - Via: FALLBACK            ║
+╠════════════════════════════════════════════════════════════╣
+║ From    : +1xxxxxxxxxx                                     ║
+║ To      : +66800000001                                     ║
+║ Event   : mock-1795417848610-1                             ║
+║ Lang    : th-TH                                            ║
+║ ─── TwiML Say ───                                          ║
+║ "ตรวจพบเหตุการณ์ล้มในบริเวณ ห้องน้ำ โปรดตรวจสอบความปลอดภัยและเข้าช่วยเหลือทันที" ║
+║ (ซ้ำอีก 1 ครั้ง)                                           ║
+╚════════════════════════════════════════════════════════════╝
+╔════════════════════════════════════════════════════════════╗
+║ 📞 TWILIO VOICE CALL (simulated) - Via: FALLBACK            ║
+╠════════════════════════════════════════════════════════════╣
+║ From    : +1xxxxxxxxxx                                     ║
+║ To      : +66800000002                                     ║
+║ Event   : mock-1795417848610-1                             ║
+║ Lang    : th-TH                                            ║
+║ ─── TwiML Say ───                                          ║
+║ "ตรวจพบเหตุการณ์ล้มในบริเวณ ห้องน้ำ โปรดตรวจสอบความปลอดภัยและเข้าช่วยเหลือทันที" ║
+║ (ซ้ำอีก 1 ครั้ง)                                           ║
+╚════════════════════════════════════════════════════════════╝
+✅ Calls (fake) made 2/2 (event=mock-1795417848610-1)
+📝 [DB mock] escalate event mock-1795417848610-1 (via: fallback)
+{"id": "mock-1795417848610-1", "device_id": "QA-0002", "timestamp": 1795417848610, "location": "ห้องน้ำ", "is_fall": true, "confidence": 0.963, "created_at": "2026-11-23T07:10:48.610Z", "escalated": true, "escalated_at": "2026-11-23T07:11:48.653Z", "sms_sent": true, "call_made": true, "escalation_method": "fallback"}
+  ✔ โทรที่วินาทีที่ 60.1
+  ✔ ข้อความมาตรฐาน มีคำว่าห้องน้ำ
+  ✔ escalation_method = fallback

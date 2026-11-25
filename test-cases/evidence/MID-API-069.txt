@@ -1,0 +1,16 @@
+MID-API-069  23/11/2026 14:09  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
+14:09:44 POST /api/v1/admin/login  key=- bearer=-
+  body: {"username": "qa-admin", "password": "***"}
+  -> 200 (53 ms) {"token":"***","expires_at":"2026-11-23T15:09:44.253Z","username":"qa-admin"}
+14:09:44 POST /api/v1/predict  key=device bearer=-
+  body: {"device_id": "QA-0001", "timestamp": 1795417784292, "location": "bathroom", "features": [[0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
+  -> 200 (3 ms) {"is_fall":false,"confidence":0.08,"action":"monitoring","timestamp":"2026-11-23T07:09:44.293Z"}
+14:09:44 GET /api/v1/admin/devices  key=- bearer=มี
+  body: -
+  -> 200 (1 ms) {"devices":[{"device_id":"QA-0001","label":null,"owner_name":null,"location":null,"last_seen_at":"2026-11-23T07:09:44.293Z","is_active":true,"installed_at":"2026-11-23T07:09:44.293Z","status":"online","events":{"total":0,"falls":0,"escalated":0,"last_fall_at":null}}],"offline_after_minutes":15,"filters":{"status":null,"include_inactive":false},"has_data":true,"calculated_at":"2026-11-23T07:09:44.295Z"}
+  (รอ 960 วินาที )
+14:25:44 GET /api/v1/admin/devices  key=- bearer=มี
+  body: -
+  -> 200 (4 ms) {"devices":[{"device_id":"QA-0001","label":null,"owner_name":null,"location":null,"last_seen_at":"2026-11-23T07:09:44.293Z","is_active":true,"installed_at":"2026-11-23T07:09:44.293Z","status":"offline","events":{"total":0,"falls":0,"escalated":0,"last_fall_at":null}}],"offline_after_minutes":15,"filters":{"status":null,"include_inactive":false},"has_data":true,"calculated_at":"2026-11-23T07:25:44.300Z"}
+  ✔ ทันที online และ last_seen_at เพิ่งอัปเดต (ข้อมูลไม่ล้ม)
+  ✔ ครบ 16 นาที offline offline_after_minutes = 15

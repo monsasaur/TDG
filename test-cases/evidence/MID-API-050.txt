@@ -1,0 +1,13 @@
+MID-API-050  25/11/2026 19:12  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
+19:12:11 POST /api/v1/predict  key=device bearer=-
+  body: {"device_id": "QA_COOLDOWN_B", "timestamp": 1795608731251, "location": "bathroom", "features": [[0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
+  -> 200 (31 ms) {"event_id":"mock-1795608731281-1","is_fall":true,"confidence":0.94,"action":"awaiting_acknowledge","ack_timeout_seconds":60,"timestamp":"2026-11-25T12:12:11.283Z"}
+  ✔ ครั้งแรก action = awaiting_acknowledge
+  (รอ 10 วินาที )
+19:12:21 POST /api/v1/predict  key=device bearer=-
+  body: {"device_id": "QA_COOLDOWN_B", "timestamp": 1795608741284, "location": "bathroom", "features": [[0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
+  -> 200 (5 ms) {"is_fall":true,"confidence":0.94,"action":"cooldown","timestamp":"2026-11-25T12:12:21.289Z"}
+  ~ ตรงสมมติฐาน: ครั้งที่ 2 action = cooldown มี 1 แถว (คำถามข้อ 64)
+  (รอ 112 วินาที )
+  ✔ แถวนี้ escalated = true
+  ~ ตรงสมมติฐาน: โทร 1 รอบ (คำถามข้อ 64)

@@ -1,0 +1,39 @@
+$ git ls-files | grep -i env
+fall_detection_backend/express_api/.env.example
+fall_detection_backend/ml_service/.env.example
+nativewind-env.d.ts
+== service_role
+CLAUDE.md:35:| ~~ฐานข้อมูลจริง + Express ยังไม่ต่อกัน~~ | ✅ | 2026-11-23: Express `.env` ใช้ service_role แล
+CLAUDE.md:253:SUPABASE_KEY=...              # service_role ไม่ใช่ anon — จำเป็นหลังรัน accounts.sql (RLS)
+CLAUDE.md:529:- Express `.env` ตั้ง `SUPABASE_URL`/`SUPABASE_KEY` (service_role) แล้ว (ตรวจ 2026-11-23) → เหตุการณ์ลงฐ�
+CLAUDE.md:582:RLS เปิดทุกตารางกลุ่ม B + C · `fall_events` / `push_tokens` / `ml_models` เปิด RLS แบบไม่มี polic
+CLAUDE.md:583:→ **Express ต้องใช้ service_role key** ไม่งั้นเขียนเหตุการณ์ไม่ได้แบบไม่�
+docs/reports/accounts_round1.md:43:**2. Express ต้องใช้ service_role key**
+docs/reports/accounts_round1.md:44:`express_api/.env` → `SUPABASE_URL` + `SUPABASE_KEY` = service_role (Project Settings → API) ไม่ใช่ anon
+docs/reports/accounts_round1.md:46:`node scripts/check_live_setup.js` ขึ้น ❌ ถ้ารัน accounts.sql แล้วแต่คีย์ไม่ใช่
+docs/reports/accounts_round1.md:151:| `express_api/scripts/check_live_setup.js` | + เช็คว่ารัน accounts.sql แล้วแต่ Express ยังไ
+docs/reports/deploy_render_checklist.md:66:| `SUPABASE_URL` · `SUPABASE_KEY` | **service_role** | ไม่ใช่ anon — หลังรัน `accounts.sql` คี
+docs/reports/device_test_checklist.md:16:| ☐ | Express ต่อ Supabase ด้วย **service_role** · `node scripts/check_live_setup.js` ไม่มี ❌ | เ�
+docs/reports/device_test_checklist.md:43:| ☐ | `check_live_setup.js` ขึ้น "รัน accounts.sql แล้ว · Express ใช้ service_role" |
+docs/reports/live_test_rf_v2.md:39:   - `SUPABASE_KEY` = service_role key จาก Dashboard → Project Settings → API (คีย์ลับ ห้ามใส่ใ
+fall_detection_backend/express_api/scripts/check_live_setup.js:28: * role ของคีย์ Supabase (anon / service_role)
+fall_detection_backend/express_api/scripts/check_live_setup.js:32:  if (key.startsWith('sb_secret_')) return 'service_role'
+fall_detection_backend/express_api/scripts/check_live_setup.js:58:  if (role === 'service_role') ok('SUPABASE_KEY เป็น service_role')
+fall_detection_backend/express_api/scripts/check_live_setup.js:59:  else warn(`SUPABASE_KEY เป็น ${role || 'คีย์ที่อ่าน role ไม่ได
+fall_detection_backend/express_api/scripts/check_live_setup.js:60:            'ใช้ได้เฉพาะตอนที่ยังไม่รัน accounts.sql
+fall_detection_backend/express_api/scripts/check_live_setup.js:65:  // รัน accounts.sql แล้วหรือยัง (ดูจากตาราง house_memb
+fall_detection_backend/express_api/scripts/check_live_setup.js:70:  else if (role === 'service_role') ok('รัน accounts.sql แล้ว · Express ใช้ service
+fall_detection_backend/express_api/scripts/check_live_setup.js:71:  else fail('รัน accounts.sql แล้ว (เปิด RLS) แต่ SUPABASE_KEY ไม่ใ�
+fall_detection_backend/express_api/scripts/check_live_setup.js:72:            'Express จะเขียน fall_events / alerts ไม่ได้ · ใช้ service_
+fall_detection_backend/supabase/accounts.sql:7:-- ⚠️ Express API ต้องใช้ service_role key (ข้าม RLS) — ถ้าใช้ anon key จะเ�
+fall_detection_backend/supabase/accounts.sql:209:-- ตารางฝั่ง backend: เปิด RLS โดยไม่มี policy = เข้าได้เฉพ
+fall_detection_backend/supabase/accounts.sql:234:-- alerts — สร้างโดย Express (service_role) · สมาชิกทุกคนกดรับทร�
+fall_detection_backend/supabase/accounts.sql:292:-- อ่านได้: คนที่ทำเอง · เจ้าของบ้านที่เกี่ยว�
+render.yaml:64:      # ต้องเป็น service_role (ไม่ใช่ anon) — หลังรัน accounts.sql คีย์อื่นเขียน fall
+== TWILIO_AUTH_TOKEN=
+CLAUDE.md:255:TWILIO_AUTH_TOKEN=...
+fall_detection_backend/README.md:264:TWILIO_AUTH_TOKEN=your_auth_token
+fall_detection_backend/README.md:425:TWILIO_AUTH_TOKEN=your_auth_token
+fall_detection_backend/express_api/.env.example:30:TWILIO_AUTH_TOKEN=your_twilio_auth_token_here
+== TYPHOON_API_KEY=
+docs/reports/spec_hybrid_ai_escalation_phase2a.md:118:TYPHOON_API_KEY=...              # https://opentyphoon.ai

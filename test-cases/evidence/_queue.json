@@ -1,0 +1,7 @@
+[
+ [
+  "MID-ESC-021",
+  "Passed",
+  "โหมด fake โทรผ่าน แต่ TwiML ที่โค้ดโหมด real จะส่งให้ Twilio: ถูก\nหลักฐาน: evidence/MID-ESC-021.txt (25 พ.ย. · รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)"
+ ]
+]
