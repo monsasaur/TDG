@@ -1,0 +1,49 @@
+v24.13.1
+
+> fall-detection-api@1.0.0 test
+> jest
+
+FAIL tests/openapi.test.js
+  ● คู่มือ API ตรงกับ spec › docs/API_REFERENCE.md ถูก generate ล่าสุดแล้ว
+
+    expect(received).not.toThrow()
+
+    Error name:    "Error"
+    Error message: "Command failed: C:\\Program Files\\nodejs\\node.exe C:\\Users\\subha\\TDG\\fall_detection_backend\\express_api\\scripts\\generate_api_docs.js --check
+    ❌ docs/API_REFERENCE.md ไม่ตรงกับ spec — รัน `npm run docs` แล้ว commit ด้วย
+    "
+
+        [0m [90m 124 |[39m
+         [90m 125 |[39m     expect(() [33m=>[39m
+        [31m[1m>[22m[39m[90m 126 |[39m       execFileSync(
+         [90m     |[39m       [31m[1m^[22m[39m
+         [90m 127 |[39m         process[33m.[39mexecPath[33m,[39m
+         [90m 128 |[39m         [path[33m.[39mjoin(__dirname[33m,[39m [32m'..'[39m[33m,[39m [32m'scripts'[39m[33m,[39m [32m'generate_api_docs.js'[39m)[33m,[39m [32m'--check'[39m][33m,[39m
+         [90m 129 |[39m         { stdio[33m:[39m [32m'pipe'[39m }[0m
+
+      at execFileSync (tests/openapi.test.js:126:7)
+      at Object.<anonymous> (node_modules/expect/build/index.js:1824:9)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:2235:93)
+      at Object.toThrow (tests/openapi.test.js:131:11)
+      at Object.toThrow (tests/openapi.test.js:131:11)
+
+
+Test Suites: 1 failed, 14 passed, 15 total
+Tests:       1 failed, 199 passed, 200 total
+Snapshots:   0 total
+Time:        1.625 s, estimated 2 s
+Ran all test suites.
+
+> fall-detection-api@1.0.0 docs:check
+> node scripts/generate_api_docs.js --check
+
+❌ docs/API_REFERENCE.md ไม่ตรงกับ spec — รัน `npm run docs` แล้ว commit ด้วย
+
+== ทำซ้ำด้วยไฟล์ LF (ตามที่อยู่ใน git)
+✅ docs/API_REFERENCE.md ตรงกับ spec
+
+Test Suites: 15 passed, 15 total
+Tests:       200 passed, 200 total
+Snapshots:   0 total
+Time:        2.094 s
+Ran all test suites.

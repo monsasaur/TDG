@@ -7,7 +7,7 @@ import PageHeader from "../components/PageHeader";
 import PrimaryButton from "../components/PrimaryButton";
 
 // Import Hook และ MAX_HOUSES ที่เราเขียนไว้ใหม่
-import { MAX_HOUSES, useHouses } from "../data/useHouses";
+import { MAX_HOUSES, notifyHousesChanged, useHouses } from "../data/useHouses";
 // อย่าลืม Import supabase client (ปรับ path ให้ตรงกับโปรเจกต์ของคุณ)
 import { supabase } from "../data/supabaseClient";
 import { houseRpcErrorMessage, isMissingRpc } from "../lib/authErrors";
@@ -50,7 +50,8 @@ export default function AddHouseScreen() {
         throw error;
       }
 
-      // บันทึกสำเร็จ กลับไปหน้าเดิม
+      // บันทึกสำเร็จ — บอกทุกหน้าที่แสดงรายการบ้านให้ดึงใหม่ แล้วกลับไปหน้าเดิม
+      notifyHousesChanged();
       router.back();
     } catch (error) {
       console.error("Error adding house:", error);

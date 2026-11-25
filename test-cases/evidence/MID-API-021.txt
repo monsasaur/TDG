@@ -1,0 +1,2 @@
+POST /predict -> 200 {"prediction":"fall","confidence":0.619,"is_fall":true,"model_name":"RandomForest","model_version":"rf_v2_event-r2-fall","risk_score":62}
+POST /predict -> 200 {"prediction":"no_fall","confidence":0.8061,"is_fall":false,"model_name":"RandomForest","model_version":"rf_v2_event-r2-fall","risk_score":19}

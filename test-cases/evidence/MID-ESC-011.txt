@@ -1,0 +1,27 @@
+MID-ESC-011  23/11/2026 14:00  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
+14:00:06 POST /api/v1/demo/fire  key=demo bearer=-
+  body: {"device_id": "QA-0002"}
+  -> 200 (17 ms) {"event_id":"mock-1795417206888-1","is_fall":true,"confidence":0.985,"action":"awaiting_acknowledge","ack_timeout_seconds":5,"timestamp":"2026-11-23T07:00:06.888Z"}
+14:00:10 POST /api/v1/alert/ack/mock-1795417206888-1  key=app bearer=-
+  body: {"acknowledged_by": "QA"}
+  -> 200 (15 ms) {"event_id":"mock-1795417206888-1","acknowledged":true,"acknowledged_at":"2026-11-23T07:00:10.887Z","acknowledged_by":"QA","escalation_cancelled":true}
+14:00:11 POST /api/v1/alert/ack/mock-1795417206888-1  key=app bearer=-
+  body: {"acknowledged_by": "QA"}
+  -> 200 (2 ms) {"event_id":"mock-1795417206888-1","acknowledged":true,"acknowledged_at":"2026-11-23T07:00:10.887Z","acknowledged_by":"QA","escalation_cancelled":false,"message":"already acknowledged"}
+14:00:12 POST /api/v1/alert/ack/mock-1795417206888-1  key=app bearer=-
+  body: {"acknowledged_by": "QA"}
+  -> 200 (2 ms) {"event_id":"mock-1795417206888-1","acknowledged":true,"acknowledged_at":"2026-11-23T07:00:10.887Z","acknowledged_by":"QA","escalation_cancelled":false,"message":"already acknowledged"}
+  (รอ 6 วินาที )
+--- console ---
+📝 [DB mock] saveEvent: mock-1795417206888-1 FALL
+⏱  [ESCALATE] scheduled event=mock-1795417206888-1 timeout=5s
+Inference complete: is_fall=true confidence=0.985
+[DEMO FIRE] event=mock-1795417206888-1 device=QA-0002
+⚠️  [ALERT] device="QA-0002" ยังไม่ได้ผูกกับบ้าน — ข้ามการสร้าง alert ในแอป (event mock-1795417206888-1 ยังบันทึกปกติ)
+⚠️  no push tokens registered — skip push (event=mock-1795417206888-1)
+✅ [ESCALATE] cancelled event=mock-1795417206888-1
+📝 [DB mock] ack event mock-1795417206888-1 by QA
+{"id": "mock-1795417206888-1", "device_id": "QA-0002", "timestamp": 1795417206888, "location": "ห้องนอนผู้สูงอายุ", "is_fall": true, "confidence": 0.985, "created_at": "2026-11-23T07:00:06.888Z", "acknowledged": true, "acknowledged_at": "2026-11-23T07:00:10.887Z", "acknowledged_by": "QA"}
+  ✔ ได้ [200, 200, 200]
+  ✔ ไม่ทั้งรับทราบและโทร
+  ✔ โทร 0 ครั้ง

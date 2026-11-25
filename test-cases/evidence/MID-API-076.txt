@@ -1,0 +1,15 @@
+MID-API-076  25/11/2026 19:09  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
+19:09:47 POST /api/v1/predict  key=device bearer=-
+  body: {"device_id": "QA_COOL", "timestamp": 1795608587863, "location": "bathroom", "features": [[0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
+  -> 200 (31 ms) {"event_id":"mock-1795608587891-1","is_fall":true,"confidence":0.94,"action":"awaiting_acknowledge","ack_timeout_seconds":60,"timestamp":"2026-11-25T12:09:47.892Z"}
+19:09:47 POST /api/v1/alert/ack/mock-1795608587891-1  key=app bearer=-
+  body: {"acknowledged_by": "QA"}
+  -> 200 (3 ms) {"event_id":"mock-1795608587891-1","acknowledged":true,"acknowledged_at":"2026-11-25T12:09:47.896Z","acknowledged_by":"QA","escalation_cancelled":true}
+  ✔ ครั้งแรก awaiting_acknowledge มี event_id
+  ✔ กดรับทราบ 200
+  (รอ 10 วินาที )
+19:09:57 POST /api/v1/predict  key=device bearer=-
+  body: {"device_id": "QA_COOL", "timestamp": 1795608597899, "location": "bathroom", "features": [[0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
+  -> 200 (5 ms) {"is_fall":true,"confidence":0.94,"action":"cooldown","timestamp":"2026-11-25T12:09:57.902Z"}
+  ~ ตรงสมมติฐาน: ครั้งที่ 2 ได้ 200 action = cooldown (คำถามข้อ 64, 100)
+  ~ ตรงสมมติฐาน: มี 1 แถว (คำถามข้อ 64)

@@ -13,6 +13,30 @@ import { Alert } from "../types/alert"; // ใช้ Type Alert เดิมข�
  */
 const REFRESH_MS = 10_000;
 
+/**
+ * เวลาที่เราเข้าเป็นสมาชิกของแต่ละบ้าน (house_members.joined_at)
+ *
+ * เพิ่งเข้าบ้านคนอื่นไม่ควรเห็นเหตุการณ์ย้อนหลังตอนที่ยังไม่ได้อยู่ในบ้าน —
+ * RLS ให้สมาชิกอ่าน alerts ของบ้านได้ทั้งหมด จึงต้องกรองด้วยเวลาที่เข้าร่วมอีกชั้น
+ *
+ * อ่านไม่ได้ (ยังไม่ได้รัน accounts.sql / ยังไม่ login) → คืน null = ไม่กรอง ใช้พฤติกรรมเดิม
+ */
+async function joinedAtByHouse(): Promise<Map<string, number> | null> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user?.id;
+  if (!userId) return null;
+
+  const { data, error } = await supabase
+    .from("house_members")
+    .select("house_id, joined_at")
+    .eq("user_id", userId);
+  if (error || !data) return null;
+
+  return new Map(
+    data.map((m: { house_id: string; joined_at: string }) => [m.house_id, new Date(m.joined_at).getTime()]),
+  );
+}
+
 export function useAlerts() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,7 +53,16 @@ export function useAlerts() {
         if (error) throw error;
 
         if (data) {
-          const formattedAlerts: Alert[] = data.map((a: any) => {
+          // ตัดเหตุการณ์ที่เกิดก่อนเราเข้าบ้านออก (บ้านที่ไม่รู้เวลาเข้าร่วมปล่อยผ่าน)
+          const joined = await joinedAtByHouse();
+          const visible = joined
+            ? data.filter((a: any) => {
+                const since = joined.get(a.house_id);
+                return since === undefined || new Date(a.created_at).getTime() >= since;
+              })
+            : data;
+
+          const formattedAlerts: Alert[] = visible.map((a: any) => {
             // จำลองการจัดรูปแบบวันที่และเวลาจาก created_at
             // (ในระบบจริง แนะนำให้ใช้ date-fns หรือ dayjs จัดการใน Component)
             const dateObj = new Date(a.created_at);

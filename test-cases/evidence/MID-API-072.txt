@@ -1,0 +1,45 @@
+MID-API-072  23/11/2026 13:54  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
+13:54:31 POST /api/v1/admin/login  key=- bearer=-
+  body: {"username": "qa-admin", "password": "***"}
+  -> 200 (57 ms) {"token":"***","expires_at":"2026-11-23T14:54:31.849Z","username":"qa-admin"}
+13:54:31 POST /api/v1/admin/models  key=- bearer=มี
+  body: {"version": "9.9.0", "notes": "ทดสอบ"}
+  -> 201 (16 ms) {"version":"9.9.0","notes":"ทดสอบ","status":"testing","tested":false,"uploaded_at":"2026-11-23T06:54:31.891Z","updated_at":"2026-11-23T06:54:31.891Z"}
+13:54:31 POST /api/v1/admin/models  key=- bearer=มี
+  body: {"version": "9.9.1", "notes": "ทดสอบ"}
+  -> 201 (0 ms) {"version":"9.9.1","notes":"ทดสอบ","status":"testing","tested":false,"uploaded_at":"2026-11-23T06:54:31.892Z","updated_at":"2026-11-23T06:54:31.892Z"}
+13:54:31 POST /api/v1/admin/models/9.9.0/test  key=- bearer=มี
+  body: {}
+  -> 200 (14 ms) {"version":"9.9.0","notes":"ทดสอบ","status":"testing","tested":true,"uploaded_at":"2026-11-23T06:54:31.891Z","updated_at":"2026-11-23T06:54:31.906Z"}
+13:54:31 POST /api/v1/admin/models/9.9.0/activate  key=- bearer=มี
+  body: {}
+  -> 200 (1 ms) {"model":{"version":"9.9.0","notes":"ทดสอบ","status":"active","tested":true,"uploaded_at":"2026-11-23T06:54:31.891Z","updated_at":"2026-11-23T06:54:31.908Z"},"previous_active":null}
+13:54:31 POST /api/v1/admin/models/9.9.1/activate  key=- bearer=มี
+  body: {}
+  -> 409 (13 ms) {"error":"testedRequired"}
+13:54:31 POST /api/v1/admin/models/9.9.1/test  key=- bearer=มี
+  body: {}
+  -> 200 (1 ms) {"version":"9.9.1","notes":"ทดสอบ","status":"testing","tested":true,"uploaded_at":"2026-11-23T06:54:31.892Z","updated_at":"2026-11-23T06:54:31.923Z"}
+13:54:31 POST /api/v1/admin/models/9.9.1/activate  key=- bearer=มี
+  body: {}
+  -> 200 (0 ms) {"model":{"version":"9.9.1","notes":"ทดสอบ","status":"active","tested":true,"uploaded_at":"2026-11-23T06:54:31.892Z","updated_at":"2026-11-23T06:54:31.924Z"},"previous_active":"9.9.0"}
+13:54:31 GET /api/v1/admin/models  key=- bearer=มี
+  body: -
+  -> 200 (1 ms) {"models":[{"version":"9.9.1","notes":"ทดสอบ","status":"active","tested":true,"uploaded_at":"2026-11-23T06:54:31.892Z","updated_at":"2026-11-23T06:54:31.924Z"},{"version":"9.9.0","notes":"ทดสอบ","status":"inactive","tested":true,"uploaded_at":"2026-11-23T06:54:31.891Z","updated_at":"2026-11-23T06:54:31.924Z"}],"active_version":"9.9.1","has_data":true,"calculated_at":"2026-11-23T06:54:31.926Z"}
+13:54:31 POST /api/v1/admin/models/9.9.9/activate  key=- bearer=มี
+  body: {}
+  -> 404 (0 ms) {"error":"notFound"}
+13:54:31 POST /api/v1/admin/models/9.9.0/test  key=- bearer=มี
+  body: {}
+  -> 200 (27 ms) {"version":"9.9.0","notes":"ทดสอบ","status":"inactive","tested":true,"uploaded_at":"2026-11-23T06:54:31.891Z","updated_at":"2026-11-23T06:54:31.953Z"}
+13:54:31 POST /api/v1/admin/models/9.9.0/activate  key=- bearer=มี
+  body: {}
+  -> 200 (14 ms) {"model":{"version":"9.9.0","notes":"ทดสอบ","status":"active","tested":true,"uploaded_at":"2026-11-23T06:54:31.891Z","updated_at":"2026-11-23T06:54:31.968Z"},"previous_active":"9.9.1"}
+13:54:31 GET /api/v1/admin/models  key=- bearer=มี
+  body: -
+  -> 200 (0 ms) {"models":[{"version":"9.9.1","notes":"ทดสอบ","status":"inactive","tested":true,"uploaded_at":"2026-11-23T06:54:31.892Z","updated_at":"2026-11-23T06:54:31.968Z"},{"version":"9.9.0","notes":"ทดสอบ","status":"active","tested":true,"uploaded_at":"2026-11-23T06:54:31.891Z","updated_at":"2026-11-23T06:54:31.968Z"}],"active_version":"9.9.0","has_data":true,"calculated_at":"2026-11-23T06:54:31.969Z"}
+  ✔ ยังไม่ทดสอบ 409
+  ✔ ทดสอบแล้ว 200 previous_active = 9.9.0
+  ✔ active = ['9.9.1']
+  ✔ ไม่มีเวอร์ชัน 404
+  ✔ คืนค่าเดิม active = ['9.9.0']

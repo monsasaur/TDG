@@ -1,0 +1,21 @@
+MID-ESC-014  23/11/2026 14:07  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
+14:07:40 POST /api/v1/demo/fire  key=demo bearer=-
+  body: {"device_id": "QA-0002"}
+  -> 200 (32 ms) {"event_id":"mock-1795417660220-1","is_fall":true,"confidence":0.979,"action":"awaiting_acknowledge","ack_timeout_seconds":60,"timestamp":"2026-11-23T07:07:40.220Z"}
+  (รอ 65 วินาที )
+--- console ---
+📝 [DB mock] saveEvent: mock-1795417660220-1 FALL
+⏱  [ESCALATE] scheduled event=mock-1795417660220-1 timeout=60s
+Inference complete: is_fall=true confidence=0.979
+[DEMO FIRE] event=mock-1795417660220-1 device=QA-0002
+⚠️  [ALERT] device="QA-0002" ยังไม่ได้ผูกกับบ้าน — ข้ามการสร้าง alert ในแอป (event mock-1795417660220-1 ยังบันทึกปกติ)
+⚠️  no push tokens registered — skip push (event=mock-1795417660220-1)
+🚨 [ESCALATE] event=mock-1795417660220-1 device=QA-0002
+⚠️  ALERT_PHONES empty — skip SMS
+📝 [DB mock] escalate event mock-1795417660220-1 (via: fallback)
+{"id": "mock-1795417660220-1", "device_id": "QA-0002", "timestamp": 1795417660220, "location": "ห้องนอนผู้สูงอายุ", "is_fall": true, "confidence": 0.979, "created_at": "2026-11-23T07:07:40.220Z", "escalated": true, "escalated_at": "2026-11-23T07:08:40.235Z", "sms_sent": false, "call_made": false, "escalation_method": "fallback"}
+14:08:45 GET /health  key=- bearer=-
+  body: -
+  -> 200 (21 ms) {"status":"ok","timestamp":"2026-11-23T07:08:45.247Z"}
+  ✔ console แจ้งว่าว่าง และ Express ไม่ล่ม
+  ~ ตรงสมมติฐาน: escalated = True, sms_sent = False, call_made = False (คำถามข้อ 95)

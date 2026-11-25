@@ -1,0 +1,22 @@
+MID-ESC-002  23/11/2026 13:56  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
+13:56:59 POST /api/v1/demo/fire  key=demo bearer=-
+  body: {"device_id": "QA-0002"}
+  -> 200 (20 ms) {"event_id":"mock-1795417019563-1","is_fall":true,"confidence":0.973,"action":"awaiting_acknowledge","ack_timeout_seconds":60,"timestamp":"2026-11-23T06:56:59.564Z"}
+  (รอ 55 วินาที )
+13:57:54 POST /api/v1/alert/ack/mock-1795417019563-1  key=app bearer=-
+  body: {"acknowledged_by": "QA"}
+  -> 200 (23 ms) {"event_id":"mock-1795417019563-1","acknowledged":true,"acknowledged_at":"2026-11-23T06:57:54.588Z","acknowledged_by":"QA","escalation_cancelled":true}
+  (รอ 35 วินาที )
+--- console ---
+📝 [DB mock] saveEvent: mock-1795417019563-1 FALL
+⏱  [ESCALATE] scheduled event=mock-1795417019563-1 timeout=60s
+Inference complete: is_fall=true confidence=0.973
+[DEMO FIRE] event=mock-1795417019563-1 device=QA-0002
+⚠️  [ALERT] device="QA-0002" ยังไม่ได้ผูกกับบ้าน — ข้ามการสร้าง alert ในแอป (event mock-1795417019563-1 ยังบันทึกปกติ)
+⚠️  no push tokens registered — skip push (event=mock-1795417019563-1)
+✅ [ESCALATE] cancelled event=mock-1795417019563-1
+📝 [DB mock] ack event mock-1795417019563-1 by QA
+{"id": "mock-1795417019563-1", "device_id": "QA-0002", "timestamp": 1795417019563, "location": "ห้องนอนผู้สูงอายุ", "is_fall": true, "confidence": 0.973, "created_at": "2026-11-23T06:56:59.563Z", "acknowledged": true, "acknowledged_at": "2026-11-23T06:57:54.588Z", "acknowledged_by": "QA"}
+  ✔ ack 200 escalation_cancelled = True
+  ✔ ไม่มีการโทรหรือ SMS ถึงวินาทีที่ 90
+  ✔ ไม่ escalated และไม่ call_made

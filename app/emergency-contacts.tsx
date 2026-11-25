@@ -3,7 +3,7 @@ import { Stack, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, TouchableOpacity, View, ActivityIndicator } from "react-native";
 import AddActionPill from "../components/AddActionPill";
-import FilterPillButton from "../components/FilterPillButton";
+import FilterPillButton, { DropdownAnchor } from "../components/FilterPillButton";
 import HouseFilterDropdown from "../components/HouseFilterDropdown";
 import PageHeader from "../components/PageHeader";
 import {
@@ -27,6 +27,8 @@ export default function EmergencyContactsScreen() {
 
   const [selectedHouse, setSelectedHouse] = useState(defaultLabel);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  // ตำแหน่งปุ่มกรอง — ให้เมนูโผล่ใต้ปุ่มพอดีทุกหน้า
+  const [anchor, setAnchor] = useState<DropdownAnchor | undefined>(undefined);
 
   useEffect(() => {
     if (!loadingHouses && HOUSES.length > 0) {
@@ -88,7 +90,10 @@ export default function EmergencyContactsScreen() {
       <View className="bg-white px-5 pb-4 flex-row justify-end">
         <FilterPillButton
           label={selectedHouse}
-          onPress={() => setDropdownOpen(true)}
+          onPress={(a) => {
+            setAnchor(a);
+            setDropdownOpen(true);
+          }}
         />
       </View>
 
@@ -142,6 +147,7 @@ export default function EmergencyContactsScreen() {
       </ScrollView>
 
       <HouseFilterDropdown
+        anchor={anchor}
         visible={dropdownOpen}
         onClose={() => setDropdownOpen(false)}
         options={dropdownOptions}

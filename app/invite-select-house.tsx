@@ -6,6 +6,7 @@ import HousePicker from "../components/HousePicker";
 import PageHeader from "../components/PageHeader";
 import PrimaryButton from "../components/PrimaryButton";
 import { MAX_MEMBERS_PER_HOUSE, useContacts } from "../data/useContacts";
+import { useHouseFilter } from "../contexts/HouseFilterContext";
 import { useHouses } from "../data/useHouses";
 import { useOwnerAccess } from "../data/useOwnerAccess";
 import { useHouseMembers } from "../data/useHouseMembers";
@@ -38,10 +39,12 @@ export default function InviteSelectHouseScreen() {
   const houseNames = houses.map((h) => h.name);
   const [selected, setSelected] = useState<string>("");
 
-  // รอบ้านโหลดเสร็จก่อนค่อยเลือกตัวแรก ไม่ตั้งค่าตั้งต้นจากของปลอม
+  // ตั้งต้นที่บ้านที่กำลังกรองอยู่ (ตัวกรองเป็น "ทั้งหมด" หรือบ้านนั้นเชิญไม่ได้ → บ้านบนสุด)
+  const { selected: filteredHouse } = useHouseFilter();
   useEffect(() => {
-    if (!selected && houseNames.length > 0) setSelected(houseNames[0]);
-  }, [houseNames, selected]);
+    if (selected || houseNames.length === 0) return;
+    setSelected(houseNames.includes(filteredHouse) ? filteredHouse : houseNames[0]);
+  }, [houseNames, selected, filteredHouse]);
   const [memberLimitModal, setMemberLimitModal] = useState(false);
 
   const handleAddHouse = () => {

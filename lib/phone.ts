@@ -41,6 +41,18 @@ export function formatThaiPhone(value: string | null | undefined): string {
   return `${local.slice(0, 3)}-${local.slice(3, 6)}-${local.slice(6)}`;
 }
 
+/**
+ * ปิดเลขกลางของเบอร์คนอื่น — "0912345678" → "091-XXX-5678" (เห็นหน้า 3 หลัง 4)
+ * ใช้กับเบอร์ที่ไม่ใช่ของเจ้าของเครื่อง เช่นรายชื่อสมาชิกในบ้าน
+ * เบอร์ของตัวเองให้แสดงเต็มด้วย formatThaiPhone ตามเดิม
+ */
+export function maskThaiPhone(value: string | null | undefined): string {
+  const formatted = formatThaiPhone(value);
+  const parts = formatted.split("-");
+  if (parts.length !== 3) return formatted;
+  return `${parts[0]}-XXX-${parts[2]}`;
+}
+
 const VALID_FIRST_DIGITS = ["0", "6", "8", "9"];
 
 /**

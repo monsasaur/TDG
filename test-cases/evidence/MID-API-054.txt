@@ -1,0 +1,6 @@
+MID-API-054  23/11/2026 13:54  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
+13:54:20 POST /api/v1/admin/login  key=- bearer=-
+  body: {"username": "qa-admin", "password": "***"}
+  -> 200 (33 ms) {"token":"***","expires_at":"2026-11-23T14:54:20.194Z","username":"qa-admin"}
+  ✔ status 200
+  ✔ มี token, expires_at, username

@@ -1,0 +1,10 @@
+MID-API-055  23/11/2026 13:54  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
+13:54:21 POST /api/v1/admin/login  key=- bearer=-
+  body: {"username": "nobody", "password": "x"}
+  -> 401 (39 ms) {"error":"invalid credentials"}
+13:54:21 POST /api/v1/admin/login  key=- bearer=-
+  body: {"username": "qa-admin", "password": "wrong123"}
+  -> 401 (40 ms) {"error":"invalid credentials"}
+  ✔ username ผิด 401 มี error
+  ✔ password ผิด 401 ข้อความเดียวกัน
+  ✔ ไม่บอกว่าผิดช่องไหน

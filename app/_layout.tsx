@@ -5,6 +5,10 @@ import { Platform } from "react-native";
 import { AlertsProvider } from "../contexts/AlertsContext";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { DevicesProvider } from "../contexts/DevicesContext";
+import { HouseFilterProvider } from "../contexts/HouseFilterContext";
+import { ReadStateProvider } from "../contexts/ReadStateContext";
+import { ensureDefaultHouse } from "../data/defaultHouse";
+import { notifyHousesChanged, useHouses } from "../data/useHouses";
 
 /**
  * Push notification — ตั้งค่าครั้งเดียวตอนเปิดแอป และลงทะเบียน token กับ backend ใหม่ทุกครั้งที่บัญชีเปลี่ยน
@@ -55,13 +59,38 @@ function PushSetup() {
   return null;
 }
 
+/**
+ * บ้านพื้นฐาน — บัญชีที่ไม่มีบ้านสักหลัง (เพิ่งสมัคร หรือถูกนำออกจากบ้านสุดท้าย)
+ * ระบบสร้างบ้านชื่อ "บ้าน" ให้เอง ผู้ใช้ไม่ต้องกดสร้างก่อนถึงจะใช้แอปได้
+ */
+function DefaultHouseSetup() {
+  const { user, loading } = useAuth();
+  const { houses, isLoading, refetch } = useHouses();
+
+  useEffect(() => {
+    if (loading || isLoading || !user || houses.length > 0) return;
+    ensureDefaultHouse(user.id).then((created) => {
+      if (!created) return;
+      refetch();
+      notifyHousesChanged();
+    });
+  }, [loading, isLoading, user, houses.length, refetch]);
+
+  return null;
+}
+
 export default function RootLayout() {
   return (
     <AuthProvider>
       <PushSetup />
+      <DefaultHouseSetup />
       <DevicesProvider>
         <AlertsProvider>
-          <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
+          <HouseFilterProvider>
+            <ReadStateProvider>
+              <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
+            </ReadStateProvider>
+          </HouseFilterProvider>
         </AlertsProvider>
       </DevicesProvider>
     </AuthProvider>

@@ -10,32 +10,77 @@ export interface House {
   name: string;
 }
 
-export function useHouses() {
-  const [houses, setHouses] = useState<House[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+/**
+ * รายการบ้านเก็บไว้ที่เดียว แล้วแจกให้ทุก useHouses ที่เปิดอยู่
+ *
+ * เดิมแต่ละ hook ดึงเองแยกกัน ตัวที่ mount ไว้ตั้งแต่เปิดแอป (เช่น HouseFilterProvider)
+ * จึงไม่เห็นบ้านที่เพิ่งสร้าง/เพิ่งเข้าร่วม แล้วไปบังคับตัวกรองกลับเป็นบ้านเดิม
+ * — อาการ "กดเปลี่ยนบ้านไม่ได้"
+ */
+const houseListeners = new Set<(houses: House[], loading: boolean) => void>();
+let cache: House[] = [];
+let loaded = false;
+let inflight: Promise<void> | null = null;
 
-  // เรียกซ้ำได้ — หน้าที่เพิ่ม/เข้าร่วมบ้านแล้วกลับมาต้องดึงใหม่ (หน้าเดิมยังค้างอยู่ใน stack ไม่ได้ mount ใหม่)
-  const fetchHouses = useCallback(async () => {
+function emit() {
+  houseListeners.forEach((fn) => fn(cache, !loaded));
+}
+
+/** ดึงรายการบ้านใหม่ให้ทุกหน้าพร้อมกัน · force = true บังคับยิงใหม่แม้มีคำขอค้างอยู่ */
+export async function fetchHouses(force = false): Promise<void> {
+  if (inflight && !force) return inflight;
+  const run = (async () => {
     try {
       const { data, error } = await supabase
         .from("houses")
         .select("id, name")
         .order("created_at", { ascending: true }); // เรียงตามเวลาที่สร้าง
-
       if (error) throw error;
-      if (data) setHouses(data);
+      if (data) cache = data;
     } catch (error) {
       console.error("Error fetching houses:", error);
     } finally {
-      setIsLoading(false);
+      loaded = true;
+      emit();
     }
-  }, []);
+  })();
+  inflight = run;
+  await run;
+  if (inflight === run) inflight = null;
+}
+
+/** เรียกหลังสร้าง / เข้าร่วม / ออกจากบ้าน เพื่อให้ทุกหน้าที่ใช้ useHouses อัปเดตตาม */
+export function notifyHousesChanged() {
+  void fetchHouses(true);
+}
+
+// เปลี่ยนบัญชี (login / ออกจากระบบ) → ของเก่าใช้ไม่ได้แล้ว ล้างแล้วดึงใหม่
+supabase.auth.onAuthStateChange(() => {
+  cache = [];
+  loaded = false;
+  emit();
+  void fetchHouses(true);
+});
+
+export function useHouses() {
+  const [houses, setHouses] = useState<House[]>(cache);
+  const [isLoading, setIsLoading] = useState(!loaded);
 
   useEffect(() => {
-    fetchHouses();
-  }, [fetchHouses]);
+    const listener = (next: House[], loading: boolean) => {
+      setHouses(next);
+      setIsLoading(loading);
+    };
+    houseListeners.add(listener);
+    void fetchHouses();
+    return () => {
+      houseListeners.delete(listener);
+    };
+  }, []);
 
-  return { houses, isLoading, refetch: fetchHouses };
+  const refetch = useCallback(() => fetchHouses(true), []);
+
+  return { houses, isLoading, refetch };
 }
 
 /**

@@ -1,0 +1,6 @@
+MID-API-009  23/11/2026 13:53  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
+13:53:47 POST /api/v1/predict  key=device bearer=-
+  body: {"device_id": "ESP32_001", "features": "abc"}
+  -> 400 (0 ms) {"error":"features must be a non-empty array"}
+  ✔ status 400
+  ✔ ไม่มีแถวใหม่

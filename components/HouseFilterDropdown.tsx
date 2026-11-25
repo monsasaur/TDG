@@ -6,6 +6,7 @@ import {
   TouchableWithoutFeedback,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import type { DropdownAnchor } from "./FilterPillButton";
 import { C } from "./theme";
 
 interface HouseFilterDropdownProps {
@@ -14,6 +15,8 @@ interface HouseFilterDropdownProps {
   options: string[];
   selected: string;
   onSelect: (option: string) => void;
+  /** ตำแหน่งปุ่มที่วัดมาจาก FilterPillButton — ไม่ส่งมาจะใช้ topOffset แบบเดิม */
+  anchor?: DropdownAnchor;
   topOffset?: number;
 }
 
@@ -23,17 +26,27 @@ export default function HouseFilterDropdown({
   options,
   selected,
   onSelect,
+  anchor,
   topOffset = 108,
 }: HouseFilterDropdownProps) {
   if (!visible) return null;
 
   return (
-    <Modal transparent animationType="none" visible={visible}>
+    <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
       <TouchableWithoutFeedback onPress={onClose}>
-        <View className="flex-1">
+        {/* พื้นหลังหรี่ลงเหมือนเมนูเลือกบ้านหน้าหลัก */}
+        <View className="flex-1 bg-black/25">
           <View
-            className="absolute right-5 bg-white rounded-xl border border-[#E8E8E8] py-1 w-40 shadow-lg"
-            style={{ top: topOffset }}
+            className="absolute bg-white rounded-2xl py-1 w-40 shadow-lg"
+            style={{
+              top: anchor?.top ?? topOffset,
+              right: anchor?.right ?? 20,
+              elevation: 8,
+              shadowColor: "#000",
+              shadowOpacity: 0.18,
+              shadowRadius: 16,
+              shadowOffset: { width: 0, height: 6 },
+            }}
           >
             {options.map((option) => (
               <TouchableOpacity

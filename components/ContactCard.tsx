@@ -13,6 +13,8 @@ interface ContactCardProps {
   onPress?: () => void;
   showChevron?: boolean;
   className?: string;
+  /** แสดงป้ายบ้านได้สูงสุดกี่อัน ที่เหลือรวบเป็น "+N" (อยู่หลายบ้านแล้วป้ายล้นการ์ด) */
+  maxTags?: number;
 }
 
 export default function ContactCard({
@@ -22,8 +24,13 @@ export default function ContactCard({
   onPress,
   showChevron,
   className = "bg-white mx-5 mb-2 rounded-2xl px-4 py-3 flex-row items-center",
+  maxTags = 3,
 }: ContactCardProps) {
   const initial = name.trim().charAt(0);
+  // ป้ายของบ้านที่กำลังกรองอยู่ (active) ได้ขึ้นก่อนเสมอ ที่เหลือรวบเป็น "+N"
+  const sorted = [...tags].sort((a, b) => Number(b.active) - Number(a.active));
+  const shown = sorted.slice(0, maxTags);
+  const hidden = sorted.length - shown.length;
   return (
     <TouchableOpacity
       activeOpacity={onPress ? 0.7 : 1}
@@ -37,24 +44,28 @@ export default function ContactCard({
       <View className="flex-1">
         <Text className="text-sm font-semibold text-ink">{name}</Text>
         <Text className="text-xs text-sub mb-1">{phone}</Text>
-        {tags.length > 0 && (
-          <View className="flex-row">
-            {tags.map((t) => (
+        {shown.length > 0 && (
+          <View className="flex-row flex-wrap items-center">
+            {shown.map((t) => (
               <View
                 key={t.label}
-                className={`rounded-md px-2 py-0.5 mr-1 ${
+                className={`rounded-md px-2 py-0.5 mr-1 mb-1 max-w-[150px] ${
                   t.active ? "bg-brand-soft" : "bg-[#EEEEEE]"
                 }`}
               >
                 <Text
-                  className={`text-[10px] ${
-                    t.active ? "text-brand-strong" : "text-sub"
-                  }`}
+                  className={`text-[10px] ${t.active ? "text-brand-strong" : "text-sub"}`}
+                  numberOfLines={1}
                 >
                   {t.label}
                 </Text>
               </View>
             ))}
+            {hidden > 0 && (
+              <View className="rounded-md px-2 py-0.5 mr-1 mb-1 bg-[#EEEEEE]">
+                <Text className="text-[10px] text-sub">+{hidden}</Text>
+              </View>
+            )}
           </View>
         )}
       </View>
