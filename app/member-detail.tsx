@@ -20,6 +20,7 @@ import { House, useHouses } from "../data/useHouses";
 import { MemberHouse, removeHouseMember, useHouseMembers } from "../data/useHouseMembers";
 import { useAuth } from "../contexts/AuthContext";
 import { C } from "../components/theme";
+import { safeBack } from "../lib/navigation";
 
 /** โหมดเดิม — สมาชิกจากผู้ติดต่อฉุกเฉิน (ก่อนเปิดระบบบัญชี) */
 function ContactMemberDetail() {
@@ -59,7 +60,7 @@ function ContactMemberDetail() {
     return (
       <View className="flex-1 bg-page">
         <Stack.Screen options={{ animation: "slide_from_right" }} />
-        <PageHeader title="" onBack={() => router.back()} />
+        <PageHeader title="" onBack={() => safeBack(router)} />
         <ActivityIndicator className="mt-10" color={C.brand} />
       </View>
     );
@@ -69,7 +70,7 @@ function ContactMemberDetail() {
     return (
       <View className="flex-1 bg-page">
         <Stack.Screen options={{ animation: "slide_from_right" }} />
-        <PageHeader title="" onBack={() => router.back()} />
+        <PageHeader title="" onBack={() => safeBack(router)} />
         <Text className="text-sm text-sub px-5 mt-5">ไม่พบข้อมูลสมาชิก</Text>
       </View>
     );
@@ -97,7 +98,7 @@ function ContactMemberDetail() {
 
       // ถ้าเตะออกจนไม่เหลือบ้านไหนแล้ว ให้เด้งกลับหน้าเดิมอัตโนมัติ
       if (nextHouses.length === 0) {
-        setTimeout(() => router.back(), 150);
+        setTimeout(() => safeBack(router), 150);
       }
     } catch (error) {
       console.error("Error removing member from house:", error);
@@ -114,7 +115,7 @@ function ContactMemberDetail() {
   return (
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
-      <PageHeader title="" onBack={() => router.back()} />
+      <PageHeader title="" onBack={() => safeBack(router)} />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="bg-white mx-5 mt-2 rounded-2xl px-4 py-4 flex-row items-center">
@@ -216,7 +217,7 @@ function AccountMemberDetail({ memberId }: { memberId: string }) {
     }
     // ไม่เหลือบ้านที่อยู่ด้วยกันแล้ว = ไม่มีอะไรให้ดูในหน้านี้ → กลับหน้าสมาชิก
     if (member.houses.length <= 1) {
-      router.back();
+      safeBack(router);
       return;
     }
     refetch();
@@ -226,7 +227,7 @@ function AccountMemberDetail({ memberId }: { memberId: string }) {
     return (
       <View className="flex-1 bg-page">
         <Stack.Screen options={{ animation: "slide_from_right" }} />
-        <PageHeader title="" onBack={() => router.back()} />
+        <PageHeader title="" onBack={() => safeBack(router)} />
         <ActivityIndicator className="mt-10" color={C.brand} />
       </View>
     );
@@ -236,7 +237,7 @@ function AccountMemberDetail({ memberId }: { memberId: string }) {
     return (
       <View className="flex-1 bg-page">
         <Stack.Screen options={{ animation: "slide_from_right" }} />
-        <PageHeader title="" onBack={() => router.back()} />
+        <PageHeader title="" onBack={() => safeBack(router)} />
         <Text className="text-sm text-sub px-5 mt-5">ไม่พบข้อมูลสมาชิก</Text>
       </View>
     );
@@ -245,7 +246,7 @@ function AccountMemberDetail({ memberId }: { memberId: string }) {
   return (
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
-      <PageHeader title="" onBack={() => router.back()} />
+      <PageHeader title="" onBack={() => safeBack(router)} />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="bg-white mx-5 mt-2 rounded-2xl px-4 py-4 flex-row items-center">

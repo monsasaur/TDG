@@ -8,12 +8,13 @@ import { hasAnyHouse } from "../data/useHouses";
 import { V2 } from "../components/designVersion";
 import ActionCard from "../components/ActionCard";
 import { C } from "../components/theme";
+import { safeBack } from "../lib/navigation";
 
 /**
  * เริ่มต้นใช้งาน — บัญชีที่ยังไม่มีบ้าน (เพิ่งสมัคร หรือ login แล้วไม่เห็นบ้านไหนเลย)
  * เลือกสร้างบ้านใหม่ (เป็นเจ้าของบ้าน) หรือเข้าร่วมบ้านที่มีอยู่ด้วย QR / รหัสเชิญ (เป็นผู้ดูแล) หรือข้ามไปก่อน
  *
- * หน้าสร้างบ้าน / กรอกรหัส / สแกน QR ทำเสร็จแล้ว router.back() กลับมาที่นี่ → เช็คอีกครั้ง มีบ้านแล้วไปหน้า home เอง
+ * หน้าสร้างบ้าน / กรอกรหัส / สแกน QR ทำเสร็จแล้ว safeBack(router) กลับมาที่นี่ → เช็คอีกครั้ง มีบ้านแล้วไปหน้า home เอง
  * มาจากหน้า home (ปุ่ม "เพิ่มบ้าน") → ย้อนกลับไปหน้า home เดิม ไม่ซ้อนหน้า home ใหม่
  */
 export default function GetStartedScreen() {

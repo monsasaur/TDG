@@ -9,6 +9,7 @@ import HouseFilterDropdown from "../components/HouseFilterDropdown";
 import ConfirmModal from "../components/ConfirmModal";
 import { useHouses } from "../data/useHouses";
 import { C } from "../components/theme";
+import { safeBack } from "../lib/navigation";
 
 export default function ClearAlertsScreen() {
   const router = useRouter();
@@ -74,7 +75,7 @@ export default function ClearAlertsScreen() {
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      <PageHeader title="ลบการแจ้งเตือน" onBack={() => router.back()} />
+      <PageHeader title="ลบการแจ้งเตือน" onBack={() => safeBack(router)} />
 
       {/* House selector row */}
       <View className="bg-white px-5 py-4 flex-row items-center justify-between">

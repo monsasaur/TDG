@@ -7,6 +7,7 @@ import CountdownTimer from "../components/CountdownTimer";
 import InlineError from "../components/InlineError";
 import { useHouseInvite } from "../data/houseInvites";
 import { C } from "../components/theme";
+import { safeBack } from "../lib/navigation";
 
 /** เจ้าของบ้านสร้างรหัสเชิญ 6 ตัว — อีกฝ่ายกรอกที่หน้า enter-code */
 export default function InviteCodeScreen() {
@@ -26,7 +27,7 @@ export default function InviteCodeScreen() {
   return (
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
-      <PageHeader title="รหัสบ้าน" onBack={() => router.back()} />
+      <PageHeader title="รหัสบ้าน" onBack={() => safeBack(router)} />
 
       <View className="px-5 mt-8">
         {error ? (

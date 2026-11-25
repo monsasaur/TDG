@@ -11,6 +11,7 @@ import { useHouses } from "../data/useHouses";
 import { useOwnerAccess } from "../data/useOwnerAccess";
 import { useHouseMembers } from "../data/useHouseMembers";
 import { useAuth } from "../contexts/AuthContext";
+import { safeBack } from "../lib/navigation";
 
 export default function InviteSelectHouseScreen() {
   const router = useRouter();
@@ -76,7 +77,7 @@ export default function InviteSelectHouseScreen() {
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      <PageHeader title="เลือกบ้าน" onBack={() => router.back()} />
+      <PageHeader title="เลือกบ้าน" onBack={() => safeBack(router)} />
 
       <ScrollView
         className="flex-1"

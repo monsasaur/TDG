@@ -18,6 +18,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { PHONE_EXISTS_MESSAGE } from "../lib/authErrors";
 import { clearOtp, isPhoneVerified } from "../lib/devOtp";
 import { rememberPhone, toE164TH } from "../lib/phone";
+import { safeBack } from "../lib/navigation";
 
 /** ความยาวรหัสผ่านขั้นต่ำ — ค่าเริ่มต้นของ Supabase Auth (ถ้าแก้ใน dashboard ต้องแก้ตรงนี้ด้วย) */
 const MIN_PASSWORD = 6;
@@ -134,7 +135,7 @@ export default function RegisterDetailsScreen() {
     return (
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} className={`flex-1 ${V2C.page}`}>
         <Stack.Screen options={{ animation: "slide_from_right" }} />
-        <PageHeader title="ตั้งชื่อและรหัสผ่าน" onBack={() => router.back()} />
+        <PageHeader title="ตั้งชื่อและรหัสผ่าน" onBack={() => safeBack(router)} />
         <ScrollView
           className="flex-1"
           contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 32 }}
@@ -211,7 +212,7 @@ export default function RegisterDetailsScreen() {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} className="flex-1 bg-white">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
-      <PageHeader title="ตั้งชื่อและรหัสผ่าน" onBack={() => router.back()} />
+      <PageHeader title="ตั้งชื่อและรหัสผ่าน" onBack={() => safeBack(router)} />
 
       <ScrollView
         className="flex-1"

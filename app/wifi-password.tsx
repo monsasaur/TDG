@@ -13,6 +13,7 @@ import LabeledTextField from "../components/LabeledTextField";
 import PrimaryButton from "../components/PrimaryButton";
 import { provision, errorMessage } from "../lib/provisioning";
 import { C } from "../components/theme";
+import { safeBack } from "../lib/navigation";
 
 const MIN_PASSWORD = 8;
 
@@ -58,7 +59,7 @@ export default function WifiPasswordScreen() {
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      <PageHeader title="เชื่อมต่ออุปกรณ์" onBack={() => router.back()} />
+      <PageHeader title="เชื่อมต่ออุปกรณ์" onBack={() => safeBack(router)} />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -106,7 +107,7 @@ export default function WifiPasswordScreen() {
             disabled={!canSubmit}
           />
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => safeBack(router)}
             className="items-center mt-3"
           >
             <Text className="text-sm text-ink">ยกเลิก</Text>

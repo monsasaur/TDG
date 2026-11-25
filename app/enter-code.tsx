@@ -9,6 +9,7 @@ import { useAlerts } from "../contexts/AlertsContext";
 import { useDevices } from "../contexts/DevicesContext";
 import { joinHouse, normalizeInviteCode } from "../data/houseInvites";
 import { notifyHousesChanged } from "../data/useHouses";
+import { safeBack } from "../lib/navigation";
 
 /** รหัสเชิญมี 6 ตัว และ create_house_invite() ไม่ใช้ I O 0 1 (กันอ่านผิด) */
 const CODE_LENGTH = 6;
@@ -59,7 +60,7 @@ export default function EnterCodeScreen() {
 
   const closeJoined = () => {
     setJoined(null);
-    router.back();
+    safeBack(router);
   };
 
   const textMain = V2 ? "text-[#292A32]" : "text-ink";
@@ -71,7 +72,7 @@ export default function EnterCodeScreen() {
       className={`flex-1 ${V2 ? V2C.page : "bg-page"}`}
     >
       <Stack.Screen options={{ animation: "slide_from_right" }} />
-      <PageHeader title="กรอกรหัสบ้าน" onBack={() => router.back()} />
+      <PageHeader title="กรอกรหัสบ้าน" onBack={() => safeBack(router)} />
 
       <ScrollView
         className="flex-1"

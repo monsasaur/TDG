@@ -12,6 +12,7 @@ import PageHeader from "../components/PageHeader";
 import PrimaryButton from "../components/PrimaryButton";
 import StackedInputCard from "../components/StackedInputCard";
 import { C } from "../components/theme";
+import { safeBack } from "../lib/navigation";
 
 const MIN_SSID = 1;
 const MIN_PASSWORD = 8;
@@ -63,7 +64,7 @@ export default function AddNetworkScreen() {
   return (
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
-      <PageHeader title="เพิ่มเครือข่าย" onBack={() => router.back()} />
+      <PageHeader title="เพิ่มเครือข่าย" onBack={() => safeBack(router)} />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -107,7 +108,7 @@ export default function AddNetworkScreen() {
             disabled={!canSubmit}
           />
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => safeBack(router)}
             className="items-center mt-3"
           >
             <Text className="text-sm text-ink">ยกเลิก</Text>

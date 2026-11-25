@@ -11,6 +11,7 @@ import { SkeletonList } from "../components/Skeleton";
 import { ALL_HOUSES, useHouseFilter } from "../contexts/HouseFilterContext";
 import { Device } from "../data/useDevices";
 import { useHouses } from "../data/useHouses"; // Import เพิ่ม
+import { safeBack } from "../lib/navigation";
 
 export default function DevicesScreen() {
   const router = useRouter();
@@ -51,7 +52,7 @@ export default function DevicesScreen() {
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      <PageHeader title="อุปกรณ์" onBack={() => router.back()} />
+      <PageHeader title="อุปกรณ์" onBack={() => safeBack(router)} />
 
       <View className="bg-white px-5 pb-4 flex-row justify-end">
         <FilterPillButton

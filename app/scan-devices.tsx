@@ -17,6 +17,7 @@ import PermissionModal from "../components/PermissionModal";
 import { searchDevices, errorMessage, isMock } from "../lib/provisioning";
 import { useDevices } from "../contexts/DevicesContext";
 import { C } from "../components/theme";
+import { safeBack } from "../lib/navigation";
 
 type Permission = "undetermined" | "granted" | "denied";
 
@@ -162,7 +163,7 @@ export default function ScanDevicesScreen() {
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      <PageHeader title="ค้นหาอุปกรณ์ใกล้เคียง" onBack={() => router.back()} />
+      <PageHeader title="ค้นหาอุปกรณ์ใกล้เคียง" onBack={() => safeBack(router)} />
 
       <View className="bg-white px-5 py-4 flex-row items-center">
         {scanning ? (

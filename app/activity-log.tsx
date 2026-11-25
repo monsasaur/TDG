@@ -9,6 +9,7 @@ import { describeAudit, useAuditLog } from "../data/useAuditLog";
 import { useHouseMembers } from "../data/useHouseMembers";
 import { useHouses } from "../data/useHouses";
 import { parseTimestamp } from "../lib/time";
+import { safeBack } from "../lib/navigation";
 
 /** 13/11/2569 09:05 — พ.ศ. แบบที่ใช้ในแอป */
 function formatWhen(iso: string): string {
@@ -56,7 +57,7 @@ export default function ActivityLogScreen() {
   return (
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
-      <PageHeader title="ประวัติการเปลี่ยนแปลง" onBack={() => router.back()} />
+      <PageHeader title="ประวัติการเปลี่ยนแปลง" onBack={() => safeBack(router)} />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         <Text className="text-xs text-sub px-5 mt-4 mb-2 leading-[18px]">
