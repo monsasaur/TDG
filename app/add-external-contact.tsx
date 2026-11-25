@@ -23,6 +23,7 @@ import { useHouses } from "../data/useHouses";
 import { useOwnerAccess } from "../data/useOwnerAccess";
 import { BTN } from "../components/buttonTheme";
 import { C } from "../components/theme";
+import { safeBack } from "../lib/navigation";
 
 const NAME_MAX = 20;
 // ยาวพอให้วาง "+66 81-234-5678" ได้ทั้งก้อน — sanitizeContactPhoneInput ตัดเหลือ ≤ 10 หลักเอง
@@ -126,7 +127,7 @@ export default function AddExternalContactScreen() {
       if (mappingError) throw mappingError;
 
       // บันทึกสำเร็จ
-      router.back();
+      safeBack(router);
     } catch (error) {
       console.error("Error adding external contact:", error);
       Alert.alert(
@@ -144,7 +145,7 @@ export default function AddExternalContactScreen() {
 
       <PageHeader
         title="เพิ่มผู้ติดต่อฉุกเฉินภายนอก"
-        onBack={() => router.back()}
+        onBack={() => safeBack(router)}
       />
 
       <KeyboardAvoidingView

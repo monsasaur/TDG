@@ -11,6 +11,7 @@ import { MAX_HOUSES, notifyHousesChanged, useHouses } from "../data/useHouses";
 // อย่าลืม Import supabase client (ปรับ path ให้ตรงกับโปรเจกต์ของคุณ)
 import { supabase } from "../data/supabaseClient";
 import { houseRpcErrorMessage, isMissingRpc } from "../lib/authErrors";
+import { safeBack } from "../lib/navigation";
 
 export default function AddHouseScreen() {
   const router = useRouter();
@@ -52,7 +53,7 @@ export default function AddHouseScreen() {
 
       // บันทึกสำเร็จ — บอกทุกหน้าที่แสดงรายการบ้านให้ดึงใหม่ แล้วกลับไปหน้าเดิม
       notifyHousesChanged();
-      router.back();
+      safeBack(router);
     } catch (error) {
       console.error("Error adding house:", error);
       Alert.alert("เพิ่มบ้านไม่ได้", houseRpcErrorMessage(error as { message?: string; code?: string }));
@@ -64,7 +65,7 @@ export default function AddHouseScreen() {
   return (
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
-      <PageHeader title="เพิ่มบ้าน" onBack={() => router.back()} />
+      <PageHeader title="เพิ่มบ้าน" onBack={() => safeBack(router)} />
 
       <View className="flex-1">
         <LabeledTextField
@@ -82,7 +83,7 @@ export default function AddHouseScreen() {
           disabled={!canSave}
         />
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeBack(router)}
           className="items-center mt-4"
           disabled={isSaving}
         >

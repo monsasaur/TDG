@@ -18,6 +18,7 @@ import QrScannerFrame from "../components/QrScannerFrame";
 import ConfirmModal from "../components/ConfirmModal";
 import { disconnect, isMock, parsePairingQr } from "../lib/provisioning";
 import { C } from "../components/theme";
+import { safeBack } from "../lib/navigation";
 
 /**
  * กรอกรหัสจับคู่อุปกรณ์ (Proof of Possession) — ระหว่าง scan-devices กับ connect-device
@@ -52,7 +53,7 @@ export default function DevicePairingCodeScreen() {
   // ตัดการเชื่อมต่อ BLE ก่อนถอยออก — ถ้าเคยเชื่อมต่อจากรอบก่อน (กลับมาแก้รหัส) จะได้ไม่ค้าง
   const handleBack = () => {
     disconnect();
-    router.back();
+    safeBack(router);
   };
 
   const openScanner = async () => {

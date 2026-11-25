@@ -14,6 +14,7 @@ import {
 import { useHouses } from "../data/useHouses";
 import { C } from "../components/theme";
 import { formatContactPhone } from "../lib/phone";
+import { safeBack } from "../lib/navigation";
 
 export default function EmergencyContactsScreen() {
   const router = useRouter();
@@ -85,7 +86,7 @@ export default function EmergencyContactsScreen() {
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      <PageHeader title="เบอร์โทรฉุกเฉิน" onBack={() => router.back()} />
+      <PageHeader title="เบอร์โทรฉุกเฉิน" onBack={() => safeBack(router)} />
 
       <View className="bg-white px-5 pb-4 flex-row justify-end">
         <FilterPillButton

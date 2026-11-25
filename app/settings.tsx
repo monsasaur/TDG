@@ -14,6 +14,7 @@ import { useAuditLog } from "../data/useAuditLog";
 import TabHeader from "../components/TabHeader";
 import { V2, V2C } from "../components/designVersion";
 import { C } from "../components/theme";
+import { safeBack } from "../lib/navigation";
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -83,7 +84,7 @@ export default function SettingsScreen() {
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      <PageHeader title="ตั้งค่า" onBack={() => router.back()} centered />
+      <PageHeader title="ตั้งค่า" onBack={() => safeBack(router)} centered />
 
       {/* บัญชี */}
       <View className="rounded-2xl bg-white mx-5 mt-5 px-5 py-4 flex-row items-center">

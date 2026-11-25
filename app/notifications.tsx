@@ -17,6 +17,7 @@ import {
   requestNotificationPermissions,
 } from "../lib/notifications";
 import { C } from "../components/theme";
+import { safeBack } from "../lib/navigation";
 
 type Permission = "undetermined" | "granted" | "denied";
 
@@ -155,7 +156,7 @@ export default function NotificationsScreen() {
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      <PageHeader title="การแจ้งเตือน" onBack={() => router.back()} />
+      <PageHeader title="การแจ้งเตือน" onBack={() => safeBack(router)} />
 
       <View className="bg-white mx-5 mt-5 rounded-2xl px-4 py-3 flex-row items-center justify-between">
         <Text className="text-sm text-ink">การแจ้งเตือนทั้งหมด</Text>

@@ -72,12 +72,12 @@ router.post('/test', async (_req, res) => {
     const [smsRes, callRes] = await Promise.allSettled([
       alertService.sendSms({
         device_id:  'TEST_DEVICE',
-        location:   'test_room',
+        location:   'ห้องนอน',
         confidence: 0.99,
         event_id:   'test-event'
       }),
       alertService.makeCall({
-        location: 'test_room',
+        location: 'ห้องนอน',
         event_id: 'test-event'
       })
     ])

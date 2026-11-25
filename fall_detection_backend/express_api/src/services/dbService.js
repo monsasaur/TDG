@@ -483,6 +483,31 @@ module.exports = {
     }
   },
 
+  /**
+   * เบอร์ผู้ติดต่อฉุกเฉินของบ้าน — ที่ผู้ใช้กรอกในแอป (ตั้งค่า → เบอร์โทรฉุกเฉิน)
+   * house_contacts → emergency_contacts · คืนเบอร์ตามที่เก็บ (เช่น "0812345678") ให้ alertService แปลงเอง
+   * ไม่มีฐานข้อมูล / อ่านไม่ได้ → [] (alertService ถอยไปใช้ ALERT_PHONES)
+   */
+  getHouseContactPhones: async (house_id) => {
+    if (!house_id) return []
+    const client = getClient()
+    if (!client) return []
+
+    const { data, error } = await client
+      .from('house_contacts')
+      .select('emergency_contacts(name, phone)')
+      .eq('house_id', house_id)
+
+    if (error || !Array.isArray(data)) {
+      if (error) console.error('❌ [CONTACTS] read failed:', error.message)
+      return []
+    }
+    return data
+      .map((row) => row.emergency_contacts)
+      .filter((c) => c && c.phone)
+      .map((c) => ({ name: c.name || null, phone: String(c.phone) }))
+  },
+
   createAlert: async (alert) => {
     const client = getClient()
 
