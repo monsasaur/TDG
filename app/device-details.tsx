@@ -21,6 +21,7 @@ import { useOwnerAccess } from "../data/useOwnerAccess";
 import type { Device } from "../data/useDevices";
 import { BTN } from "../components/buttonTheme";
 import { C } from "../components/theme";
+import { safeBack } from "../lib/navigation";
 
 const NAME_MAX = 30;
 
@@ -52,7 +53,7 @@ export default function DeviceDetailsScreen() {
     }
   }, [device]);
 
-  const goBack = () => router.back();
+  const goBack = () => safeBack(router);
 
   if (!device) {
     return (

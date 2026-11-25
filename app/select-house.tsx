@@ -7,6 +7,7 @@ import PrimaryButton from "../components/PrimaryButton";
 import { useHouseFilter } from "../contexts/HouseFilterContext";
 import { useHouses } from "../data/useHouses";
 import { useOwnerAccess } from "../data/useOwnerAccess";
+import { safeBack } from "../lib/navigation";
 
 export default function SelectHouseScreen() {
   const router = useRouter();
@@ -52,7 +53,7 @@ export default function SelectHouseScreen() {
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      <PageHeader title="เลือกบ้าน" onBack={() => router.back()} />
+      <PageHeader title="เลือกบ้าน" onBack={() => safeBack(router)} />
 
       <ScrollView
         className="flex-1"

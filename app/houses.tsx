@@ -21,6 +21,7 @@ import { useAlerts } from "../contexts/AlertsContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useDevices } from "../contexts/DevicesContext";
 import { C } from "../components/theme";
+import { safeBack } from "../lib/navigation";
 
 const ROLE_LABEL: Record<string, string | undefined> = { owner: "เจ้าของบ้าน", caregiver: "ผู้ดูแล" };
 
@@ -128,7 +129,7 @@ export default function HousesScreen() {
   return (
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
-      <PageHeader title="บ้าน" onBack={() => router.back()} />
+      <PageHeader title="บ้าน" onBack={() => safeBack(router)} />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="flex-row items-center justify-between px-5 mt-5 mb-3">

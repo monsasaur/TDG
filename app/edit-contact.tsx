@@ -21,6 +21,7 @@ import { supabase } from "../data/supabaseClient";
 import { BTN } from "../components/buttonTheme";
 import { C } from "../components/theme";
 import { CONTACT_PHONE_ERROR, normalizeContactPhone, sanitizeContactPhoneInput } from "../lib/phone";
+import { safeBack } from "../lib/navigation";
 
 const NAME_MAX = 20;
 // ยาวพอให้วาง "+66 81-234-5678" ได้ทั้งก้อน — sanitizeContactPhoneInput ตัดเหลือ ≤ 10 หลักเอง
@@ -93,7 +94,7 @@ export default function EditContactScreen() {
       prev.includes(h) ? prev.filter((x) => x !== h) : [...prev, h],
     );
 
-  const goBack = () => router.back();
+  const goBack = () => safeBack(router);
 
   const handleSave = async () => {
     if (!canSave || !contact) return;

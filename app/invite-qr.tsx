@@ -7,6 +7,7 @@ import CountdownTimer from "../components/CountdownTimer";
 import InlineError from "../components/InlineError";
 import { INVITE_QR_PREFIX, useHouseInvite } from "../data/houseInvites";
 import { C } from "../components/theme";
+import { safeBack } from "../lib/navigation";
 
 const QR_SIZE = 220;
 
@@ -32,7 +33,7 @@ export default function InviteQrScreen() {
   return (
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
-      <PageHeader title="ใช้ QR Code" onBack={() => router.back()} />
+      <PageHeader title="ใช้ QR Code" onBack={() => safeBack(router)} />
 
       <View className="items-center mt-10 px-8">
         {error ? (

@@ -15,6 +15,7 @@ import { BTN } from "../components/buttonTheme";
 import FormRow from "../components/FormRow";
 import { V2, V2C } from "../components/designVersion";
 import { clearOtp, issueOtp } from "../lib/devOtp";
+import { safeBack } from "../lib/navigation";
 
 /**
  * สมัครใช้งาน ขั้นที่ 1 จาก 3 — กรอกเบอร์โทรเพื่อรับรหัสยืนยัน
@@ -68,7 +69,7 @@ export default function RegisterScreen() {
     return (
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} className={`flex-1 ${V2C.page}`}>
         <Stack.Screen options={{ animation: "slide_from_right" }} />
-        <PageHeader title="สมัครใช้งาน" onBack={() => router.back()} />
+        <PageHeader title="สมัครใช้งาน" onBack={() => safeBack(router)} />
         <ScrollView
           className="flex-1"
           contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 32 }}
@@ -119,7 +120,7 @@ export default function RegisterScreen() {
       className="flex-1 bg-white"
     >
       <Stack.Screen options={{ animation: "slide_from_right" }} />
-      <PageHeader title="สมัครใช้งาน" onBack={() => router.back()} />
+      <PageHeader title="สมัครใช้งาน" onBack={() => safeBack(router)} />
 
       <ScrollView
         className="flex-1"

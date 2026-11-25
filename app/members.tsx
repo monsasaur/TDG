@@ -13,6 +13,7 @@ import { EmergencyContact, useContacts } from "../data/useContacts";
 import { useHouses } from "../data/useHouses";
 import { useHouseMembers } from "../data/useHouseMembers";
 import { useAuth } from "../contexts/AuthContext";
+import { safeBack } from "../lib/navigation";
 
 export default function MembersScreen() {
   const router = useRouter();
@@ -104,7 +105,7 @@ export default function MembersScreen() {
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
-      <PageHeader title="สมาชิก" onBack={() => router.back()} />
+      <PageHeader title="สมาชิก" onBack={() => safeBack(router)} />
 
       <View className="bg-white px-5 pb-4 flex-row justify-end">
         <FilterPillButton

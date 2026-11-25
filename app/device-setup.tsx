@@ -15,6 +15,7 @@ import PageHeader from "../components/PageHeader";
 import LabeledTextField from "../components/LabeledTextField";
 import PrimaryButton from "../components/PrimaryButton";
 import DeviceSuccessCard from "../components/DeviceSuccessCard";
+import { safeBack } from "../lib/navigation";
 
 export default function DeviceSetupScreen() {
   const router = useRouter();
@@ -161,7 +162,7 @@ export default function DeviceSetupScreen() {
   return (
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
-      <PageHeader title="ตั้งค่าอุปกรณ์" onBack={() => router.back()} />
+      <PageHeader title="ตั้งค่าอุปกรณ์" onBack={() => safeBack(router)} />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}

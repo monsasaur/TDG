@@ -2,6 +2,7 @@ import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import PageHeader from "../components/PageHeader";
+import { safeBack } from "../lib/navigation";
 
 export default function InviteSendScreen() {
   const router = useRouter();
@@ -15,7 +16,7 @@ export default function InviteSendScreen() {
   return (
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
-      <PageHeader title="ส่งคำเชิญ" onBack={() => router.back()} />
+      <PageHeader title="ส่งคำเชิญ" onBack={() => safeBack(router)} />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="px-5 mt-5">

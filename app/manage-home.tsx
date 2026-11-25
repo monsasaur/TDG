@@ -2,6 +2,7 @@ import { Stack, useRouter } from "expo-router";
 import { View } from "react-native";
 import PageHeader from "../components/PageHeader";
 import SettingItem from "../components/SettingItem";
+import { safeBack } from "../lib/navigation";
 
 export default function ManageHomeScreen() {
   const router = useRouter();
@@ -9,7 +10,7 @@ export default function ManageHomeScreen() {
   return (
     <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
-      <PageHeader title="จัดการบ้าน" onBack={() => router.back()} />
+      <PageHeader title="จัดการบ้าน" onBack={() => safeBack(router)} />
 
       <View className="mt-2">
         <SettingItem

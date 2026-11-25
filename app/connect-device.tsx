@@ -21,6 +21,7 @@ import {
   isPopError,
 } from "../lib/provisioning";
 import { C } from "../components/theme";
+import { safeBack } from "../lib/navigation";
 
 export default function ConnectDeviceScreen() {
   const router = useRouter();
@@ -72,7 +73,7 @@ export default function ConnectDeviceScreen() {
   // ตัดการเชื่อมต่อ BLE เมื่อผู้ใช้ถอยออกจาก flow ไม่งั้นค้างเชื่อมต่อไว้
   const handleBack = () => {
     disconnect();
-    router.back();
+    safeBack(router);
   };
 
   const selectNetwork = (ssid: string) =>

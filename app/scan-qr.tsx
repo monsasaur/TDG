@@ -12,6 +12,7 @@ import { useDevices } from "../contexts/DevicesContext";
 import { joinHouse, parseInviteQr } from "../data/houseInvites";
 import { notifyHousesChanged } from "../data/useHouses";
 import { C } from "../components/theme";
+import { safeBack } from "../lib/navigation";
 
 const NOT_INVITE = "QR Code นี้ไม่ใช่คำเชิญเข้าบ้าน ลองใช้คิวอาร์โค้ดอื่นหรือเพิ่มด้วยวิธีอื่น";
 
@@ -70,7 +71,7 @@ export default function ScanQrScreen() {
 
   const closeJoined = () => {
     setJoined(null);
-    router.back();
+    safeBack(router);
   };
 
   const handlePickImage = async () => {
@@ -124,7 +125,7 @@ export default function ScanQrScreen() {
       )}
 
       <View className="bg-white/95">
-        <PageHeader title="สแกน QR code" onBack={() => router.back()} />
+        <PageHeader title="สแกน QR code" onBack={() => safeBack(router)} />
       </View>
 
       <View className="flex-1 items-center justify-center">
