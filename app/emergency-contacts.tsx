@@ -12,6 +12,7 @@ import {
   useContacts,
 } from "../data/useContacts";
 import { useHouses } from "../data/useHouses";
+import { C } from "../components/theme";
 import { formatContactPhone } from "../lib/phone";
 
 export default function EmergencyContactsScreen() {
@@ -79,7 +80,7 @@ export default function EmergencyContactsScreen() {
   const isLoading = loadingContacts || loadingHouses;
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
       <PageHeader title="เบอร์โทรฉุกเฉิน" onBack={() => router.back()} />
@@ -93,7 +94,7 @@ export default function EmergencyContactsScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         {isLoading ? (
-          <ActivityIndicator className="mt-10" color="#FF3055" />
+          <ActivityIndicator className="mt-10" color={C.brand} />
         ) : (
           <>
             <SectionTitle title="เบอร์โทรของฉัน" />
@@ -152,7 +153,7 @@ export default function EmergencyContactsScreen() {
 }
 
 function SectionTitle({ title }: { title: string }) {
-  return <Text className="text-xs text-[#888] px-5 mt-5 mb-2">{title}</Text>;
+  return <Text className="text-xs text-sub px-5 mt-5 mb-2">{title}</Text>;
 }
 
 function ContactRow({
@@ -172,27 +173,27 @@ function ContactRow({
       disabled={!onPress}
       className="bg-white mx-5 mb-2 rounded-2xl px-4 py-3 flex-row items-center"
     >
-      <View className="w-10 h-10 rounded-full bg-[#FFE0E3] items-center justify-center mr-3">
-        <Text className="text-base font-semibold text-[#C45A66]">
+      <View className="w-10 h-10 rounded-full bg-brand-soft items-center justify-center mr-3">
+        <Text className="text-base font-semibold text-brand-strong">
           {initial}
         </Text>
       </View>
       <View className="flex-1">
-        <Text className="text-sm font-semibold text-[#1A1A1A]">
+        <Text className="text-sm font-semibold text-ink">
           {contact.name}
         </Text>
-        <Text className="text-xs text-[#888] mb-1">{formatContactPhone(contact.phone)}</Text>
+        <Text className="text-xs text-sub mb-1">{formatContactPhone(contact.phone)}</Text>
         <View className="flex-row flex-wrap">
           {tags.map((t) => (
             <View
               key={t.label}
               className={`rounded-md px-2 py-0.5 mr-1 mb-1 ${
-                t.active ? "bg-[#FFE5E8]" : "bg-[#EEEEEE]"
+                t.active ? "bg-brand-soft" : "bg-[#EEEEEE]"
               }`}
             >
               <Text
                 className={`text-[10px] ${
-                  t.active ? "text-[#C45A66]" : "text-[#888]"
+                  t.active ? "text-brand-strong" : "text-sub"
                 }`}
               >
                 {t.label}

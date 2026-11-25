@@ -11,14 +11,14 @@ export default function DeviceSuccessCard({
   subtitle,
 }: DeviceSuccessCardProps) {
   return (
-    <View className="bg-[#FFE5E8] rounded-xl px-4 py-3 flex-row items-center">
-      <View className="w-8 h-8 rounded-lg bg-[#FF3055] items-center justify-center mr-3">
+    <View className="bg-brand-soft rounded-xl px-4 py-3 flex-row items-center">
+      <View className="w-8 h-8 rounded-lg bg-brand items-center justify-center mr-3">
         <Ionicons name="checkmark" size={18} color="white" />
       </View>
       <View className="flex-1">
-        <Text className="text-sm font-semibold text-[#FF3055]">{title}</Text>
+        <Text className="text-sm font-semibold text-brand">{title}</Text>
         {subtitle && (
-          <Text className="text-xs text-[#888] mt-0.5">{subtitle}</Text>
+          <Text className="text-xs text-sub mt-0.5">{subtitle}</Text>
         )}
       </View>
     </View>

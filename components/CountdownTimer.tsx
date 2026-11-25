@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { C } from "./theme";
 
 interface CountdownTimerProps {
   seconds: number;
@@ -44,14 +45,14 @@ export default function CountdownTimer({
         hitSlop={12}
         className="items-center"
       >
-        <Ionicons name="refresh" size={22} color="#1A1A1A" />
+        <Ionicons name="refresh" size={22} color={C.ink} />
       </TouchableOpacity>
     );
   }
 
   return (
     <View className="items-center">
-      <Text className="text-sm text-[#1A1A1A]">( {formatRemaining(remaining)} )</Text>
+      <Text className="text-sm text-ink">( {formatRemaining(remaining)} )</Text>
     </View>
   );
 }

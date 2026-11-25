@@ -98,7 +98,7 @@ export default function MembersScreen() {
   const isLoading = loadingHouses || loadingMembers || (!accountMembers && loadingContacts);
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
       <PageHeader title="สมาชิก" onBack={() => router.back()} />
@@ -111,7 +111,7 @@ export default function MembersScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
-        <Text className="text-xs text-[#888] px-5 mt-5 mb-2">สมาชิกในบ้าน</Text>
+        <Text className="text-xs text-sub px-5 mt-5 mb-2">สมาชิกในบ้าน</Text>
 
         {/* แสดงตัวโหลดข้อมูล */}
         {isLoading ? (

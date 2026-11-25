@@ -2,6 +2,9 @@
  * แปลง error จาก Supabase (Auth และฟังก์ชันใน accounts.sql) เป็นข้อความไทยที่ผู้ใช้ทำอะไรต่อได้
  */
 
+/** ข้อความเมื่อเบอร์นี้สมัครไว้แล้ว — หน้าสมัครใช้เทียบเพื่อแสดงปุ่ม "ไปหน้าเข้าสู่ระบบ" */
+export const PHONE_EXISTS_MESSAGE = "เบอร์นี้สมัครไว้แล้ว ลองเข้าสู่ระบบแทน";
+
 type SupabaseLikeError = { message?: string; code?: string; status?: number } | null | undefined;
 
 /** error ตอนสมัคร / เข้าสู่ระบบ */
@@ -11,9 +14,9 @@ export function authErrorMessage(err: SupabaseLikeError): string {
   const msg = (err.message ?? "").toLowerCase();
 
   if (code === "invalid_credentials" || msg.includes("invalid login credentials"))
-    return "เบอร์โทรหรือรหัสผ่านไม่ถูกต้อง";
+    return "เบอร์โทรศัพท์หรือรหัสผ่านไม่ถูกต้อง";
   if (code === "user_already_exists" || code === "phone_exists" || msg.includes("already registered"))
-    return "เบอร์นี้สมัครไว้แล้ว ลองเข้าสู่ระบบแทน";
+    return PHONE_EXISTS_MESSAGE;
   if (code === "weak_password" || msg.includes("password should be"))
     return "รหัสผ่านต้องยาวอย่างน้อย 6 ตัว";
   if (
@@ -29,7 +32,7 @@ export function authErrorMessage(err: SupabaseLikeError): string {
   if (code === "over_request_rate_limit" || err.status === 429)
     return "ลองหลายครั้งเกินไป รอสักครู่แล้วลองใหม่";
   if (msg.includes("network request failed") || msg.includes("failed to fetch"))
-    return "เชื่อมต่อไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่";
+    return "ไม่สามารถเชื่อมต่อได้ กรุณาลองอีกครั้ง";
   return err.message || "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง";
 }
 

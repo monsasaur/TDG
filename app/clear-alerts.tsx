@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, Pressable } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAlerts } from "../contexts/AlertsContext";
@@ -8,6 +8,7 @@ import FilterPillButton from "../components/FilterPillButton";
 import HouseFilterDropdown from "../components/HouseFilterDropdown";
 import ConfirmModal from "../components/ConfirmModal";
 import { useHouses } from "../data/useHouses";
+import { C } from "../components/theme";
 
 export default function ClearAlertsScreen() {
   const router = useRouter();
@@ -68,14 +69,14 @@ export default function ClearAlertsScreen() {
   const dropdownOptions = showAll ? ["ทั้งหมด", ...HOUSES] : HOUSES;
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
       <PageHeader title="ลบการแจ้งเตือน" onBack={() => router.back()} />
 
       {/* House selector row */}
       <View className="bg-white px-5 py-4 flex-row items-center justify-between">
-        <Text className="text-sm text-[#1A1A1A]">บ้าน</Text>
+        <Text className="text-sm text-ink">บ้าน</Text>
         <FilterPillButton
           label={selectedHouse}
           onPress={() => setDropdownOpen(true)}
@@ -102,19 +103,20 @@ export default function ClearAlertsScreen() {
         />
       </View>
 
-      {/* Delete button */}
-      <View className="absolute bottom-10 right-5">
-        <Pressable
+      {/* ปุ่มลบ — เต็มความกว้างด้านล่าง สีแดงเพราะเป็นการลบ · ยังไม่เลือกอะไรจะเป็นแดงจางและกดไม่ได้
+          (เดิมใส่สีผ่าน style แบบฟังก์ชันของ Pressable ซึ่งบนเว็บไม่ติด ปุ่มเลยเหลือแต่ตัวหนังสือขาว) */}
+      <View className="absolute left-5 right-5 bottom-10">
+        <TouchableOpacity
           disabled={!canDelete}
           onPress={() => setConfirmOpen(true)}
-          className="rounded-full px-8 py-3"
-          style={({ pressed }) => ({
-            backgroundColor: pressed ? "#D92647" : "#FF3055",
-            opacity: canDelete ? 1 : 0.5,
-          })}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !canDelete }}
+          className={`h-[52px] rounded-2xl flex-row items-center justify-center ${canDelete ? "bg-danger" : "bg-[#F3B4B4]"}`}
         >
-          <Text className="text-white font-semibold text-sm">ลบข้อมูล</Text>
-        </Pressable>
+          <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
+          <Text className="text-white font-semibold text-base ml-2">ลบข้อมูล</Text>
+        </TouchableOpacity>
       </View>
 
       <HouseFilterDropdown
@@ -159,15 +161,15 @@ function CheckRow({
       }`}
     >
       <View className="flex-1 pr-4">
-        <Text className="text-sm font-semibold text-[#1A1A1A] mb-1">
+        <Text className="text-sm font-semibold text-ink mb-1">
           {label}
         </Text>
-        <Text className="text-xs text-[#888]">{sublabel}</Text>
+        <Text className="text-xs text-sub">{sublabel}</Text>
       </View>
       <View
         className="w-6 h-6 rounded items-center justify-center"
         style={{
-          backgroundColor: checked ? "#FF3055" : "#FFFFFF",
+          backgroundColor: checked ? C.brand : "#FFFFFF",
           borderWidth: checked ? 0 : 1.5,
           borderColor: "#CCCCCC",
         }}

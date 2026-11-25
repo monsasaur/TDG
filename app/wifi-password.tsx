@@ -12,6 +12,7 @@ import PageHeader from "../components/PageHeader";
 import LabeledTextField from "../components/LabeledTextField";
 import PrimaryButton from "../components/PrimaryButton";
 import { provision, errorMessage } from "../lib/provisioning";
+import { C } from "../components/theme";
 
 const MIN_PASSWORD = 8;
 
@@ -54,7 +55,7 @@ export default function WifiPasswordScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
       <PageHeader title="เชื่อมต่ออุปกรณ์" onBack={() => router.back()} />
@@ -64,7 +65,7 @@ export default function WifiPasswordScreen() {
         className="flex-1"
       >
         <View className="flex-1">
-          <Text className="text-base font-semibold text-[#1A1A1A] px-5 mt-5">
+          <Text className="text-base font-semibold text-ink px-5 mt-5">
             กรอกรหัส WiFi
           </Text>
 
@@ -90,8 +91,8 @@ export default function WifiPasswordScreen() {
 
           {connecting && (
             <View className="mx-5 mt-4 bg-white rounded-xl px-4 py-3 flex-row items-center border border-[#E8E8E8]">
-              <ActivityIndicator size="small" color="#FF3055" />
-              <Text className="text-sm text-[#1A1A1A] ml-3">
+              <ActivityIndicator size="small" color={C.brand} />
+              <Text className="text-sm text-ink ml-3">
                 กำลังเชื่อมต่ออุปกรณ์...
               </Text>
             </View>
@@ -108,7 +109,7 @@ export default function WifiPasswordScreen() {
             onPress={() => router.back()}
             className="items-center mt-3"
           >
-            <Text className="text-sm text-[#1A1A1A]">ยกเลิก</Text>
+            <Text className="text-sm text-ink">ยกเลิก</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

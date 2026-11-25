@@ -18,6 +18,8 @@ import { useContacts } from "../data/useContacts";
 import { useHouses } from "../data/useHouses";
 import { useOwnerAccess } from "../data/useOwnerAccess";
 import { supabase } from "../data/supabaseClient";
+import { BTN } from "../components/buttonTheme";
+import { C } from "../components/theme";
 import { CONTACT_PHONE_ERROR, normalizeContactPhone, sanitizeContactPhoneInput } from "../lib/phone";
 
 const NAME_MAX = 20;
@@ -170,17 +172,17 @@ export default function EditContactScreen() {
 
   if (!contact) {
     return (
-      <View className="flex-1 bg-[#F2F2F2] items-center justify-center px-8">
-        <Text className="text-sm text-[#888]">ไม่พบผู้ติดต่อ</Text>
+      <View className="flex-1 bg-page items-center justify-center px-8">
+        <Text className="text-sm text-sub">ไม่พบผู้ติดต่อ</Text>
         <TouchableOpacity onPress={goBack} className="mt-4">
-          <Text className="text-sm font-semibold text-[#FF3055]">กลับ</Text>
+          <Text className="text-sm font-semibold text-brand">กลับ</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
       <PageHeader title="แก้ไขผู้ติดต่อ" onBack={goBack} />
@@ -216,25 +218,25 @@ export default function EditContactScreen() {
           />
 
           {!canEdit && (
-            <Text className="text-xs text-[#888] px-5 mt-3 leading-5">
+            <Text className="text-xs text-sub px-5 mt-3 leading-5">
               คุณเป็นผู้ดูแลของบ้านที่ผู้ติดต่อนี้อยู่ — เฉพาะเจ้าของบ้านที่แก้หรือลบได้
             </Text>
           )}
 
           {!isSelf && canEdit && (
             <View className="px-5 mt-4">
-              <Text className="text-sm text-[#1A1A1A] mb-2">กลุ่มบ้านที่ดูแล</Text>
+              <Text className="text-sm text-ink mb-2">กลุ่มบ้านที่ดูแล</Text>
               <HousePillGroup
                 houses={HOUSES}
                 selected={houses}
                 onSelect={toggleHouse}
                 multi
               />
-              <Text className="text-xs text-[#888] mt-1">
+              <Text className="text-xs text-sub mt-1">
                 เลือกกลุ่มบ้านที่ใช้อยากให้คนนี้ได้รับการแจ้งเตือนเมื่อตรวจพบการล้ม
               </Text>
               {lockedHouses.length > 0 && (
-                <Text className="text-xs text-[#888] mt-1">
+                <Text className="text-xs text-sub mt-1">
                   ผูกกับ {lockedHouses.join(", ")} ด้วย — แก้ได้เฉพาะเจ้าของบ้านนั้น
                 </Text>
               )}
@@ -248,7 +250,7 @@ export default function EditContactScreen() {
             onPress={handleSave}
             disabled={!canSave}
             className={`rounded-full py-4 items-center flex-row justify-center ${
-              canSave ? "bg-[#FF3055]" : "bg-[#C56E76]"
+              canSave ? BTN.solid : BTN.solidDim
             }`}
           >
             {isSaving && <ActivityIndicator color="#FFF" size="small" className="mr-2" />}
@@ -262,10 +264,10 @@ export default function EditContactScreen() {
               activeOpacity={0.8}
               onPress={handleDelete}
               disabled={isDeleting || isSaving}
-              className="rounded-full py-4 items-center mt-3 bg-white border border-[#FF3055] flex-row justify-center"
+              className="rounded-full py-4 items-center mt-3 bg-white border border-danger flex-row justify-center"
             >
-              {isDeleting && <ActivityIndicator color="#FF3055" size="small" className="mr-2" />}
-              <Text className="text-base font-semibold text-[#FF3055]">
+              {isDeleting && <ActivityIndicator color={C.danger} size="small" className="mr-2" />}
+              <Text className="text-base font-semibold text-danger">
                 {isDeleting ? "กำลังลบ..." : "ลบ"}
               </Text>
             </TouchableOpacity>

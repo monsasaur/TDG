@@ -1,11 +1,17 @@
 import { useState } from "react";
-import { View, Text, Pressable } from "react-native";
+import { View, Text, Pressable, ScrollView } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import SettingItem from "../components/SettingItem";
 import PageHeader from "../components/PageHeader";
 import ConfirmModal from "../components/ConfirmModal";
 import { useAuth } from "../contexts/AuthContext";
+import ActionCard from "../components/ActionCard";
+import PushPermissionCard from "../components/PushPermissionCard";
+import BottomTabBar from "../components/BottomTabBar";
+import TabHeader from "../components/TabHeader";
+import { V2, V2C } from "../components/designVersion";
+import { C } from "../components/theme";
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -27,31 +33,54 @@ export default function SettingsScreen() {
     router.replace("/welcome" as any);
   };
 
+  // ดีไซน์ v2 — เป็นแท็บล่าง ไม่มีปุ่มย้อนกลับ · บัญชีและออกจากระบบย้ายไปแท็บโปรไฟล์ · สิทธิ์แจ้งเตือนอยู่แท็บการแจ้งเตือน
+  if (V2) {
+    return (
+      <View className={`flex-1 ${V2C.page}`}>
+        <Stack.Screen options={{ animation: "none" }} />
+        <TabHeader title="ตั้งค่า" />
+        <ScrollView className="flex-1" contentContainerStyle={{ padding: 20 }}>
+          <Text className="text-sm text-[#858891] mb-2 mx-1">การแจ้งเตือนบนเครื่องนี้</Text>
+          <PushPermissionCard />
+          <Text className="text-sm text-[#858891] mt-4 mb-2 mx-1">บ้านและผู้ติดต่อ</Text>
+          <ActionCard surface="white" icon="home-outline" title="จัดการบ้าน" description="บ้าน สมาชิก และอุปกรณ์" onPress={() => router.push("/manage-home" as any)} />
+          <ActionCard surface="white" icon="call-outline" title="เบอร์โทรฉุกเฉิน" description="ระบบโทรหาเมื่อไม่มีใครกดรับทราบ" onPress={() => router.push("/emergency-contacts" as any)} />
+          {user && (
+            <ActionCard surface="white" icon="time-outline" title="ประวัติการเปลี่ยนแปลง" description="ใครแก้อะไรในบ้านเมื่อไร" onPress={() => router.push("/activity-log" as any)} />
+          )}
+          <Text className="text-sm text-[#858891] mt-4 mb-2 mx-1">รายการแจ้งเตือน</Text>
+          <ActionCard surface="white" icon="trash-outline" title="ลบการแจ้งเตือนทั้งหมด" description="ซ่อนจากเครื่องนี้ ไม่กระทบสมาชิกคนอื่น" onPress={handleClearAll} />
+        </ScrollView>
+        <BottomTabBar active="settings" />
+      </View>
+    );
+  }
+
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
       <PageHeader title="ตั้งค่า" onBack={() => router.back()} centered />
 
       {/* บัญชี */}
       <View className="rounded-2xl bg-white mx-5 mt-5 px-5 py-4 flex-row items-center">
-        <View className="w-11 h-11 rounded-full bg-[#FFE3E8] items-center justify-center">
-          <Ionicons name="person" size={20} color="#FF3055" />
+        <View className="w-11 h-11 rounded-full bg-brand-soft items-center justify-center">
+          <Ionicons name="person" size={20} color={C.brand} />
         </View>
         <View className="ml-3 flex-1">
           {user ? (
             <>
-              <Text className="text-sm font-semibold text-[#1A1A1A]" numberOfLines={1}>
+              <Text className="text-sm font-semibold text-ink" numberOfLines={1}>
                 {displayName}
               </Text>
               {phoneDisplay ? (
-                <Text className="text-xs text-[#888888] mt-0.5">{phoneDisplay}</Text>
+                <Text className="text-xs text-sub mt-0.5">{phoneDisplay}</Text>
               ) : null}
             </>
           ) : (
             <>
-              <Text className="text-sm font-semibold text-[#1A1A1A]">ยังไม่ได้เข้าสู่ระบบ</Text>
-              <Text className="text-xs text-[#888888] mt-0.5 leading-[18px]">
+              <Text className="text-sm font-semibold text-ink">ยังไม่ได้เข้าสู่ระบบ</Text>
+              <Text className="text-xs text-sub mt-0.5 leading-[18px]">
                 เข้าสู่ระบบเพื่อให้สมาชิกในบ้านเห็นว่าใครกดรับทราบ
               </Text>
             </>
@@ -59,7 +88,7 @@ export default function SettingsScreen() {
         </View>
         {!user && (
           <Pressable onPress={() => router.push("/welcome" as any)} hitSlop={10} className="ml-2">
-            <Text className="text-sm font-semibold text-[#FF3055]">เข้าสู่ระบบ</Text>
+            <Text className="text-sm font-semibold text-brand">เข้าสู่ระบบ</Text>
           </Pressable>
         )}
       </View>
@@ -70,7 +99,7 @@ export default function SettingsScreen() {
         className="rounded-full bg-white mx-5 mt-4 py-3"
         style={({ pressed }) => (pressed ? { opacity: 0.85 } : undefined)}
       >
-        <Text className="text-sm font-semibold text-[#1A1A1A] text-center">
+        <Text className="text-sm font-semibold text-ink text-center">
           ลบการแจ้งเตือนทั้งหมด
         </Text>
       </Pressable>
@@ -108,8 +137,8 @@ export default function SettingsScreen() {
           style={({ pressed }) => (pressed ? { opacity: 0.85 } : undefined)}
         >
           <View className="flex-row items-center">
-            <Ionicons name="log-out-outline" size={18} color="#FF3055" />
-            <Text className="text-sm font-semibold text-[#FF3055] ml-3">ออกจากระบบ</Text>
+            <Ionicons name="log-out-outline" size={18} color={C.danger} />
+            <Text className="text-sm font-semibold text-danger ml-3">ออกจากระบบ</Text>
           </View>
         </Pressable>
       )}

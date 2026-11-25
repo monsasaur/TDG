@@ -45,30 +45,30 @@ export default function ActivityLogScreen() {
   );
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <PageHeader title="ประวัติการเปลี่ยนแปลง" onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
-        <Text className="text-xs text-[#888888] px-5 mt-4 mb-2 leading-[18px]">
+        <Text className="text-xs text-sub px-5 mt-4 mb-2 leading-[18px]">
           สิ่งที่คุณทำ และทุกอย่างในบ้านที่คุณเป็นเจ้าของ (100 รายการล่าสุด) · ระบบบันทึกเอง แก้ไขหรือลบไม่ได้
         </Text>
 
         {isLoading ? (
           <ActivityIndicator className="my-10" color="#000" />
         ) : unavailable ? (
-          <Text className="text-sm text-[#888888] text-center px-8 my-10 leading-5">
+          <Text className="text-sm text-sub text-center px-8 my-10 leading-5">
             ระบบบันทึกประวัติยังไม่เปิดใช้{"\n"}จะเริ่มบันทึกเมื่อเปิดระบบบัญชีผู้ใช้บนฐานข้อมูล
           </Text>
         ) : rows.length === 0 ? (
-          <Text className="text-sm text-[#888888] text-center my-10">ยังไม่มีประวัติ</Text>
+          <Text className="text-sm text-sub text-center my-10">ยังไม่มีประวัติ</Text>
         ) : (
           rows.map(({ e, text }) => {
             const where = e.house_ids.map((id) => houseName.get(id)).filter(Boolean).join(", ");
             return (
               <View key={e.id} className="bg-white rounded-2xl mx-5 mb-2 px-4 py-3">
-                <Text className="text-sm text-[#1A1A1A] leading-5">{text}</Text>
-                <Text className="text-xs text-[#888888] mt-1">
+                <Text className="text-sm text-ink leading-5">{text}</Text>
+                <Text className="text-xs text-sub mt-1">
                   {formatWhen(e.at)}
                   {where ? ` · ${where}` : ""}
                 </Text>

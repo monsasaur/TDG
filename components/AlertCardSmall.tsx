@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Alert } from "../types/alert";
+import { C } from "./theme";
 
 interface AlertCardSmallProps {
   alert: Alert;
@@ -24,10 +25,10 @@ export default function AlertCardSmall({ alert, onPress }: AlertCardSmallProps) 
       {/* Header row */}
       <View className="flex-row items-start">
         <View className="w-7 h-7 rounded bg-[#FFF0F0] items-center justify-center mr-2 mt-0.5">
-          <Ionicons name="warning" size={16} color="#FF3055" />
+          <Ionicons name="warning" size={16} color={C.danger} />
         </View>
         <View className="flex-1">
-          <Text className="text-base font-bold text-[#1A1A1A]">
+          <Text className="text-base font-bold text-ink">
             {alert.title} - {alert.houseName}
           </Text>
           <Text className="text-sm text-[#AAAAAA] mt-0.5">

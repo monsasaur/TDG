@@ -1,5 +1,6 @@
 import { View, Text, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { C } from "./theme";
 
 interface SettingItemProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -16,12 +17,12 @@ export default function SettingItem({ icon, label, onPress }: SettingItemProps) 
     >
       <View className="flex-row items-center justify-between">
         <View className="flex-row items-center">
-          <Ionicons name={icon} size={18} color="#1A1A1A" />
-          <Text className="text-sm font-semibold text-[#1A1A1A] ml-3">
+          <Ionicons name={icon} size={18} color={C.ink} />
+          <Text className="text-sm font-semibold text-ink ml-3">
             {label}
           </Text>
         </View>
-        <Ionicons name="chevron-forward" size={18} color="#888" />
+        <Ionicons name="chevron-forward" size={18} color={C.sub} />
       </View>
     </Pressable>
   );

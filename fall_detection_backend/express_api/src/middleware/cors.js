@@ -8,7 +8,19 @@
  * ADMIN_ORIGINS=http://localhost:5173,https://admin.example.com
  *   ไม่ตั้ง → default เป็น Vite dev server บนเครื่อง
  *   ตั้งเป็น "*" → อนุญาตทุก origin (ใช้เฉพาะตอน dev)
+ *
+ * DEV_WEB_ORIGINS=http://localhost:8081
+ *   เฉพาะตอนทดสอบแอป Expo บนเว็บในเครื่อง — origin ในรายการนี้ส่ง x-api-key ได้ด้วย
+ *   (เช่นกดรับทราบการแจ้งเตือนจากหน้าเว็บ) · ไม่ตั้ง = ปิด เหมือนเดิมทุกอย่าง
+ *   ห้ามตั้งบน Render/production — รับเฉพาะ origin ที่เป็น localhost / 127.0.0.1 เท่านั้น ค่าอื่นถูกทิ้ง
  */
+
+function devWebOrigins() {
+  return (process.env.DEV_WEB_ORIGINS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(o => /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o))
+}
 
 function allowedOrigins() {
   const raw = process.env.ADMIN_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173'
@@ -19,7 +31,13 @@ module.exports = (req, res, next) => {
   const origin  = req.headers.origin
   const allowed = allowedOrigins()
 
-  if (origin && (allowed.includes('*') || allowed.includes(origin))) {
+  if (origin && devWebOrigins().includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Vary', 'Origin')
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,x-api-key')
+    res.setHeader('Access-Control-Max-Age', '600')
+  } else if (origin && (allowed.includes('*') || allowed.includes(origin))) {
     res.setHeader('Access-Control-Allow-Origin', origin)
     res.setHeader('Vary', 'Origin')
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS')

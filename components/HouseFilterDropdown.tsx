@@ -6,6 +6,7 @@ import {
   TouchableWithoutFeedback,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { C } from "./theme";
 
 interface HouseFilterDropdownProps {
   visible: boolean;
@@ -46,14 +47,14 @@ export default function HouseFilterDropdown({
                 <Text
                   className={`text-sm ${
                     selected === option
-                      ? "text-[#FF3055] font-medium"
-                      : "text-[#1A1A1A]"
+                      ? "text-brand font-medium"
+                      : "text-ink"
                   }`}
                 >
                   {option}
                 </Text>
                 {selected === option && (
-                  <Ionicons name="checkmark" size={18} color="#FF3055" />
+                  <Ionicons name="checkmark" size={18} color={C.brand} />
                 )}
               </TouchableOpacity>
             ))}

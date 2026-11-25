@@ -1,0 +1,28 @@
+{
+  "v1": {
+    "brand": "#FF3055",
+    "brand-soft": "#FFE5E8",
+    "brand-line": "#FFB3BC",
+    "danger": "#FF3055",
+    "ink": "#1A1A1A",
+    "sub": "#888888",
+    "page": "#F2F2F2",
+    "line": "#E0D5D5",
+    "brand-strong": "#C45A66",
+    "brand-tint": "#FFF0F3",
+    "brand-tint-line": "#FFD4DC"
+  },
+  "v2": {
+    "brand": "#292A32",
+    "brand-soft": "#EEEFF1",
+    "brand-line": "#E5E6E9",
+    "danger": "#DC2626",
+    "ink": "#292A32",
+    "sub": "#858891",
+    "page": "#F2F3F5",
+    "line": "#E5E6E9",
+    "brand-strong": "#292A32",
+    "brand-tint": "#F2F3F5",
+    "brand-tint-line": "#E5E6E9"
+  }
+}
