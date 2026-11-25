@@ -1,5 +1,6 @@
 import { TouchableOpacity, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { C } from "./theme";
 
 interface FilterPillButtonProps {
   label: string;
@@ -12,11 +13,11 @@ export default function FilterPillButton({ label, onPress }: FilterPillButtonPro
       className="flex-row items-center"
       onPress={onPress}
     >
-      <Text className="text-sm text-[#1A1A1A]">{label}</Text>
+      <Text className="text-sm text-ink">{label}</Text>
       <Ionicons
         name="chevron-down"
         size={14}
-        color="#1A1A1A"
+        color={C.ink}
         style={{ marginLeft: 4 }}
       />
     </TouchableOpacity>

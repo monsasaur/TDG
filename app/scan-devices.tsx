@@ -15,6 +15,7 @@ import * as Location from "expo-location";
 import PageHeader from "../components/PageHeader";
 import ConfirmModal from "../components/ConfirmModal";
 import { searchDevices, errorMessage, isMock } from "../lib/provisioning";
+import { C } from "../components/theme";
 
 type Permission = "undetermined" | "granted" | "denied";
 
@@ -150,7 +151,7 @@ export default function ScanDevicesScreen() {
   const showEmpty = !scanning && !hasDevices && allowed;
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
       <PageHeader title="ค้นหาอุปกรณ์ใกล้เคียง" onBack={() => router.back()} />
@@ -158,18 +159,18 @@ export default function ScanDevicesScreen() {
       <View className="bg-white px-5 py-4 flex-row items-center">
         {scanning ? (
           <>
-            <Text className="text-sm text-[#888] flex-1">
+            <Text className="text-sm text-sub flex-1">
               สแกนอุปกรณ์ใกล้เคียงด้วยโทรศัพท์...
             </Text>
-            <ActivityIndicator size="small" color="#FF3055" />
+            <ActivityIndicator size="small" color={C.brand} />
           </>
         ) : (
           <>
-            <Text className="text-sm text-[#1A1A1A] flex-1">
+            <Text className="text-sm text-ink flex-1">
               การสแกนบริเวณเสร็จสิ้น
             </Text>
             <TouchableOpacity onPress={handleReset} hitSlop={12}>
-              <Ionicons name="refresh" size={18} color="#1A1A1A" />
+              <Ionicons name="refresh" size={18} color={C.ink} />
             </TouchableOpacity>
           </>
         )}
@@ -177,17 +178,17 @@ export default function ScanDevicesScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="items-center my-8">
-          <View className="w-[110px] h-[170px] border-2 border-[#FF3055] rounded-3xl items-center justify-center">
-            <View className="w-8 h-[2px] bg-[#FF3055]" />
+          <View className="w-[110px] h-[170px] border-2 border-brand rounded-3xl items-center justify-center">
+            <View className="w-8 h-[2px] bg-brand" />
           </View>
         </View>
 
         {showEmpty ? (
           <View className="px-8 items-center">
-            <Text className="text-base font-semibold text-[#1A1A1A] mb-2">
+            <Text className="text-base font-semibold text-ink mb-2">
               {scanError ? "ค้นหาไม่สำเร็จ" : "ไม่พบอุปกรณ์"}
             </Text>
-            <Text className="text-xs text-[#888] text-center leading-5">
+            <Text className="text-xs text-sub text-center leading-5">
               {scanError ??
                 "หากค้นหาอุปกรณ์ของคุณไม่พบ ให้ดูคู่มือที่มาพร้อมกับ อุปกรณ์เพื่อหาวิธีทำให้ค้นหาอุปกรณ์ได้"}
             </Text>
@@ -199,7 +200,7 @@ export default function ScanDevicesScreen() {
           </View>
         ) : (
           <>
-            <Text className="text-sm text-[#1A1A1A] px-5 mb-2">
+            <Text className="text-sm text-ink px-5 mb-2">
               อุปกรณ์ที่ใช้งานได้
             </Text>
             <View className="px-5">
@@ -210,12 +211,12 @@ export default function ScanDevicesScreen() {
                   onPress={() => selectDevice(code)}
                   className="bg-white rounded-xl px-4 py-3 mb-2 border border-[#E8E8E8]"
                 >
-                  <Text className="text-sm text-[#1A1A1A]">{code}</Text>
+                  <Text className="text-sm text-ink">{code}</Text>
                 </TouchableOpacity>
               ))}
             </View>
             {!scanning && hasDevices && (
-              <Text className="text-xs text-[#888] text-center px-8 mt-3 leading-5">
+              <Text className="text-xs text-sub text-center px-8 mt-3 leading-5">
                 หากค้นหาอุปกรณ์ของคุณไม่พบ ให้ดูคู่มือที่มาพร้อมกับ
                 อุปกรณ์เพื่อหาวิธีทำให้ค้นหาอุปกรณ์ได้
               </Text>
@@ -232,28 +233,28 @@ export default function ScanDevicesScreen() {
         titleAlign="left"
         messageAlign="left"
       >
-        <Text className="text-sm text-[#1A1A1A] leading-5">
+        <Text className="text-sm text-ink leading-5">
           หากต้องการใช้คุณสมบัตินี้ คุณต้องให้การอนุญาติต่อไปในการตั้งค่า
         </Text>
         <View className="mt-3">
           {missingLocation && (
             <View className="mb-2">
-              <Text className="text-sm text-[#1A1A1A]">• ตำแหน่ง</Text>
-              <Text className="text-xs text-[#888] ml-3 mt-0.5">
+              <Text className="text-sm text-ink">• ตำแหน่ง</Text>
+              <Text className="text-xs text-sub ml-3 mt-0.5">
                 ใช้เพื่อสแกนหาอุปกรณ์ใกล้เคียงโดยใช้ WiFi
               </Text>
             </View>
           )}
           {missingBt && (
             <View>
-              <Text className="text-sm text-[#1A1A1A]">• อุปกรณ์ที่อยู่ใกล้เคียง</Text>
-              <Text className="text-xs text-[#888] ml-3 mt-0.5">
+              <Text className="text-sm text-ink">• อุปกรณ์ที่อยู่ใกล้เคียง</Text>
+              <Text className="text-xs text-sub ml-3 mt-0.5">
                 ใช้เพื่อสแกนหาและเชื่อมต่อกับอุปกรณ์ใกล้เคียงโดยใช้ Bluetooth
               </Text>
             </View>
           )}
         </View>
-        <Text className="text-sm text-[#1A1A1A] mt-4 leading-5">
+        <Text className="text-sm text-ink mt-4 leading-5">
           หากต้องการใช้คุณสมบัติต่อ ให้เปิดการตั้งค่า
           จากนั้นเลือกให้สิทธิ์ในการใช้งาน
         </Text>

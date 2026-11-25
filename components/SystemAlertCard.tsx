@@ -2,6 +2,7 @@ import { View, Text, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SystemAlert } from "../types/alert";
+import { C } from "./theme";
 
 interface SystemAlertCardProps {
   alert: SystemAlert;
@@ -18,13 +19,13 @@ export default function SystemAlertCard({ alert }: SystemAlertCardProps) {
       {/* Header */}
       <View className="flex-row items-center">
         <View className="w-9 h-9 rounded-lg bg-[#EFEFEF] items-center justify-center mr-3">
-          <Ionicons name="warning" size={18} color="#1A1A1A" />
+          <Ionicons name="warning" size={18} color={C.ink} />
         </View>
         <View className="flex-1">
-          <Text className="text-sm font-bold text-[#1A1A1A]">
+          <Text className="text-sm font-bold text-ink">
             {alert.title}
           </Text>
-          <Text className="text-xs text-[#888] mt-0.5">
+          <Text className="text-xs text-sub mt-0.5">
             ชื่ออุปกรณ์ : {alert.deviceName}
           </Text>
         </View>

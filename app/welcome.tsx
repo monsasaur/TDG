@@ -15,6 +15,9 @@ import SpinningLogo from "../components/SpinningLogo";
 import { useAuth } from "../contexts/AuthContext";
 import { hasAnyHouse } from "../data/useHouses";
 import { rememberedPhone, rememberPhone, sanitizePhoneInput, toE164TH } from "../lib/phone";
+import { BTN } from "../components/buttonTheme";
+import IconField from "../components/IconField";
+import { V2, V2C } from "../components/designVersion";
 
 const RING_SIZE = 140;
 
@@ -29,6 +32,7 @@ export default function WelcomeScreen() {
   const [phone, setPhone] = useState(rememberedPhone);
   const [password, setPassword] = useState("");
   const [phoneError, setPhoneError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -36,10 +40,20 @@ export default function WelcomeScreen() {
   const filled = phone.length > 0 && password.length > 0;
 
   const handleSubmit = async () => {
-    if (!filled || busy) return;
-    if (!toE164TH(phone)) {
-      setPhoneError("เบอร์โทรศัพท์ไม่ถูกต้อง");
-      return;
+    if (busy) return;
+    if (V2) {
+      // v2: กดได้ตลอด แล้วบอกว่าขาดอะไรใต้ช่องนั้น (สเปคหัวข้อ Screen 1)
+      const pe = !phone ? "กรุณากรอกเบอร์โทรศัพท์" : !toE164TH(phone) ? "กรุณาตรวจสอบเบอร์โทรศัพท์" : "";
+      const we = !password ? "กรุณากรอกรหัสผ่าน" : "";
+      setPhoneError(pe);
+      setPasswordError(we);
+      if (pe || we) return;
+    } else {
+      if (!filled) return;
+      if (!toE164TH(phone)) {
+        setPhoneError("เบอร์โทรศัพท์ไม่ถูกต้อง");
+        return;
+      }
     }
     setBusy(true);
     setFormError("");
@@ -66,6 +80,99 @@ export default function WelcomeScreen() {
   // ไม่มีในแอปที่ build ออกไปจริง (__DEV__ เป็น false)
   const skipLogin = () => router.replace("/home" as any);
 
+  // ดีไซน์ v2 (components/designVersion.ts) — ตรรกะเดียวกับด้านล่างทุกอย่าง ต่างแค่หน้าตา
+  if (V2) {
+    return (
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} className="flex-1 bg-white">
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ paddingHorizontal: 28, paddingTop: 72, paddingBottom: 32 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View className="items-center mb-4">
+            <SpinningLogo size={120} />
+          </View>
+          <Text className="text-[26px] font-bold text-[#292A32] text-center">เข้าสู่ระบบ</Text>
+          <Text className="text-sm text-[#858891] text-center mt-1.5 mb-8">
+            รับการแจ้งเตือนเมื่อมีคนในบ้านล้ม
+          </Text>
+
+          <IconField
+            icon="call-outline"
+            placeholder="เบอร์โทรศัพท์"
+            value={phone}
+            error={phoneError}
+            keyboardType="number-pad"
+            maxLength={10}
+            textContentType="telephoneNumber"
+            onChangeText={(t) => {
+              setPhone(sanitizePhoneInput(t, phone));
+              setPhoneError("");
+              setFormError("");
+            }}
+          />
+          <View className="mt-3">
+            <IconField
+              icon="lock-closed-outline"
+              placeholder="รหัสผ่าน"
+              value={password}
+              error={passwordError}
+              secure
+              textContentType="password"
+              autoComplete="current-password"
+              returnKeyType="go"
+              onSubmitEditing={handleSubmit}
+              onChangeText={(t) => {
+                setPassword(t);
+                setPasswordError("");
+                setFormError("");
+              }}
+            />
+          </View>
+
+          {formError ? (
+            <Text accessibilityLiveRegion="polite" className="text-sm text-[#DC2626] text-center mt-4 leading-5">{formError}</Text>
+          ) : null}
+
+          <TouchableOpacity
+            className={`h-[54px] rounded-2xl justify-center items-center mt-6 ${busy ? V2C.darkDisabled : V2C.dark}`}
+            onPress={handleSubmit}
+            disabled={busy}
+            accessibilityRole="button"
+            activeOpacity={0.85}
+          >
+            {busy ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text className="text-base font-semibold text-white">เข้าสู่ระบบ</Text>
+            )}
+          </TouchableOpacity>
+
+          <View className="flex-row items-center my-5">
+            <View className="flex-1 h-px bg-[#E5E6E9]" />
+            <Text className="text-xs text-[#9CA3AF] mx-3">หรือ</Text>
+            <View className="flex-1 h-px bg-[#E5E6E9]" />
+          </View>
+
+          <TouchableOpacity
+            className="h-[54px] rounded-2xl justify-center items-center bg-white border border-[#E5E6E9]"
+            onPress={goRegister}
+            disabled={busy}
+            activeOpacity={0.8}
+          >
+            <Text className="text-base font-semibold text-[#292A32]">สมัครใช้งาน</Text>
+          </TouchableOpacity>
+
+          {__DEV__ && (
+            <TouchableOpacity onPress={skipLogin} hitSlop={12} className="items-center mt-6">
+              <Text className="text-xs text-[#9CA3AF]">ข้ามการเข้าสู่ระบบ (เฉพาะตอนพัฒนา)</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -80,10 +187,10 @@ export default function WelcomeScreen() {
           <SpinningLogo size={RING_SIZE} paused={dropdownOpen} />
         </View>
 
-        <Text className="text-[28px] font-bold text-[#1A1A1A] text-center mb-2">
+        <Text className="text-[28px] font-bold text-ink text-center mb-2">
           ยินดีต้อนรับสู่ Middle
         </Text>
-        <Text className="text-sm text-[#888888] text-center leading-[22px] mb-7">
+        <Text className="text-sm text-sub text-center leading-[22px] mb-7">
           เข้าสู่ระบบเพื่อรับการแจ้งเตือนเหตุฉุกเฉิน{"\n"}และการล้มของคนในบ้าน
         </Text>
 
@@ -115,12 +222,12 @@ export default function WelcomeScreen() {
         </View>
 
         {formError ? (
-          <Text className="text-sm text-[#FF3055] text-center mt-5 leading-5">{formError}</Text>
+          <Text className="text-sm text-danger text-center mt-5 leading-5">{formError}</Text>
         ) : null}
 
         <TouchableOpacity
           className={`h-[52px] rounded-[28px] justify-center items-center mt-8 ${
-            filled ? "bg-[#FF3055]" : "bg-[#F0D9DD]"
+            filled ? BTN.solid : BTN.solidMuted
           }`}
           onPress={handleSubmit}
           disabled={!filled || busy}
@@ -134,18 +241,18 @@ export default function WelcomeScreen() {
         </TouchableOpacity>
 
         <View className="flex-row items-center my-5">
-          <View className="flex-1 h-px bg-[#EEE4E4]" />
+          <View className="flex-1 h-px bg-line" />
           <Text className="text-xs text-[#AAAAAA] mx-3">ยังไม่มีบัญชี</Text>
-          <View className="flex-1 h-px bg-[#EEE4E4]" />
+          <View className="flex-1 h-px bg-line" />
         </View>
 
         <TouchableOpacity
-          className="h-[52px] rounded-[28px] justify-center items-center border border-[#FF3055]"
+          className={`h-[52px] rounded-[28px] justify-center items-center border ${BTN.outline}`}
           onPress={goRegister}
           disabled={busy}
           activeOpacity={0.8}
         >
-          <Text className="text-base font-semibold text-[#FF3055]">สมัครใช้งาน</Text>
+          <Text className={`text-base font-semibold ${BTN.outlineText}`}>สมัครใช้งาน</Text>
         </TouchableOpacity>
 
         {__DEV__ && (

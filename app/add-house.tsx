@@ -61,7 +61,7 @@ export default function AddHouseScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <PageHeader title="เพิ่มบ้าน" onBack={() => router.back()} />
 
@@ -85,7 +85,7 @@ export default function AddHouseScreen() {
           className="items-center mt-4"
           disabled={isSaving}
         >
-          <Text className="text-sm font-semibold text-[#1A1A1A]">ยกเลิก</Text>
+          <Text className="text-sm font-semibold text-ink">ยกเลิก</Text>
         </TouchableOpacity>
       </View>
 

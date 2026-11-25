@@ -1,4 +1,5 @@
 import { TouchableOpacity, Text } from "react-native";
+import { BTN } from "./buttonTheme";
 
 interface PrimaryButtonProps {
   label: string;
@@ -20,12 +21,12 @@ export default function PrimaryButton({
       onPress={onPress}
       disabled={disabled}
       className={`rounded-full py-4 items-center ${
-        enabled ? "bg-[#FF3055]" : "bg-[#FFD4DC]"
+        enabled ? BTN.solid : BTN.solidSoft
       } ${className}`}
     >
       <Text
         className={`text-base font-semibold ${
-          enabled ? "text-white" : "text-[#FFF6F8]"
+          enabled ? "text-white" : BTN.textOnSoft
         }`}
       >
         {label}

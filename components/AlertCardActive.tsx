@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Alert } from "../types/alert";
 import { parseTimestamp } from "../lib/time";
+import { C } from "./theme";
 
 /**
  * วินาทีที่เหลือก่อนระบบโทรฉุกเฉิน ณ ตอนนี้
@@ -12,7 +13,7 @@ import { parseTimestamp } from "../lib/time";
  * ข้อมูลตัวอย่าง (seed) ไม่มี timer ฝั่ง backend — นับจาก countdown เต็มเหมือนเดิม
  * นาฬิกามือถือเพี้ยนได้ จึงบีบให้อยู่ในช่วง 0 ถึง countdown
  */
-function remainingSeconds(alert: Alert): number {
+export function remainingSeconds(alert: Alert): number {
   const total = alert.countdown ?? 60;
   if (alert.fallEventId && alert.createdAt) {
     const elapsed = Math.floor((Date.now() - parseTimestamp(alert.createdAt)) / 1000);
@@ -56,13 +57,13 @@ export default function AlertCardActive({ alert, onConfirm, onTimeout }: AlertCa
   return (
     <View className="bg-white rounded-xl border border-[#E8E8E8] mx-5 mt-4 overflow-hidden">
       <View className="flex-row">
-        <View className="w-1 bg-[#FF3055] rounded-l-xl" />
+        <View className="w-1 bg-danger rounded-l-xl" />
         <View className="flex-1 p-4">
           {/* Countdown */}
-          <Text className="text-xs text-[#888] text-right mb-1">{seconds} วินาที</Text>
+          <Text className="text-xs text-sub text-right mb-1">{seconds} วินาที</Text>
 
           {/* Title */}
-          <Text className="text-base font-bold text-[#FF3055] mb-1">
+          <Text className="text-base font-bold text-danger mb-1">
             {alert.title} - {alert.houseName}
           </Text>
 
@@ -71,8 +72,8 @@ export default function AlertCardActive({ alert, onConfirm, onTimeout }: AlertCa
 
           {/* Location */}
           <View className="flex-row items-center mb-3">
-            <Ionicons name="location-sharp" size={14} color="#FF3055" />
-            <Text className="text-xs text-[#1A1A1A] ml-1">
+            <Ionicons name="location-sharp" size={14} color={C.danger} />
+            <Text className="text-xs text-ink ml-1">
               {alert.location} - {alert.time}
             </Text>
           </View>
@@ -80,7 +81,7 @@ export default function AlertCardActive({ alert, onConfirm, onTimeout }: AlertCa
           {/* Confirm button */}
           <TouchableOpacity
             className={`rounded-full py-2.5 px-6 self-start ${
-              confirmed ? "bg-[#F58A95]" : "bg-[#FF3055]"
+              confirmed ? "bg-[#F58A95]" : "bg-danger"
             }`}
             onPress={handleConfirm}
             disabled={confirmed}

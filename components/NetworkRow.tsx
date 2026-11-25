@@ -1,5 +1,6 @@
 import { TouchableOpacity, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { C } from "./theme";
 
 interface NetworkRowProps {
   ssid: string;
@@ -16,8 +17,8 @@ export default function NetworkRow({ ssid, onPress, showDivider }: NetworkRowPro
         showDivider ? "border-t border-[#F0F0F0]" : ""
       }`}
     >
-      <Ionicons name="wifi" size={18} color="#1A1A1A" />
-      <Text className="text-sm text-[#1A1A1A] ml-3">{ssid}</Text>
+      <Ionicons name="wifi" size={18} color={C.ink} />
+      <Text className="text-sm text-ink ml-3">{ssid}</Text>
     </TouchableOpacity>
   );
 }

@@ -159,7 +159,7 @@ export default function DeviceSetupScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <PageHeader title="ตั้งค่าอุปกรณ์" onBack={() => router.back()} />
 
@@ -171,7 +171,7 @@ export default function DeviceSetupScreen() {
           contentContainerStyle={{ paddingBottom: 32 }}
           keyboardShouldPersistTaps="handled"
         >
-          <Text className="text-base font-semibold text-[#1A1A1A] px-5 mt-5">
+          <Text className="text-base font-semibold text-ink px-5 mt-5">
             ตั้งค่าอุปกรณ์
           </Text>
 

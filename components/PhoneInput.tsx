@@ -59,11 +59,11 @@ export default function PhoneInput({
 
   return (
     <View>
-      <Text className="text-sm font-semibold text-[#1A1A1A] mb-2">เบอร์โทรของฉัน</Text>
+      <Text className="text-sm font-semibold text-ink mb-2">เบอร์โทรของฉัน</Text>
       <View
         ref={containerRef}
         className={`flex-row items-center border rounded-[28px] h-[52px] overflow-hidden ${
-          error ? "border-[#FF3055]" : "border-[#E0D5D5]"
+          error ? "border-danger" : "border-line"
         }`}
       >
         <TouchableOpacity
@@ -71,12 +71,12 @@ export default function PhoneInput({
           onPress={handleToggle}
           activeOpacity={0.6}
         >
-          <Text className="text-base text-[#1A1A1A] font-medium">+66</Text>
+          <Text className="text-base text-ink font-medium">+66</Text>
         </TouchableOpacity>
-        <View className="w-px h-7 bg-[#E0D5D5]" />
+        <View className="w-px h-7 bg-line" />
         <TextInput
           ref={inputRef}
-          className="flex-1 text-base text-[#1A1A1A] px-4 h-full"
+          className="flex-1 text-base text-ink px-4 h-full"
           value={value}
           onChangeText={onChangeText}
           onBlur={onBlur}
@@ -106,15 +106,15 @@ export default function PhoneInput({
                 width: anchor.width,
               }}
             >
-              <View className="border border-[#E0D5D5] rounded-[16px] px-5 py-3 bg-white">
-                <Text className="text-base text-[#1A1A1A] font-medium">+66</Text>
+              <View className="border border-line rounded-[16px] px-5 py-3 bg-white">
+                <Text className="text-base text-ink font-medium">+66</Text>
               </View>
             </View>
           )}
         </Pressable>
       </Modal>
 
-      {error ? <Text className="text-xs text-[#FF3055] mt-2 ml-1">{error}</Text> : null}
+      {error ? <Text className="text-xs text-danger mt-2 ml-1">{error}</Text> : null}
     </View>
   );
 }

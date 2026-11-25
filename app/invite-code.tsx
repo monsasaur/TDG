@@ -6,6 +6,7 @@ import HouseCodeBox from "../components/HouseCodeBox";
 import CountdownTimer from "../components/CountdownTimer";
 import InlineError from "../components/InlineError";
 import { useHouseInvite } from "../data/houseInvites";
+import { C } from "../components/theme";
 
 /** เจ้าของบ้านสร้างรหัสเชิญ 6 ตัว — อีกฝ่ายกรอกที่หน้า enter-code */
 export default function InviteCodeScreen() {
@@ -23,7 +24,7 @@ export default function InviteCodeScreen() {
   const minutes = invite ? Math.max(1, Math.round(invite.seconds / 60)) : null;
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <PageHeader title="รหัสบ้าน" onBack={() => router.back()} />
 
@@ -32,7 +33,7 @@ export default function InviteCodeScreen() {
           <InlineError message={error} onRetry={refresh} />
         ) : (
           <>
-            <Text className="text-sm text-[#1A1A1A] leading-5">
+            <Text className="text-sm text-ink leading-5">
               {minutes ? `รหัสบ้านนี้ใช้ได้ ${minutes} นาที และใช้ได้ครั้งเดียว` : "กำลังสร้างรหัส..."}
               {"\n"}กรอกรหัสด้วยแอป Middle เพื่อเข้าร่วม{house ? `บ้าน ${house}` : "บ้าน"} รหัสในการเชิญคือ:
             </Text>
@@ -43,7 +44,7 @@ export default function InviteCodeScreen() {
 
             <View className="mt-4 items-center">
               {loading || !invite ? (
-                <ActivityIndicator color="#1A1A1A" />
+                <ActivityIndicator color={C.ink} />
               ) : (
                 <CountdownTimer
                   seconds={invite.seconds}

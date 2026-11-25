@@ -7,7 +7,7 @@ export default function ManageHomeScreen() {
   const router = useRouter();
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <PageHeader title="จัดการบ้าน" onBack={() => router.back()} />
 

@@ -20,6 +20,7 @@ import { House, leaveHouse, MAX_HOUSES, useHouses, useMyHouseRoles } from "../da
 import { useAlerts } from "../contexts/AlertsContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useDevices } from "../contexts/DevicesContext";
+import { C } from "../components/theme";
 
 const ROLE_LABEL: Record<string, string | undefined> = { owner: "เจ้าของบ้าน", caregiver: "ผู้ดูแล" };
 
@@ -125,17 +126,17 @@ export default function HousesScreen() {
   const isLast = localHouses.length === 1;
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <PageHeader title="บ้าน" onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="flex-row items-center justify-between px-5 mt-5 mb-3">
-          <Text className="text-sm font-semibold text-[#1A1A1A]">
+          <Text className="text-sm font-semibold text-ink">
             จัดการบ้าน
           </Text>
           <Pressable onPress={handleAdd} hitSlop={12}>
-            <Ionicons name="add" size={22} color="#1A1A1A" />
+            <Ionicons name="add" size={22} color={C.ink} />
           </Pressable>
         </View>
         <View className="px-5">
@@ -153,7 +154,7 @@ export default function HousesScreen() {
           )}
         </View>
 
-        <Text className="text-sm font-semibold text-[#1A1A1A] px-5 mt-8 mb-3">
+        <Text className="text-sm font-semibold text-ink px-5 mt-8 mb-3">
           ยอมรับคำเชิญ
         </Text>
         <View className="px-5">

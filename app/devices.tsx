@@ -42,7 +42,7 @@ export default function DevicesScreen() {
   const dropdownOptions = showAll ? ["ทั้งหมด", ...HOUSES] : [defaultLabel];
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
       <PageHeader title="อุปกรณ์" onBack={() => router.back()} />
@@ -59,11 +59,11 @@ export default function DevicesScreen() {
           const list = devicesByHouse[h] ?? [];
           return (
             <View key={h}>
-              <Text className="text-xs font-semibold text-[#1A1A1A] px-5 mt-4 mb-2">
+              <Text className="text-xs font-semibold text-ink px-5 mt-4 mb-2">
                 {h}
               </Text>
               {list.length === 0 ? (
-                <Text className="text-xs text-[#888] px-5">
+                <Text className="text-xs text-sub px-5">
                   ไม่มีการอุปกรณ์ในบ้าน
                 </Text>
               ) : (
@@ -100,13 +100,13 @@ function DeviceRow({ device }: { device: Device }) {
       className="bg-white mx-5 mb-2 rounded-2xl px-4 py-3 flex-row items-center"
     >
       <View className="flex-1">
-        <Text className="text-sm font-semibold text-[#1A1A1A]">
+        <Text className="text-sm font-semibold text-ink">
           {device.name}
         </Text>
-        <Text className="text-xs text-[#888] mt-0.5">{device.code}</Text>
+        <Text className="text-xs text-sub mt-0.5">{device.code}</Text>
         <Text
           className={`text-xs mt-0.5 ${
-            isConnected ? "text-[#FF3055]" : "text-[#888]"
+            isConnected ? "text-brand" : "text-sub"
           }`}
         >
           {isConnected ? "เชื่อมต่อ" : "ขาดการเชื่อมต่อ"}

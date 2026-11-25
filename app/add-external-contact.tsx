@@ -20,6 +20,8 @@ import { supabase } from "../data/supabaseClient";
 import { MAX_EXTERNAL_PER_HOUSE, useContacts } from "../data/useContacts";
 import { useHouses } from "../data/useHouses";
 import { useOwnerAccess } from "../data/useOwnerAccess";
+import { BTN } from "../components/buttonTheme";
+import { C } from "../components/theme";
 
 const NAME_MAX = 20;
 const PHONE_MAX = 20;
@@ -131,7 +133,7 @@ export default function AddExternalContactScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
       <PageHeader
@@ -147,7 +149,7 @@ export default function AddExternalContactScreen() {
           contentContainerStyle={{ paddingBottom: 32 }}
           keyboardShouldPersistTaps="handled"
         >
-          {isLoading && <ActivityIndicator className="mt-5" color="#FF3055" />}
+          {isLoading && <ActivityIndicator className="mt-5" color={C.brand} />}
 
           <LabeledTextField
             label="ชื่อผู้ติดต่อ"
@@ -166,7 +168,7 @@ export default function AddExternalContactScreen() {
           />
 
           <View className="px-5 mt-4">
-            <Text className="text-sm text-[#1A1A1A] mb-2">
+            <Text className="text-sm text-ink mb-2">
               กลุ่มบ้านที่ดูแล
             </Text>
             {HOUSES.length > 0 ? (
@@ -176,13 +178,13 @@ export default function AddExternalContactScreen() {
                 onSelect={setHouse}
               />
             ) : (
-              <Text className="text-xs text-[#888]">
+              <Text className="text-xs text-sub">
                 {enforced && dbHouses.length > 0
                   ? "เฉพาะเจ้าของบ้านที่เพิ่มผู้ติดต่อฉุกเฉินของบ้านได้"
                   : "ยังไม่มีบ้านในระบบ"}
               </Text>
             )}
-            <Text className="text-xs text-[#888] mt-1">
+            <Text className="text-xs text-sub mt-1">
               เลือกกลุ่มบ้านที่ใช้อยากให้คนนี้ได้รับการแจ้งเตือนเมื่อตรวจพบการล้ม
             </Text>
           </View>
@@ -194,7 +196,7 @@ export default function AddExternalContactScreen() {
             onPress={handleSubmit}
             disabled={!canSubmit}
             className={`rounded-full py-4 items-center flex-row justify-center ${
-              canSubmit ? "bg-[#FF3055]" : "bg-[#FFD4DC]"
+              canSubmit ? BTN.solid : BTN.solidSoft
             }`}
           >
             {isSaving && (

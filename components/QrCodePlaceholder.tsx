@@ -1,4 +1,5 @@
 import { View } from "react-native";
+import { C } from "./theme";
 
 interface QrCodePlaceholderProps {
   expired?: boolean;
@@ -12,7 +13,7 @@ export default function QrCodePlaceholder({
   size = 220,
 }: QrCodePlaceholderProps) {
   const bg = expired ? "#E5E5E5" : "#FFFFFF";
-  const cell = expired ? "#C8C8C8" : "#1A1A1A";
+  const cell = expired ? "#C8C8C8" : C.ink;
 
   return (
     <View

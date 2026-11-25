@@ -11,6 +11,7 @@ import {
 import PageHeader from "../components/PageHeader";
 import PrimaryButton from "../components/PrimaryButton";
 import StackedInputCard from "../components/StackedInputCard";
+import { C } from "../components/theme";
 
 const MIN_SSID = 1;
 const MIN_PASSWORD = 8;
@@ -60,7 +61,7 @@ export default function AddNetworkScreen() {
     };
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <PageHeader title="เพิ่มเครือข่าย" onBack={() => router.back()} />
 
@@ -91,8 +92,8 @@ export default function AddNetworkScreen() {
 
           {connecting && (
             <View className="mx-5 mt-4 bg-white rounded-xl px-4 py-3 flex-row items-center border border-[#E8E8E8]">
-              <ActivityIndicator size="small" color="#FF3055" />
-              <Text className="text-sm text-[#1A1A1A] ml-3">
+              <ActivityIndicator size="small" color={C.brand} />
+              <Text className="text-sm text-ink ml-3">
                 กำลังเชื่อมต่อ...
               </Text>
             </View>
@@ -109,7 +110,7 @@ export default function AddNetworkScreen() {
             onPress={() => router.back()}
             className="items-center mt-3"
           >
-            <Text className="text-sm text-[#1A1A1A]">ยกเลิก</Text>
+            <Text className="text-sm text-ink">ยกเลิก</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

@@ -19,6 +19,8 @@ import ConfirmModal from "../components/ConfirmModal";
 import { useHouses } from "../data/useHouses";
 import { useOwnerAccess } from "../data/useOwnerAccess";
 import type { Device } from "../data/useDevices";
+import { BTN } from "../components/buttonTheme";
+import { C } from "../components/theme";
 
 const NAME_MAX = 30;
 
@@ -54,10 +56,10 @@ export default function DeviceDetailsScreen() {
 
   if (!device) {
     return (
-      <View className="flex-1 bg-[#F2F2F2] items-center justify-center">
-        <Text className="text-sm text-[#888]">ไม่พบอุปกรณ์</Text>
+      <View className="flex-1 bg-page items-center justify-center">
+        <Text className="text-sm text-sub">ไม่พบอุปกรณ์</Text>
         <TouchableOpacity onPress={goBack} className="mt-4">
-          <Text className="text-sm font-semibold text-[#FF3055]">กลับ</Text>
+          <Text className="text-sm font-semibold text-brand">กลับ</Text>
         </TouchableOpacity>
       </View>
     );
@@ -105,7 +107,7 @@ export default function DeviceDetailsScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
       <PageHeader title="รายละเอียดอุปกรณ์" onBack={goBack} />
@@ -120,14 +122,14 @@ export default function DeviceDetailsScreen() {
         >
           {/* รหัสอุปกรณ์ */}
           <View className="px-5 pt-5 pb-3 border-b border-[#E8E8E8]">
-            <Text className="text-sm text-[#1A1A1A]">
-              รหัสอุปกรณ์ : <Text className="text-[#888]">{device.code}</Text>
+            <Text className="text-sm text-ink">
+              รหัสอุปกรณ์ : <Text className="text-sub">{device.code}</Text>
             </Text>
           </View>
 
           {/* เครือข่ายปัจจุบัน */}
           <View className="px-5 mt-4">
-            <Text className="text-sm text-[#1A1A1A] mb-2">เครือข่ายปัจจุบัน</Text>
+            <Text className="text-sm text-ink mb-2">เครือข่ายปัจจุบัน</Text>
             <TouchableOpacity
               activeOpacity={0.7}
               // เปลี่ยน WiFi ต้องจับคู่ BLE ใหม่ — ไปทางเดียวกับปุ่มเชื่อมต่อใหม่
@@ -137,19 +139,19 @@ export default function DeviceDetailsScreen() {
               }
               disabled={!canManage}
               className={`rounded-xl px-4 py-3 flex-row items-center ${
-                isConnected ? "bg-[#FFE5E8]" : "bg-[#EFEFEF]"
+                isConnected ? "bg-brand-soft" : "bg-[#EFEFEF]"
               }`}
             >
               <Ionicons
                 name="wifi"
                 size={18}
-                color={isConnected ? "#1A1A1A" : "#888"}
+                color={isConnected ? C.ink : C.sub}
               />
               <View className="ml-3">
-                <Text className="text-sm text-[#1A1A1A]">{device.wifi_ssid}</Text>
+                <Text className="text-sm text-ink">{device.wifi_ssid}</Text>
                 <Text
                   className={`text-xs mt-0.5 ${
-                    isConnected ? "text-[#FF3055]" : "text-[#888]"
+                    isConnected ? "text-brand" : "text-sub"
                   }`}
                 >
                   {isConnected ? "เชื่อมต่อ" : "ขาดการเชื่อมต่อ"}
@@ -168,15 +170,15 @@ export default function DeviceDetailsScreen() {
 
           {/* กลุ่มบ้าน */}
           <View className="px-5 mt-4">
-            <Text className="text-sm text-[#1A1A1A] mb-2">กลุ่มบ้าน</Text>
+            <Text className="text-sm text-ink mb-2">กลุ่มบ้าน</Text>
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => setHouseDropdown(true)}
               disabled={!canManage}
               className="bg-white rounded-xl px-4 py-3 flex-row items-center justify-between border border-[#E8E8E8]"
             >
-              <Text className="text-sm text-[#1A1A1A]">{house}</Text>
-              {canManage && <Ionicons name="chevron-down" size={14} color="#888" />}
+              <Text className="text-sm text-ink">{house}</Text>
+              {canManage && <Ionicons name="chevron-down" size={14} color={C.sub} />}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -184,7 +186,7 @@ export default function DeviceDetailsScreen() {
         {/* Bottom buttons */}
         {!canManage ? (
           <View className="px-5 pb-8">
-            <Text className="text-xs text-[#888] text-center leading-5">
+            <Text className="text-xs text-sub text-center leading-5">
               คุณเป็นผู้ดูแลของบ้านนี้ — เฉพาะเจ้าของบ้านที่แก้ไข ลบ หรือเชื่อมต่ออุปกรณ์ใหม่ได้
             </Text>
           </View>
@@ -204,9 +206,9 @@ export default function DeviceDetailsScreen() {
             className={`rounded-full py-4 items-center ${
               isConnected
                 ? canSave
-                  ? "bg-[#FF3055]"
-                  : "bg-[#C56E76]"
-                : "bg-[#FF3055]"
+                  ? BTN.solid
+                  : BTN.solidDim
+                : BTN.solid
             }`}
           >
             <Text className="text-base font-semibold text-white">
@@ -217,9 +219,9 @@ export default function DeviceDetailsScreen() {
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => setConfirmDelete(true)}
-            className="rounded-full py-4 items-center mt-3 bg-white border border-[#FF3055]"
+            className="rounded-full py-4 items-center mt-3 bg-white border border-danger"
           >
-            <Text className="text-base font-semibold text-[#FF3055]">
+            <Text className="text-base font-semibold text-danger">
               ลบอุปกรณ์นี้
             </Text>
           </TouchableOpacity>
@@ -245,14 +247,14 @@ export default function DeviceDetailsScreen() {
                     <Text
                       className={`text-sm ${
                         house === h
-                          ? "text-[#FF3055] font-medium"
-                          : "text-[#1A1A1A]"
+                          ? "text-brand font-medium"
+                          : "text-ink"
                       }`}
                     >
                       {h}
                     </Text>
                     {house === h && (
-                      <Ionicons name="checkmark" size={18} color="#FF3055" />
+                      <Ionicons name="checkmark" size={18} color={C.brand} />
                     )}
                   </TouchableOpacity>
                 ))}

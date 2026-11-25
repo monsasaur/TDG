@@ -30,14 +30,14 @@ export default function HousePillGroup({
             onPress={() => onSelect(h)}
             className={`flex-row items-center border rounded-full px-3 py-2 mr-2 mb-2 ${
               active
-                ? "border-[#FF3055] bg-[#FFE5E8]"
+                ? "border-brand bg-brand-soft"
                 : "border-[#E8E8E8] bg-white"
             }`}
           >
             {multi ? (
               <View
                 className={`w-4 h-4 rounded-sm mr-2 items-center justify-center ${
-                  active ? "bg-[#FF3055]" : "border border-[#BBBBBB] bg-white"
+                  active ? "bg-brand" : "border border-[#BBBBBB] bg-white"
                 }`}
               >
                 {active && (
@@ -47,15 +47,15 @@ export default function HousePillGroup({
             ) : (
               <View
                 className={`w-4 h-4 rounded-full border mr-2 items-center justify-center ${
-                  active ? "border-[#FF3055]" : "border-[#BBBBBB]"
+                  active ? "border-brand" : "border-[#BBBBBB]"
                 }`}
               >
                 {active && (
-                  <View className="w-2 h-2 rounded-full bg-[#FF3055]" />
+                  <View className="w-2 h-2 rounded-full bg-brand" />
                 )}
               </View>
             )}
-            <Text className="text-sm text-[#1A1A1A]">{h}</Text>
+            <Text className="text-sm text-ink">{h}</Text>
           </TouchableOpacity>
         );
       })}

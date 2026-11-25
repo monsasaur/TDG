@@ -6,6 +6,7 @@ import PageHeader from "../components/PageHeader";
 import CountdownTimer from "../components/CountdownTimer";
 import InlineError from "../components/InlineError";
 import { INVITE_QR_PREFIX, useHouseInvite } from "../data/houseInvites";
+import { C } from "../components/theme";
 
 const QR_SIZE = 220;
 
@@ -29,7 +30,7 @@ export default function InviteQrScreen() {
   const qrValue = invite && !loading && !expired ? `${INVITE_QR_PREFIX}${invite.code}` : null;
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <PageHeader title="ใช้ QR Code" onBack={() => router.back()} />
 
@@ -40,7 +41,7 @@ export default function InviteQrScreen() {
           </View>
         ) : (
           <>
-            <Text className="text-sm text-[#1A1A1A] text-center leading-5">
+            <Text className="text-sm text-ink text-center leading-5">
               {minutes ? `รหัส QR นี้ใช้ได้ ${minutes} นาที และใช้ได้ครั้งเดียว` : "กำลังสร้างรหัส..."}
               {"\n"}สแกนด้วยแอป Middle เพื่อเข้าร่วม{house ? `บ้าน ${house}` : "บ้าน"}
             </Text>
@@ -52,17 +53,17 @@ export default function InviteQrScreen() {
               {qrValue ? (
                 <QRCode value={qrValue} size={QR_SIZE} />
               ) : loading ? (
-                <ActivityIndicator color="#1A1A1A" />
+                <ActivityIndicator color={C.ink} />
               ) : (
-                <Text className="text-sm text-[#888888]">หมดอายุแล้ว กดรีเฟรชเพื่อสร้างใหม่</Text>
+                <Text className="text-sm text-sub">หมดอายุแล้ว กดรีเฟรชเพื่อสร้างใหม่</Text>
               )}
             </View>
 
             {invite && !loading ? (
               <>
-                <Text className="text-xs text-[#888888] mt-4">
+                <Text className="text-xs text-sub mt-4">
                   สแกนไม่ได้? ให้กรอกรหัส{" "}
-                  <Text className="font-semibold text-[#1A1A1A] tracking-widest">{invite.code}</Text>
+                  <Text className="font-semibold text-ink tracking-widest">{invite.code}</Text>
                 </Text>
                 <View className="mt-4">
                   <CountdownTimer

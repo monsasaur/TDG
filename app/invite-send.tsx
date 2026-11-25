@@ -13,7 +13,7 @@ export default function InviteSendScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <PageHeader title="ส่งคำเชิญ" onBack={() => router.back()} />
 
@@ -40,7 +40,7 @@ function InviteOption({
       onPress={onPress}
       className="bg-white rounded-2xl px-4 py-4 mb-3 flex-row items-center justify-between"
     >
-      <Text className="text-sm text-[#1A1A1A]">{label}</Text>
+      <Text className="text-sm text-ink">{label}</Text>
       <Ionicons name="chevron-forward" size={18} color="#AAAAAA" />
     </TouchableOpacity>
   );

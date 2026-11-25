@@ -8,6 +8,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { C } from "./theme";
 
 interface DropdownProps {
   label?: string;
@@ -35,7 +36,7 @@ export default function Dropdown({
 
   return (
     <View className={containerClassName}>
-      {label && <Text className="text-sm text-[#1A1A1A] mb-2">{label}</Text>}
+      {label && <Text className="text-sm text-ink mb-2">{label}</Text>}
       <TouchableOpacity
         activeOpacity={0.7}
         disabled={disabled}
@@ -44,12 +45,12 @@ export default function Dropdown({
       >
         <Text
           className={`text-sm ${
-            isPlaceholder ? "text-[#888]" : "text-[#1A1A1A]"
+            isPlaceholder ? "text-sub" : "text-ink"
           }`}
         >
           {displayText}
         </Text>
-        <Ionicons name="chevron-down" size={16} color="#1A1A1A" />
+        <Ionicons name="chevron-down" size={16} color={C.ink} />
       </TouchableOpacity>
 
       <Modal
@@ -78,14 +79,14 @@ export default function Dropdown({
                       <Text
                         className={`text-sm ${
                           value === opt
-                            ? "text-[#FF3055] font-medium"
-                            : "text-[#1A1A1A]"
+                            ? "text-brand font-medium"
+                            : "text-ink"
                         }`}
                       >
                         {opt}
                       </Text>
                       {value === opt && (
-                        <Ionicons name="checkmark" size={18} color="#FF3055" />
+                        <Ionicons name="checkmark" size={18} color={C.brand} />
                       )}
                     </TouchableOpacity>
                   ))}

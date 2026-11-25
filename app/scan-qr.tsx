@@ -10,6 +10,7 @@ import ConfirmModal from "../components/ConfirmModal";
 import { useAlerts } from "../contexts/AlertsContext";
 import { useDevices } from "../contexts/DevicesContext";
 import { joinHouse, parseInviteQr } from "../data/houseInvites";
+import { C } from "../components/theme";
 
 const NOT_INVITE = "QR Code นี้ไม่ใช่คำเชิญเข้าบ้าน ลองใช้คิวอาร์โค้ดอื่นหรือเพิ่มด้วยวิธีอื่น";
 
@@ -134,7 +135,7 @@ export default function ScanQrScreen() {
         hitSlop={12}
       >
         <View className="w-12 h-12 rounded-full bg-white/90 items-center justify-center">
-          <Ionicons name="image-outline" size={22} color="#1A1A1A" />
+          <Ionicons name="image-outline" size={22} color={C.ink} />
         </View>
         <Text className="text-xs text-white mt-1">เลือกรูปภาพ</Text>
       </TouchableOpacity>

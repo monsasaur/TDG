@@ -18,6 +18,7 @@ import { useContacts } from "../data/useContacts";
 import { House, useHouses } from "../data/useHouses";
 import { MemberHouse, removeHouseMember, useHouseMembers } from "../data/useHouseMembers";
 import { useAuth } from "../contexts/AuthContext";
+import { C } from "../components/theme";
 
 /** โหมดเดิม — สมาชิกจากผู้ติดต่อฉุกเฉิน (ก่อนเปิดระบบบัญชี) */
 function ContactMemberDetail() {
@@ -55,20 +56,20 @@ function ContactMemberDetail() {
   // แสดงตัวโหลดระหว่างรอข้อมูล
   if (isLoading) {
     return (
-      <View className="flex-1 bg-[#F2F2F2]">
+      <View className="flex-1 bg-page">
         <Stack.Screen options={{ animation: "slide_from_right" }} />
         <PageHeader title="" onBack={() => router.back()} />
-        <ActivityIndicator className="mt-10" color="#FF3055" />
+        <ActivityIndicator className="mt-10" color={C.brand} />
       </View>
     );
   }
 
   if (!member) {
     return (
-      <View className="flex-1 bg-[#F2F2F2]">
+      <View className="flex-1 bg-page">
         <Stack.Screen options={{ animation: "slide_from_right" }} />
         <PageHeader title="" onBack={() => router.back()} />
-        <Text className="text-sm text-[#888] px-5 mt-5">ไม่พบข้อมูลสมาชิก</Text>
+        <Text className="text-sm text-sub px-5 mt-5">ไม่พบข้อมูลสมาชิก</Text>
       </View>
     );
   }
@@ -110,28 +111,28 @@ function ContactMemberDetail() {
   };
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <PageHeader title="" onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="bg-white mx-5 mt-2 rounded-2xl px-4 py-4 flex-row items-center">
           <View className="flex-1">
-            <Text className="text-base font-semibold text-[#1A1A1A]">
+            <Text className="text-base font-semibold text-ink">
               {member.name}
             </Text>
-            <Text className="text-xs text-[#888] mt-1">
+            <Text className="text-xs text-sub mt-1">
               เบอร์โทร : {member.phone}
             </Text>
           </View>
-          <View className="w-10 h-10 rounded-full bg-[#FFE0E3] items-center justify-center ml-3">
-            <Text className="text-base font-semibold text-[#C45A66]">
+          <View className="w-10 h-10 rounded-full bg-brand-soft items-center justify-center ml-3">
+            <Text className="text-base font-semibold text-brand-strong">
               {initial}
             </Text>
           </View>
         </View>
 
-        <Text className="text-sm text-[#1A1A1A] px-5 mt-5 mb-2">
+        <Text className="text-sm text-ink px-5 mt-5 mb-2">
           บ้านที่เป็นสมาชิกอยู่
         </Text>
 
@@ -145,9 +146,9 @@ function ContactMemberDetail() {
               key={h.id}
               className="bg-white mx-5 mb-2 rounded-xl px-4 py-3 flex-row items-center justify-between"
             >
-              <Text className="text-sm text-[#1A1A1A]">{h.name}</Text>
+              <Text className="text-sm text-ink">{h.name}</Text>
               <TouchableOpacity hitSlop={12} onPress={() => setPendingHouse(h)}>
-                <Ionicons name="close" size={18} color="#888" />
+                <Ionicons name="close" size={18} color={C.sub} />
               </TouchableOpacity>
             </View>
           ))
@@ -164,7 +165,7 @@ function ContactMemberDetail() {
         titleAlign="left"
         messageAlign="left"
       >
-        <Text className="text-sm text-[#1A1A1A] mb-2">
+        <Text className="text-sm text-ink mb-2">
           การดำเนินการนี้จะมีผลดังนี้
         </Text>
         <Text className="text-sm text-[#555] leading-5">
@@ -220,58 +221,58 @@ function AccountMemberDetail({ memberId }: { memberId: string }) {
 
   if (isLoading) {
     return (
-      <View className="flex-1 bg-[#F2F2F2]">
+      <View className="flex-1 bg-page">
         <Stack.Screen options={{ animation: "slide_from_right" }} />
         <PageHeader title="" onBack={() => router.back()} />
-        <ActivityIndicator className="mt-10" color="#FF3055" />
+        <ActivityIndicator className="mt-10" color={C.brand} />
       </View>
     );
   }
 
   if (!member) {
     return (
-      <View className="flex-1 bg-[#F2F2F2]">
+      <View className="flex-1 bg-page">
         <Stack.Screen options={{ animation: "slide_from_right" }} />
         <PageHeader title="" onBack={() => router.back()} />
-        <Text className="text-sm text-[#888] px-5 mt-5">ไม่พบข้อมูลสมาชิก</Text>
+        <Text className="text-sm text-sub px-5 mt-5">ไม่พบข้อมูลสมาชิก</Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <PageHeader title="" onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="bg-white mx-5 mt-2 rounded-2xl px-4 py-4 flex-row items-center">
           <View className="flex-1">
-            <Text className="text-base font-semibold text-[#1A1A1A]">{member.name}</Text>
+            <Text className="text-base font-semibold text-ink">{member.name}</Text>
             {member.phone ? (
-              <Text className="text-xs text-[#888] mt-1">เบอร์โทร : {member.phone}</Text>
+              <Text className="text-xs text-sub mt-1">เบอร์โทร : {member.phone}</Text>
             ) : null}
           </View>
-          <View className="w-10 h-10 rounded-full bg-[#FFE0E3] items-center justify-center ml-3">
-            <Text className="text-base font-semibold text-[#C45A66]">
+          <View className="w-10 h-10 rounded-full bg-brand-soft items-center justify-center ml-3">
+            <Text className="text-base font-semibold text-brand-strong">
               {member.name.trim().charAt(0)}
             </Text>
           </View>
         </View>
 
-        <Text className="text-sm text-[#1A1A1A] px-5 mt-5 mb-2">บ้านที่เป็นสมาชิกอยู่</Text>
+        <Text className="text-sm text-ink px-5 mt-5 mb-2">บ้านที่เป็นสมาชิกอยู่</Text>
 
         {member.houses.map((h) => (
           <View
             key={h.id}
             className="bg-white mx-5 mb-2 rounded-xl px-4 py-3 flex-row items-center justify-between"
           >
-            <Text className="text-sm text-[#1A1A1A]">
+            <Text className="text-sm text-ink">
               {h.name}
-              <Text className="text-xs text-[#888888]">{`  ${ROLE_LABEL[h.role] ?? ""}`}</Text>
+              <Text className="text-xs text-sub">{`  ${ROLE_LABEL[h.role] ?? ""}`}</Text>
             </Text>
             {canRemove(h) ? (
               <TouchableOpacity hitSlop={12} onPress={() => setPending(h)} testID={`remove-member-${h.id}`}>
-                <Ionicons name="close" size={18} color="#888" />
+                <Ionicons name="close" size={18} color={C.sub} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -288,7 +289,7 @@ function AccountMemberDetail({ memberId }: { memberId: string }) {
         titleAlign="left"
         messageAlign="left"
       >
-        <Text className="text-sm text-[#1A1A1A] mb-2">การดำเนินการนี้จะมีผลดังนี้</Text>
+        <Text className="text-sm text-ink mb-2">การดำเนินการนี้จะมีผลดังนี้</Text>
         <Text className="text-sm text-[#555] leading-5">
           คนที่ถูกลบออกจากบ้านนี้จะไม่เห็นการแจ้งเตือนและอุปกรณ์ของบ้านนี้อีก และเครื่องของเขาจะไม่ได้รับ push ของบ้านนี้
         </Text>

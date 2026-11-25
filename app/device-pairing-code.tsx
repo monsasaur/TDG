@@ -17,6 +17,7 @@ import PrimaryButton from "../components/PrimaryButton";
 import QrScannerFrame from "../components/QrScannerFrame";
 import ConfirmModal from "../components/ConfirmModal";
 import { disconnect, isMock, parsePairingQr } from "../lib/provisioning";
+import { C } from "../components/theme";
 
 /**
  * กรอกรหัสจับคู่อุปกรณ์ (Proof of Possession) — ระหว่าง scan-devices กับ connect-device
@@ -122,7 +123,7 @@ export default function DevicePairingCodeScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <PageHeader title="รหัสจับคู่อุปกรณ์" onBack={handleBack} />
 
@@ -136,14 +137,14 @@ export default function DevicePairingCodeScreen() {
         >
           <View className="px-5 mt-5">
             <View className="bg-white rounded-xl px-4 py-3 flex-row items-center">
-              <Ionicons name="hardware-chip-outline" size={18} color="#FF3055" />
-              <Text className="text-sm text-[#1A1A1A] ml-2">
-                อุปกรณ์ : <Text className="text-[#888]">{device ?? "-"}</Text>
+              <Ionicons name="hardware-chip-outline" size={18} color={C.brand} />
+              <Text className="text-sm text-ink ml-2">
+                อุปกรณ์ : <Text className="text-sub">{device ?? "-"}</Text>
               </Text>
             </View>
           </View>
 
-          <Text className="text-xs text-[#888] leading-5 px-5 mt-4">
+          <Text className="text-xs text-sub leading-5 px-5 mt-4">
             กรอกรหัสจับคู่เพื่อยืนยันว่าเป็นอุปกรณ์ของคุณ รหัสอยู่บนกล่องหรือใต้ตัวเครื่อง
           </Text>
 
@@ -153,12 +154,12 @@ export default function DevicePairingCodeScreen() {
               onPress={openScanner}
               className="bg-white rounded-xl px-4 py-4 flex-row items-center border border-[#E8E8E8]"
             >
-              <Ionicons name="qr-code-outline" size={22} color="#FF3055" />
+              <Ionicons name="qr-code-outline" size={22} color={C.brand} />
               <View className="flex-1 ml-3">
-                <Text className="text-sm font-semibold text-[#1A1A1A]">
+                <Text className="text-sm font-semibold text-ink">
                   สแกน QR บนกล่อง
                 </Text>
-                <Text className="text-xs text-[#888] mt-0.5">
+                <Text className="text-xs text-sub mt-0.5">
                   รหัสจะขึ้นในช่องด้านล่าง ตรวจดูก่อนกดยืนยัน
                 </Text>
               </View>
@@ -189,7 +190,7 @@ export default function DevicePairingCodeScreen() {
             onSubmitEditing={handleConfirm}
             containerClassName="px-5 mt-4"
           />
-          <Text className="text-xs text-[#888] px-5 mt-2 leading-5">
+          <Text className="text-xs text-sub px-5 mt-2 leading-5">
             {fromQr
               ? "อ่านจาก QR แล้ว ตรวจให้ตรงกับบนกล่องก่อนกดยืนยัน"
               : "ตัวพิมพ์เล็ก–ใหญ่ต้องตรงกับบนกล่อง"}

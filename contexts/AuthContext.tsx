@@ -26,6 +26,8 @@ type AuthContextType = {
   signIn: (phone: string, password: string) => Promise<Result>;
   signUp: (phone: string, password: string, name: string) => Promise<Result>;
   signOut: () => Promise<void>;
+  /** แก้ชื่อที่แสดง — ชื่อนี้คือ "รับทราบโดย" ที่สมาชิกในบ้านเห็น (Express อ่านจาก user_metadata.name) */
+  updateDisplayName: (name: string) => Promise<Result>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -90,9 +92,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const updateDisplayName = async (name: string): Promise<Result> => {
+    const trimmed = name.trim();
+    if (!trimmed) return { ok: false, message: "กรุณากรอกชื่อ" };
+    // onAuthStateChange ได้ USER_UPDATED พร้อม session ใหม่ → displayName บนจออัปเดตเอง
+    const { error } = await supabase.auth.updateUser({ data: { name: trimmed } });
+    return error ? { ok: false, message: authErrorMessage(error) } : { ok: true };
+  };
+
   return (
     <AuthContext.Provider
-      value={{ session, user, loading, displayName, phoneDisplay, signIn, signUp, signOut }}
+      value={{ session, user, loading, displayName, phoneDisplay, signIn, signUp, signOut, updateDisplayName }}
     >
       {children}
     </AuthContext.Provider>

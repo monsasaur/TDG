@@ -20,6 +20,7 @@ import {
   errorMessage,
   isPopError,
 } from "../lib/provisioning";
+import { C } from "../components/theme";
 
 export default function ConnectDeviceScreen() {
   const router = useRouter();
@@ -84,7 +85,7 @@ export default function ConnectDeviceScreen() {
     );
 
   return (
-    <View className="flex-1 bg-[#F2F2F2]">
+    <View className="flex-1 bg-page">
       <Stack.Screen options={{ animation: "slide_from_right" }} />
 
       <PageHeader title="เชื่อมต่ออุปกรณ์" onBack={handleBack} />
@@ -96,25 +97,25 @@ export default function ConnectDeviceScreen() {
 
         <View className="px-5 mt-5">
           <View className="flex-row items-center mb-2">
-            <Text className="text-sm font-semibold text-[#1A1A1A]">
+            <Text className="text-sm font-semibold text-ink">
               เครือข่ายที่พร้อมใช้งาน
             </Text>
             {scanning && (
               <ActivityIndicator
                 size="small"
-                color="#FF3055"
+                color={C.brand}
                 className="ml-2"
               />
             )}
           </View>
-          <Text className="text-xs text-[#888] leading-5 mb-3">
+          <Text className="text-xs text-sub leading-5 mb-3">
             เลือกเครือข่าย Wi-Fi ที่คุณต้องการเชื่อมต่อกับอุปกรณ์ตรวจจับการล้ม
           </Text>
 
           {!scanning && error && (
             <View className="bg-white rounded-xl p-4">
-              <Text className="text-sm text-[#1A1A1A] mb-1">เชื่อมต่อไม่สำเร็จ</Text>
-              <Text className="text-xs text-[#888] leading-5 mb-3">{error}</Text>
+              <Text className="text-sm text-ink mb-1">เชื่อมต่อไม่สำเร็จ</Text>
+              <Text className="text-xs text-sub leading-5 mb-3">{error}</Text>
               {/* รหัสผิด → ลองซ้ำด้วยรหัสเดิมก็ผิดอีก ให้ปุ่มหลักพากลับไปแก้รหัส
                   (หน้ารหัสจับคู่ยังอยู่ใน stack ค่าที่กรอกไว้ยังอยู่) */}
               <PrimaryButton
@@ -127,7 +128,7 @@ export default function ConnectDeviceScreen() {
                   hitSlop={8}
                   className="items-center mt-3"
                 >
-                  <Text className="text-sm text-[#FF3055]">
+                  <Text className="text-sm text-brand">
                     {popRejected ? "ลองใหม่ด้วยรหัสเดิม" : "กรอกรหัสจับคู่ใหม่"}
                   </Text>
                 </TouchableOpacity>
@@ -137,7 +138,7 @@ export default function ConnectDeviceScreen() {
 
           {!scanning && !error && networks.length === 0 && (
             <View className="bg-white rounded-xl p-4">
-              <Text className="text-xs text-[#888] leading-5">
+              <Text className="text-xs text-sub leading-5">
                 อุปกรณ์ไม่พบเครือข่าย Wi-Fi ลองขยับอุปกรณ์ให้ใกล้เราเตอร์แล้วกดลองใหม่
               </Text>
             </View>

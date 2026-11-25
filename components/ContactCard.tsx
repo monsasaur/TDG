@@ -31,24 +31,24 @@ export default function ContactCard({
       disabled={!onPress}
       className={className}
     >
-      <View className="w-10 h-10 rounded-full bg-[#FFE0E3] items-center justify-center mr-3">
-        <Text className="text-base font-semibold text-[#C45A66]">{initial}</Text>
+      <View className="w-10 h-10 rounded-full bg-brand-soft items-center justify-center mr-3">
+        <Text className="text-base font-semibold text-brand-strong">{initial}</Text>
       </View>
       <View className="flex-1">
-        <Text className="text-sm font-semibold text-[#1A1A1A]">{name}</Text>
-        <Text className="text-xs text-[#888] mb-1">{phone}</Text>
+        <Text className="text-sm font-semibold text-ink">{name}</Text>
+        <Text className="text-xs text-sub mb-1">{phone}</Text>
         {tags.length > 0 && (
           <View className="flex-row">
             {tags.map((t) => (
               <View
                 key={t.label}
                 className={`rounded-md px-2 py-0.5 mr-1 ${
-                  t.active ? "bg-[#FFE5E8]" : "bg-[#EEEEEE]"
+                  t.active ? "bg-brand-soft" : "bg-[#EEEEEE]"
                 }`}
               >
                 <Text
                   className={`text-[10px] ${
-                    t.active ? "text-[#C45A66]" : "text-[#888]"
+                    t.active ? "text-brand-strong" : "text-sub"
                   }`}
                 >
                   {t.label}

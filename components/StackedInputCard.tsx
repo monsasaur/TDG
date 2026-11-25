@@ -22,7 +22,7 @@ export default function StackedInputCard({
   className = "px-5",
 }: StackedInputCardProps) {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
-  const borderClass = error ? "border-[#FF3055]" : "border-[#E8E8E8]";
+  const borderClass = error ? "border-danger" : "border-[#E8E8E8]";
 
   return (
     <View className={className}>
@@ -31,7 +31,7 @@ export default function StackedInputCard({
           const isFocused = focusedIndex === i;
           return (
             <View key={f.label} className="pt-3 pb-2">
-              <Text className="text-xs text-[#888] mb-1">{f.label}</Text>
+              <Text className="text-xs text-sub mb-1">{f.label}</Text>
               <TextInput
                 value={f.value}
                 onChangeText={f.onChangeText}
@@ -42,11 +42,11 @@ export default function StackedInputCard({
                 onBlur={() =>
                   setFocusedIndex((prev) => (prev === i ? null : prev))
                 }
-                className="text-sm text-[#1A1A1A] py-0"
+                className="text-sm text-ink py-0"
               />
               <View
                 className={`h-[1px] mt-2 ${
-                  isFocused ? "bg-[#1A1A1A]" : "bg-[#E8E8E8]"
+                  isFocused ? "bg-ink" : "bg-[#E8E8E8]"
                 }`}
               />
             </View>
@@ -54,7 +54,7 @@ export default function StackedInputCard({
         })}
       </View>
       {error && (
-        <Text className="text-xs text-[#FF3055] mt-2 ml-4">{error}</Text>
+        <Text className="text-xs text-danger mt-2 ml-4">{error}</Text>
       )}
     </View>
   );

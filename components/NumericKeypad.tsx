@@ -1,5 +1,6 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { C } from "./theme";
 
 interface NumericKeypadProps {
   onKey: (digit: string) => void;
@@ -34,7 +35,7 @@ export default function NumericKeypad({
           className="flex-1 mx-1 h-12 items-center justify-center"
           hitSlop={8}
         >
-          <Ionicons name="backspace-outline" size={22} color="#1A1A1A" />
+          <Ionicons name="backspace-outline" size={22} color={C.ink} />
         </TouchableOpacity>
       </View>
     </View>
@@ -55,7 +56,7 @@ function Key({ label, onPress }: { label: string; onPress: () => void }) {
         elevation: 1,
       }}
     >
-      <Text className="text-xl text-[#1A1A1A]">{label}</Text>
+      <Text className="text-xl text-ink">{label}</Text>
     </TouchableOpacity>
   );
 }

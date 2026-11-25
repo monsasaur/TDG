@@ -53,7 +53,7 @@ export default function ConfirmModal({
               <View className="px-5 pt-5 pb-4">
                 {title && (
                   <Text
-                    className={`text-base font-semibold text-[#1A1A1A] mb-2 ${titleAlignClass}`}
+                    className={`text-base font-semibold text-ink mb-2 ${titleAlignClass}`}
                   >
                     {title}
                   </Text>
@@ -76,7 +76,7 @@ export default function ConfirmModal({
                     onPress={onClose}
                     className="flex-1 py-3 items-center border-r border-[#E8E8E8]"
                   >
-                    <Text className="text-[#FF3055] font-medium text-sm">
+                    <Text className="text-brand font-medium text-sm">
                       {cancelLabel}
                     </Text>
                   </TouchableOpacity>
@@ -84,7 +84,7 @@ export default function ConfirmModal({
                     onPress={onConfirm}
                     className="flex-1 py-3 items-center"
                   >
-                    <Text className="text-[#FF3055] font-medium text-sm">
+                    <Text className="text-brand font-medium text-sm">
                       {confirmLabel}
                     </Text>
                   </TouchableOpacity>
@@ -92,7 +92,7 @@ export default function ConfirmModal({
               ) : (
                 <View className="items-end px-5 pb-4">
                   <TouchableOpacity onPress={onClose}>
-                    <Text className="text-sm font-semibold text-[#FF3055]">
+                    <Text className="text-sm font-semibold text-brand">
                       {closeLabel}
                     </Text>
                   </TouchableOpacity>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Text, TextInput, TextInputProps, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { C } from "./theme";
 
 interface AuthFieldProps extends TextInputProps {
   label: string;
@@ -17,10 +18,10 @@ export default function AuthField({ label, error, hint, secure, ...inputProps }:
 
   return (
     <View>
-      <Text className="text-sm font-semibold text-[#1A1A1A] mb-2">{label}</Text>
+      <Text className="text-sm font-semibold text-ink mb-2">{label}</Text>
       <View
         className={`flex-row items-center border rounded-[28px] h-[52px] overflow-hidden ${
-          error ? "border-[#FF3055]" : "border-[#E0D5D5]"
+          error ? "border-danger" : "border-line"
         }`}
       >
         <TextInput
@@ -29,7 +30,7 @@ export default function AuthField({ label, error, hint, secure, ...inputProps }:
           {...(secure
             ? { secureTextEntry: hidden, autoCapitalize: "none" as const, autoCorrect: false }
             : null)}
-          className="flex-1 text-base text-[#1A1A1A] px-5 h-full"
+          className="flex-1 text-base text-ink px-5 h-full"
         />
         {secure && (
           <TouchableOpacity
@@ -38,14 +39,14 @@ export default function AuthField({ label, error, hint, secure, ...inputProps }:
             className="px-4 h-full justify-center"
             accessibilityLabel={hidden ? "แสดงรหัสผ่าน" : "ซ่อนรหัสผ่าน"}
           >
-            <Ionicons name={hidden ? "eye-off-outline" : "eye-outline"} size={20} color="#888888" />
+            <Ionicons name={hidden ? "eye-off-outline" : "eye-outline"} size={20} color={C.sub} />
           </TouchableOpacity>
         )}
       </View>
       {error ? (
-        <Text className="text-xs text-[#FF3055] mt-2 ml-1">{error}</Text>
+        <Text className="text-xs text-danger mt-2 ml-1">{error}</Text>
       ) : hint ? (
-        <Text className="text-xs text-[#888888] mt-2 ml-1 leading-[18px]">{hint}</Text>
+        <Text className="text-xs text-sub mt-2 ml-1 leading-[18px]">{hint}</Text>
       ) : null}
     </View>
   );
