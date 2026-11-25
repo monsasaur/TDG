@@ -20,18 +20,17 @@ import { useOwnerAccess } from "../data/useOwnerAccess";
 import { supabase } from "../data/supabaseClient";
 import { BTN } from "../components/buttonTheme";
 import { C } from "../components/theme";
+import { CONTACT_PHONE_ERROR, normalizeContactPhone, sanitizeContactPhoneInput } from "../lib/phone";
 
 const NAME_MAX = 20;
-const PHONE_MAX = 20;
+// ยาวพอให้วาง "+66 81-234-5678" ได้ทั้งก้อน — sanitizeContactPhoneInput ตัดเหลือ ≤ 10 หลักเอง
+const PHONE_MAX = 16;
 
 const sanitizeName = (raw: string) =>
   raw
     .replace(/[\p{Extended_Pictographic}\u200d]/gu, "")
     .replace(/[\/*]/g, "")
     .slice(0, NAME_MAX);
-
-const sanitizePhone = (raw: string) =>
-  raw.replace(/[^0-9]/g, "").slice(0, PHONE_MAX);
 
 export default function EditContactScreen() {
   const router = useRouter();
@@ -50,6 +49,7 @@ export default function EditContactScreen() {
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const [houses, setHouses] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -57,7 +57,8 @@ export default function EditContactScreen() {
   useEffect(() => {
     if (contact) {
       setName(contact.name);
-      setPhone(contact.phone);
+      // แถวเก่าอาจเก็บแบบ "66812345678" — แปลงเป็นรูปแบบเดียวกับที่ช่องรับ
+      setPhone(sanitizeContactPhoneInput(contact.phone ?? ""));
       // เก็บเฉพาะบ้านที่เลือก/ถอดได้ — บ้านที่ล็อกไว้แยกอยู่ใน lockedHouses
       setHouses(contact.houses.filter((h) => HOUSES.includes(h)));
     }
@@ -96,12 +97,17 @@ export default function EditContactScreen() {
 
   const handleSave = async () => {
     if (!canSave || !contact) return;
+    const savedPhone = normalizeContactPhone(phone);
+    if (!savedPhone) {
+      setPhoneError(CONTACT_PHONE_ERROR);
+      return;
+    }
     setIsSaving(true);
     try {
       // 1. อัปเดตข้อมูลส่วนตัว
       const { data: updated, error: updateError } = await supabase
         .from("emergency_contacts")
-        .update({ name: name.trim(), phone: phone.trim() })
+        .update({ name: name.trim(), phone: savedPhone })
         .eq("id", contact.id)
         .select("id");
 
@@ -201,9 +207,13 @@ export default function EditContactScreen() {
           <LabeledTextField
             label="เบอร์โทรศัพท์"
             value={phone}
-            onChangeText={(t) => setPhone(sanitizePhone(t))}
+            onChangeText={(t) => {
+              setPhone(sanitizeContactPhoneInput(t));
+              setPhoneError("");
+            }}
             keyboardType="number-pad"
             maxLength={PHONE_MAX}
+            error={phoneError}
             readOnly={!canEdit}
           />
 

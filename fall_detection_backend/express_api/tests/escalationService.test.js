@@ -5,10 +5,11 @@ let alertService
 let dbService
 let escalation
 
-function loadService({ ackTimeout = 60, cooldown = 300 } = {}) {
+function loadService({ ackTimeout = 60, cooldown = 300, ackDedup = 30 } = {}) {
   jest.resetModules()
   process.env.ACK_TIMEOUT_SECONDS = String(ackTimeout)
   process.env.COOLDOWN_SECONDS    = String(cooldown)
+  process.env.ACK_DEDUP_SECONDS   = String(ackDedup)
 
   alertService = require('../src/services/alertService')
   dbService    = require('../src/services/dbService')
@@ -64,7 +65,22 @@ describe('escalationService.schedule', () => {
     )
     expect(dbService.markEscalated).toHaveBeenCalledWith(
       'evt-1',
-      { sms_sent: true, call_made: true }
+      { sms_sent: true, call_made: true, escalation_method: 'fallback' }
+    )
+  })
+
+  // บันทึกว่าสายนั้นใช้บทพูดจาก AI หรือข้อความคงที่ — เป็นเหตุผลที่ฟีเจอร์นี้มีอยู่
+  // ถ้าไม่มีเทสต์นี้ ต่อให้ AI ไม่เคยทำงานเลยก็ไม่มีอะไรฟ้อง
+  test('records escalation_method=ai when makeCall used the AI draft', async () => {
+    escalation = loadService({ ackTimeout: 1 })
+    alertService.makeCall.mockResolvedValueOnce({ made: 1, failed: 0, method: 'ai' })
+
+    escalation.schedule(makeEvent())
+    await jest.runAllTimersAsync()
+
+    expect(dbService.markEscalated).toHaveBeenCalledWith(
+      'evt-1',
+      { sms_sent: true, call_made: true, escalation_method: 'ai' }
     )
   })
 
@@ -77,7 +93,7 @@ describe('escalationService.schedule', () => {
 
     expect(dbService.markEscalated).toHaveBeenCalledWith(
       'evt-1',
-      { sms_sent: false, call_made: true }
+      { sms_sent: false, call_made: true, escalation_method: 'fallback' }
     )
   })
 
@@ -138,6 +154,67 @@ describe('escalationService.inCooldown', () => {
   })
 })
 
+// BUG-014: กดรับทราบแล้วล้มจริงอีกครั้งภายใน 5 นาที เดิมระบบเงียบและไม่บันทึกอะไรเลย
+describe('escalationService.releaseCooldown (หลังกดรับทราบ)', () => {
+  test('ล้มครั้งใหม่หลังช่วงกันซ้ำ → ไม่ติด cooldown แล้ว', () => {
+    escalation.schedule(makeEvent())
+    jest.advanceTimersByTime(10_000)               // กดรับทราบที่วินาทีที่ 10
+    escalation.cancel('evt-1')
+    expect(escalation.releaseCooldown('DEV01', 'evt-1')).toBe(true)
+
+    jest.advanceTimersByTime(25_000)               // วินาทีที่ 35 · เดิมยังติดอีก 265 วิ
+    expect(escalation.inCooldown('DEV01')).toBe(false)
+  })
+
+  test('ภายในช่วงกันซ้ำ (นับจากเวลาเกิดเหตุ) ยังบล็อก — กรอบที่เหลือของการล้มครั้งเดิม', () => {
+    escalation.schedule(makeEvent())
+    jest.advanceTimersByTime(5_000)
+    escalation.releaseCooldown('DEV01', 'evt-1')
+
+    jest.advanceTimersByTime(20_000)               // วินาทีที่ 25 < 30
+    expect(escalation.inCooldown('DEV01')).toBe(true)
+    jest.advanceTimersByTime(6_000)                // วินาทีที่ 31
+    expect(escalation.inCooldown('DEV01')).toBe(false)
+  })
+
+  test('ไม่ลด cooldown ของเหตุการณ์ใหม่กว่าเมื่อกดรับทราบเหตุการณ์เก่า', () => {
+    escalation.schedule(makeEvent({ id: 'evt-old' }))
+    jest.advanceTimersByTime(40_000)
+    escalation.releaseCooldown('DEV01', 'evt-old')  // ปลดแล้ว
+    escalation.schedule(makeEvent({ id: 'evt-new' }))
+
+    expect(escalation.releaseCooldown('DEV01', 'evt-old')).toBe(false)
+    jest.advanceTimersByTime(60_000)
+    expect(escalation.inCooldown('DEV01')).toBe(true)
+  })
+
+  test('ไม่ยืด cooldown — ช่วงกันซ้ำยาวกว่า cooldown ก็ใช้ cooldown เดิม', () => {
+    escalation = loadService({ cooldown: 10, ackDedup: 60 })
+    escalation.schedule(makeEvent())
+    escalation.releaseCooldown('DEV01', 'evt-1')
+    jest.advanceTimersByTime(11_000)
+    expect(escalation.inCooldown('DEV01')).toBe(false)
+  })
+
+  test('ไม่ได้กดรับทราบ → cooldown เต็มเหมือนเดิม', () => {
+    escalation.schedule(makeEvent())
+    jest.advanceTimersByTime(120_000)
+    expect(escalation.inCooldown('DEV01')).toBe(true)
+  })
+
+  test('cooldown ที่กู้คืนจาก DB ก็ปลดได้ (server รีสตาร์ตระหว่างรอ)', async () => {
+    dbService.queryEvents = jest.fn().mockResolvedValue({
+      events: [{ ...makeEvent(), is_fall: true, created_at: new Date(Date.now() - 20_000).toISOString() }],
+    })
+    await escalation.recoverPending()
+    expect(escalation.inCooldown('DEV01')).toBe(true)
+
+    expect(escalation.releaseCooldown('DEV01', 'evt-1')).toBe(true)
+    jest.advanceTimersByTime(11_000)               // 31 วิหลังเกิดเหตุ
+    expect(escalation.inCooldown('DEV01')).toBe(false)
+  })
+})
+
 describe('escalationService.recoverPending — กู้คืนหลัง restart', () => {
   const HOUR = 60 * 60 * 1000
 
@@ -188,7 +265,7 @@ describe('escalationService.recoverPending — กู้คืนหลัง re
       expect.objectContaining({ event_id: 'evt-stuck' })
     )
     expect(dbService.markEscalated).toHaveBeenCalledWith(
-      'evt-stuck', { sms_sent: true, call_made: true }
+      'evt-stuck', { sms_sent: true, call_made: true, escalation_method: 'fallback' }
     )
   })
 
@@ -202,7 +279,7 @@ describe('escalationService.recoverPending — กู้คืนหลัง re
     expect(alertService.sendSms).not.toHaveBeenCalled()
     // ปิดสถานะไว้ ไม่ปล่อยค้าง pending — และเห็นชัดว่าไม่ได้ส่งอะไรออกไป
     expect(dbService.markEscalated).toHaveBeenCalledWith(
-      'evt-stuck', { sms_sent: false, call_made: false }
+      'evt-stuck', { sms_sent: false, call_made: false, escalation_method: 'dropped' }
     )
   })
 

@@ -81,6 +81,9 @@ router.post('/', predictBody, async (req, res) => {
 
   } catch (err) {
     console.error('Predict error:', err.message)
+    if (err.badInput) {
+      return res.status(400).json({ error: 'Invalid features', detail: err.detail })
+    }
     res.status(500).json({ error: 'Prediction failed' })
   }
 })

@@ -223,7 +223,7 @@ INSERT INTO houses (id, name, created_at) VALUES
 - **แก้:** ปิดแอปแล้วเปิดใหม่ หรือ pull-to-refresh ในหน้านั้น
 
 ### ลืม URL ของ Supabase project
-- ดูที่ `data/supabaseClient.ts` ในโปรเจกต์ — มี `supabaseUrl` อยู่บรรทัดบนๆ
+- ฐานจริงอยู่ที่ `LIVE_SUPABASE_URL` ใน `app.config.js` · ถ้าตั้ง `EXPO_PUBLIC_SUPABASE_URL` ใน `.env.local` แอปจะใช้ค่านั้นแทน
 - หรือดูใน Supabase Dashboard → Settings → API
 
 ---
@@ -252,7 +252,8 @@ seed data ต้องการความยืดหยุ่นในกา�
 
 **Q: ใช้ที่อื่นได้ไหม เช่น staging environment?**
 A: ได้ — แค่เปลี่ยน Supabase project ที่ login → SQL Editor ให้ตรงกับ env นั้น
-แต่ระวัง URL ของ Supabase ใน `data/supabaseClient.ts` ของแอป ก็ต้องชี้ไป staging ด้วย
+แล้วชี้แอปไปโปรเจกต์นั้นด้วย `EXPO_PUBLIC_SUPABASE_URL` + `EXPO_PUBLIC_SUPABASE_ANON_KEY` ใน `.env.local` (ดู `.env.example`) — ไม่ต้องแก้โค้ด
+และ Express ที่ต่อด้วยต้องชี้ไปโปรเจกต์เดียวกัน (`SUPABASE_URL` / `SUPABASE_KEY`) ห้ามมี Express สองตัวต่อฐานเดียวกัน เพราะ sweeper จะแย่งกันโทร/ปิดเหตุการณ์
 
 ---
 

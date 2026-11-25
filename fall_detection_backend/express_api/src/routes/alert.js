@@ -44,6 +44,9 @@ router.post('/ack/:event_id', async (req, res) => {
     const cancelled = escalationService.cancel(event_id)
     const updated   = await dbService.acknowledgeEvent(event_id, auth.acknowledged_by)
 
+    // รับทราบแล้ว → การล้มครั้งใหม่ของอุปกรณ์นี้ต้องแจ้งได้ ไม่ต้องรอ cooldown 5 นาที (BUG-014)
+    escalationService.releaseCooldown(event.device_id, event_id)
+
     // อัปเดตสิ่งที่แอปเห็น — ไม่ await เพราะห้ามให้การแสดงผลถ่วงการตอบกลับ
     appAlertService
       .markAcknowledged(event_id, auth.acknowledged_by)

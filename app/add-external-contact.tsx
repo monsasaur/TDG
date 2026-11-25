@@ -17,6 +17,7 @@ import PageHeader from "../components/PageHeader";
 
 // 1. Import Hooks และ Supabase Client
 import { supabase } from "../data/supabaseClient";
+import { CONTACT_PHONE_ERROR, normalizeContactPhone, sanitizeContactPhoneInput } from "../lib/phone";
 import { MAX_EXTERNAL_PER_HOUSE, useContacts } from "../data/useContacts";
 import { useHouses } from "../data/useHouses";
 import { useOwnerAccess } from "../data/useOwnerAccess";
@@ -24,16 +25,14 @@ import { BTN } from "../components/buttonTheme";
 import { C } from "../components/theme";
 
 const NAME_MAX = 20;
-const PHONE_MAX = 20;
+// ยาวพอให้วาง "+66 81-234-5678" ได้ทั้งก้อน — sanitizeContactPhoneInput ตัดเหลือ ≤ 10 หลักเอง
+const PHONE_MAX = 16;
 
 const sanitizeName = (raw: string) =>
   raw
     .replace(/[\p{Extended_Pictographic}\u200d]/gu, "")
     .replace(/[\/*]/g, "")
     .slice(0, NAME_MAX);
-
-const sanitizePhone = (raw: string) =>
-  raw.replace(/[^0-9]/g, "").slice(0, PHONE_MAX);
 
 export default function AddExternalContactScreen() {
   const router = useRouter();
@@ -53,6 +52,7 @@ export default function AddExternalContactScreen() {
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const [house, setHouse] = useState<string | null>(null);
   const [limitModal, setLimitModal] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -82,6 +82,12 @@ export default function AddExternalContactScreen() {
   const handleSubmit = async () => {
     if (!canSubmit || !house) return;
 
+    const savedPhone = normalizeContactPhone(phone);
+    if (!savedPhone) {
+      setPhoneError(CONTACT_PHONE_ERROR);
+      return;
+    }
+
     if (externalCounts[house] >= MAX_EXTERNAL_PER_HOUSE) {
       setLimitModal(house);
       return;
@@ -103,7 +109,7 @@ export default function AddExternalContactScreen() {
         .insert({
           id: newContactId,
           name: name.trim(),
-          phone: phone.trim(),
+          phone: savedPhone,
           contact_type: "external",
         });
 
@@ -162,9 +168,13 @@ export default function AddExternalContactScreen() {
           <LabeledTextField
             label="เบอร์โทรศัพท์"
             value={phone}
-            onChangeText={(t) => setPhone(sanitizePhone(t))}
+            onChangeText={(t) => {
+              setPhone(sanitizeContactPhoneInput(t));
+              setPhoneError("");
+            }}
             keyboardType="number-pad"
             maxLength={PHONE_MAX}
+            error={phoneError}
           />
 
           <View className="px-5 mt-4">

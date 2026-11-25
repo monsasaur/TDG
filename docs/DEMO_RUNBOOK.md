@@ -89,7 +89,7 @@ ipconfig getifaddr en0        # เช่นได้ 192.168.1.42
 
 # .env.local ที่ root ของโปรเจกต์
 EXPO_PUBLIC_API_BASE_URL=http://192.168.1.42:3000
-EXPO_PUBLIC_API_KEY=<ค่าเดียวกับ APP_API_KEY ใน express_api/.env>
+EXPO_PUBLIC_API_KEY=<ค่าเดียวกับ APP_API_KEY ใน express_api/.env>   # บังคับ — ไม่ตั้ง npm start จะหยุด
 
 npm start
 ```

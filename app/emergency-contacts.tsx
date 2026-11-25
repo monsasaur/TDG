@@ -13,6 +13,7 @@ import {
 } from "../data/useContacts";
 import { useHouses } from "../data/useHouses";
 import { C } from "../components/theme";
+import { formatContactPhone } from "../lib/phone";
 
 export default function EmergencyContactsScreen() {
   const router = useRouter();
@@ -181,7 +182,7 @@ function ContactRow({
         <Text className="text-sm font-semibold text-ink">
           {contact.name}
         </Text>
-        <Text className="text-xs text-sub mb-1">{contact.phone}</Text>
+        <Text className="text-xs text-sub mb-1">{formatContactPhone(contact.phone)}</Text>
         <View className="flex-row flex-wrap">
           {tags.map((t) => (
             <View
