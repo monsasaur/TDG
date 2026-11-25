@@ -25,7 +25,14 @@ const extra = (Constants.expoConfig?.extra ?? {}) as ApiExtra;
 const fallbackBaseUrl =
   Platform.OS === "web" ? "http://localhost:3000" : "http://10.0.2.2:3000";
 
-export const API_BASE_URL = extra.apiBaseUrl ?? fallbackBaseUrl;
+// app.config.js ใส่ 10.0.2.2 (alias ของ Android emulator) เป็นค่าเริ่มต้นเสมอ — บนเว็บที่อยู่นี้ใช้ไม่ได้
+// (เบราว์เซอร์ได้ ERR_ADDRESS_UNREACHABLE แล้วกดรับทราบไม่ผ่าน) จึงถือว่าไม่ได้ตั้งค่า
+// ที่อยู่ dev แบบ http (10.0.2.2 หรือ IP ในวง LAN ที่เปลี่ยนได้ทุกครั้งที่ต่อ WiFi ใหม่) ก็ใช้บนเว็บไม่ได้เช่นกัน
+// เว็บรันบนเครื่องเดียวกับ Express อยู่แล้ว → ใช้ localhost · URL จริง (https เช่น Render) ยังใช้ตามที่ตั้ง
+const configuredBaseUrl =
+  Platform.OS === "web" && extra.apiBaseUrl?.startsWith("http://") ? undefined : extra.apiBaseUrl;
+
+export const API_BASE_URL = configuredBaseUrl ?? fallbackBaseUrl;
 export const API_KEY = extra.apiKey ?? "dev-secret-key-123";
 
 const headers = {
