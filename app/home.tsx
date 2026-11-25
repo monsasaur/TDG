@@ -23,6 +23,8 @@ import AlertCardSmall from "../components/AlertCardSmall";
 import HouseDropdown from "../components/HouseDropdown";
 import SystemAlertCard from "../components/SystemAlertCard";
 import { useAlerts } from "../contexts/AlertsContext";
+import { SkeletonList } from "../components/Skeleton";
+import { useNetwork } from "../contexts/NetworkContext";
 import { Alert as AlertType, SystemAlert } from "../types/alert";
 
 // Import Hook สำหรับดึงบ้านจริง
@@ -37,8 +39,9 @@ const PAGE_SIZE = 5;
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { alerts, systemAlerts, setAlerts, acknowledgeAlert } = useAlerts();
+  const { alerts, systemAlerts, setAlerts, acknowledgeAlert, isLoading: alertsLoading } = useAlerts();
   const { houses: dbHouses, isLoading: housesLoading, refetch: refetchHouses } = useHouses();
+  const { online } = useNetwork();
 
   // แปลงบ้านจาก Database ให้กลายเป็น Array
   const HOUSES = useMemo(() => dbHouses.map((h) => h.name), [dbHouses]);
@@ -292,8 +295,9 @@ export default function HomeScreen() {
         )}
 
         <View className="flex-1">
-          {housesLoading ? (
-            <ActivityIndicator size="small" color="#292A32" style={{ marginTop: 48 }} />
+          {/* เน็ตหลุดแล้วดึงข้อมูลไม่ได้ ให้ค้างที่โครงร่างไว้ — ไม่ใช่ขึ้นว่า "ยังไม่มีบ้าน" ทั้งที่แค่โหลดไม่ได้ */}
+          {housesLoading || alertsLoading || (!online && dbHouses.length === 0) ? (
+            <SkeletonList count={4} lines={3} />
           ) : noHouse ? (
             <EmptyState
               icon="home"
@@ -320,7 +324,7 @@ export default function HomeScreen() {
               onEndReached={handleLoadMore}
               onEndReachedThreshold={0.3}
               ListFooterComponent={
-                loading ? <ActivityIndicator size="small" color="#292A32" style={{ marginTop: 16 }} /> : null
+                loading ? <SkeletonList count={2} lines={3} className="px-5 pt-2" /> : null
               }
             />
           )}

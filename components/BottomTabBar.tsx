@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAlerts } from "../contexts/AlertsContext";
 import { ALL_HOUSES, useHouseFilter } from "../contexts/HouseFilterContext";
 import { useReadState } from "../contexts/ReadStateContext";
+import { useUnreadAuditCount } from "../data/useAuditBadge";
 
 /**
  * แถบเมนูล่าง ดีไซน์ v2 — หน้าหลัก (เหตุการณ์ล้ม) · แจ้งเตือนระบบ (สถานะอุปกรณ์) · ตั้งค่า · โปรไฟล์
@@ -44,7 +45,13 @@ export default function BottomTabBar({ active }: { active: TabKey }) {
     prune("sa-", allIds ? allIds.split("|") : []);
   }, [allIds, prune]);
 
-  const badge: Partial<Record<TabKey, number>> = { notifications: unreadCount(ids) };
+  // ประวัติการเปลี่ยนแปลงมีเรื่องใหม่ → จุดแดงที่แท็บตั้งค่า (เมนูข้างในก็ขึ้นจุดเดียวกัน)
+  const newAuditCount = useUnreadAuditCount();
+
+  const badge: Partial<Record<TabKey, number>> = {
+    notifications: unreadCount(ids),
+    settings: newAuditCount,
+  };
   return (
     <View
       style={{ paddingBottom: Math.max(insets.bottom, 8) }}

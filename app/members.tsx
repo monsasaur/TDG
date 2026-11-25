@@ -1,11 +1,12 @@
 import { Stack, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ScrollView, Text, View, ActivityIndicator } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import AddActionPill from "../components/AddActionPill";
 import ContactCard from "../components/ContactCard";
 import FilterPillButton, { DropdownAnchor } from "../components/FilterPillButton";
 import HouseFilterDropdown from "../components/HouseFilterDropdown";
 import PageHeader from "../components/PageHeader";
+import { SkeletonList } from "../components/Skeleton";
 import { maskThaiPhone } from "../lib/phone";
 
 // 1. เปลี่ยนมา Import Hooks แทน mock data
@@ -121,7 +122,7 @@ export default function MembersScreen() {
 
         {/* แสดงตัวโหลดข้อมูล */}
         {isLoading ? (
-          <ActivityIndicator className="my-10" color="#000" />
+          <SkeletonList count={3} />
         ) : accountList ? (
           accountList.length === 0 ? (
             <Text className="px-5 text-center text-gray-400 my-4">ไม่มีข้อมูลสมาชิก</Text>

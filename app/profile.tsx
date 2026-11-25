@@ -160,6 +160,7 @@ export default function ProfileScreen() {
         onClose={() => !signingOut && setLogoutModal(false)}
         onConfirm={handleLogout}
         title="ออกจากระบบไหม"
+        tone="danger"
         message="ต้องเข้าสู่ระบบใหม่ถึงจะเห็นรายการแจ้งเตือนในแอป แต่เครื่องนี้ยังได้รับการแจ้งเตือนแบบ push อยู่"
         confirmLabel={signingOut ? "กำลังออก..." : "ออกจากระบบ"}
       />

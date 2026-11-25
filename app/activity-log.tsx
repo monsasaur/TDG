@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo } from "react";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import PageHeader from "../components/PageHeader";
+import { SkeletonList } from "../components/Skeleton";
 import { useAuth } from "../contexts/AuthContext";
 import { useReadState } from "../contexts/ReadStateContext";
 import { describeAudit, useAuditLog } from "../data/useAuditLog";
@@ -63,7 +64,7 @@ export default function ActivityLogScreen() {
         </Text>
 
         {isLoading ? (
-          <ActivityIndicator className="my-10" color="#000" />
+          <SkeletonList count={4} lines={2} />
         ) : unavailable ? (
           <Text className="text-sm text-sub text-center px-8 my-10 leading-5">
             ระบบบันทึกประวัติยังไม่เปิดใช้{"\n"}จะเริ่มบันทึกเมื่อเปิดระบบบัญชีผู้ใช้บนฐานข้อมูล

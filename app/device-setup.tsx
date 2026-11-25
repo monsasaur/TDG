@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  TouchableOpacity,
 } from "react-native";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { useDevices } from "../contexts/DevicesContext";
@@ -192,9 +193,26 @@ export default function DeviceSetupScreen() {
           />
 
           {shownError ? (
-            <Text className="text-sm text-[#D14343] px-5 mt-3">
-              {shownError}
-            </Text>
+            <View className="px-5 mt-3">
+              <Text className="text-sm text-[#D14343]">{shownError}</Text>
+              {/* เลือกเครื่องผิด / ข้อมูลจากขั้นจับคู่ไม่ครบ — ให้ทางกลับไปเริ่มใหม่ ไม่ใช่ค้างอยู่หน้านี้ */}
+              {setupProblem ? (
+                <TouchableOpacity
+                  onPress={() =>
+                    router.replace(
+                      `/scan-devices?${deviceId ? `deviceId=${encodeURIComponent(deviceId)}` : ""}${
+                        deviceId && houseId ? "&" : ""
+                      }${houseId ? `houseId=${encodeURIComponent(houseId)}` : ""}` as never,
+                    )
+                  }
+                  accessibilityRole="button"
+                  activeOpacity={0.85}
+                  className="h-[48px] rounded-2xl bg-[#292A32] justify-center items-center mt-3"
+                >
+                  <Text className="text-sm font-semibold text-white">กลับไปเลือกอุปกรณ์</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           ) : null}
         </ScrollView>
 

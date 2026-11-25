@@ -16,6 +16,7 @@ import LabeledTextField from "../components/LabeledTextField";
 import PrimaryButton from "../components/PrimaryButton";
 import QrScannerFrame from "../components/QrScannerFrame";
 import ConfirmModal from "../components/ConfirmModal";
+import PermissionModal from "../components/PermissionModal";
 import { disconnect, isMock, parsePairingQr } from "../lib/provisioning";
 import { C } from "../components/theme";
 
@@ -250,18 +251,13 @@ export default function DevicePairingCodeScreen() {
         message={notice?.message}
       />
 
-      <ConfirmModal
+      <PermissionModal
         visible={settingsModal}
         onClose={() => setSettingsModal(false)}
-        onConfirm={openSettings}
-        title="ต้องการสิทธิ์เพิ่มเติม"
-        titleAlign="left"
-        messageAlign="left"
+        onOpenSettings={openSettings}
         cancelLabel="พิมพ์รหัสเอง"
-        confirmLabel="ไปที่การตั้งค่า"
-        message={
-          "การสแกน QR ต้องใช้สิทธิ์เข้าถึงกล้อง เปิดได้ในการตั้งค่า\n\nหรือพิมพ์รหัสจับคู่ในช่องแทนก็ได้"
-        }
+        items={[{ label: "กล้อง", reason: "ใช้สแกน QR รหัสจับคู่ที่อยู่บนกล่องอุปกรณ์" }]}
+        footer="ไม่อยากเปิดกล้องก็พิมพ์รหัสจับคู่ในช่องแทนได้"
       />
     </View>
   );

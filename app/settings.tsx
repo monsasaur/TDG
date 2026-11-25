@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useState } from "react";
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,8 +9,7 @@ import { useAuth } from "../contexts/AuthContext";
 import ActionCard from "../components/ActionCard";
 import PushPermissionCard from "../components/PushPermissionCard";
 import BottomTabBar from "../components/BottomTabBar";
-import { useReadState } from "../contexts/ReadStateContext";
-import { useAuditLog } from "../data/useAuditLog";
+import { useUnreadAuditCount } from "../data/useAuditBadge";
 import TabHeader from "../components/TabHeader";
 import { V2, V2C } from "../components/designVersion";
 import { C } from "../components/theme";
@@ -20,20 +19,8 @@ export default function SettingsScreen() {
   const { user, displayName, phoneDisplay, signOut } = useAuth();
   const [logoutModal, setLogoutModal] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-  // จุดแดงที่เมนูประวัติการเปลี่ยนแปลง — นับรายการที่ยังไม่ได้เปิดดู
-  const { entries } = useAuditLog(user?.id);
-  const { unreadCount, markRead, ready } = useReadState();
-  const auditIds = useMemo(() => entries.map((e) => `audit-${e.id}`), [entries]);
-  const newAuditCount = unreadCount(auditIds);
-
-  // ครั้งแรกของเครื่อง/บัญชีนี้ ประวัติเก่าทั้งหมดไม่ใช่ "เรื่องใหม่" — ตั้งเป็นอ่านแล้วไว้ก่อน
-  // ไม่งั้นจะขึ้นจุดแดง 100 ทั้งที่ผู้ใช้ยังไม่ได้ทำอะไร
-  const baselined = useRef(false);
-  useEffect(() => {
-    if (!ready || baselined.current || auditIds.length === 0) return;
-    baselined.current = true;
-    if (unreadCount(auditIds) === auditIds.length) markRead(auditIds);
-  }, [ready, auditIds, unreadCount, markRead]);
+  // จุดแดงที่เมนูประวัติการเปลี่ยนแปลง — ตัวเลขเดียวกับจุดแดงบนแท็บตั้งค่า
+  const newAuditCount = useUnreadAuditCount();
 
   const handleClearAll = () => {
     router.push("/clear-alerts" as any);
@@ -171,6 +158,7 @@ export default function SettingsScreen() {
         onClose={() => !signingOut && setLogoutModal(false)}
         onConfirm={handleLogout}
         title="ออกจากระบบไหม"
+        tone="danger"
         message="ต้องเข้าสู่ระบบใหม่ถึงจะเห็นรายการแจ้งเตือนในแอป แต่เครื่องนี้ยังได้รับการแจ้งเตือนแบบ push อยู่"
         confirmLabel={signingOut ? "กำลังออก..." : "ออกจากระบบ"}
       />

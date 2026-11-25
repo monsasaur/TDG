@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import ConfirmModal from "../components/ConfirmModal";
+import InfoRows from "../components/InfoRows";
 import HousePill from "../components/HousePill";
 import JoinOptionCard from "../components/JoinOptionCard";
 import PageHeader from "../components/PageHeader";
@@ -18,6 +19,7 @@ import PageHeader from "../components/PageHeader";
 import { supabase } from "../data/supabaseClient";
 import { House, leaveHouse, MAX_HOUSES, useHouses, useMyHouseRoles } from "../data/useHouses";
 import { useAlerts } from "../contexts/AlertsContext";
+import { DEFAULT_HOUSE_NAME } from "../data/defaultHouse";
 import { useAuth } from "../contexts/AuthContext";
 import { useDevices } from "../contexts/DevicesContext";
 import { C } from "../components/theme";
@@ -178,28 +180,49 @@ export default function HousesScreen() {
         onClose={() => !isDeleting && setPendingRemove(null)}
         onConfirm={confirmRemove}
         title={`ลบ ${pendingRemove?.name ?? ""} ไหม`} // ดึงชื่อมาแสดง
-        titleAlign="left"
-        messageAlign="left"
+        tone="danger"
         cancelLabel="ยกเลิก"
         confirmLabel={isDeleting ? "กำลังลบ..." : "ลบบ้าน"}
-        message={
-          isLast
-            ? "การดำเนินการนี้จะมีผลดังนี้\n\nการแจ้งเตือนและบริการในกลุ่มบ้านนี้จะถูกลบออก\n\nนี่คือกลุ่มสุดท้ายที่เหลืออยู่ของคุณ หากคุณลบออก กลุ่มที่เรียกว่า บ้านของฉัน จะถูกสร้างขึ้น"
-            : "การดำเนินการนี้จะมีผลดังนี้\n\nการแจ้งเตือนและบริการในกลุ่มบ้านนี้จะถูกลบออก"
-        }
-      />
+        message="บ้านนี้จะถูกลบทั้งหมด ไม่ใช่แค่ของคุณ"
+      >
+        <InfoRows
+          rows={[
+            { label: "อุปกรณ์ในบ้านนี้", detail: "ถูกลบออกจากระบบไปด้วย" },
+            { label: "เบอร์ติดต่อฉุกเฉินของบ้าน", detail: "ไม่มีใครถูกโทรหาเมื่อเกิดเหตุในบ้านนี้อีก" },
+            { label: "ประวัติการแจ้งเตือน", detail: "หายไปทั้งหมด เรียกกลับไม่ได้" },
+            { label: "สมาชิกคนอื่นในบ้าน", detail: "จะไม่เห็นบ้านนี้อีก" },
+          ]}
+        />
+        {isLast ? (
+          <Text className="text-xs text-[#858891] leading-[18px] mt-3 text-center">
+            {`นี่เป็นบ้านสุดท้ายของคุณ ลบแล้วระบบจะสร้างบ้านใหม่ชื่อ "${DEFAULT_HOUSE_NAME}" ให้อัตโนมัติ`}
+          </Text>
+        ) : null}
+      </ConfirmModal>
 
       <ConfirmModal
         visible={pendingLeave !== null}
         onClose={() => !isDeleting && setPendingLeave(null)}
         onConfirm={confirmLeave}
         title={`ออกจาก ${pendingLeave?.name ?? ""} ไหม`}
-        titleAlign="left"
-        messageAlign="left"
+        tone="danger"
         cancelLabel="ยกเลิก"
         confirmLabel={isDeleting ? "กำลังออก..." : "ออกจากบ้าน"}
-        message={"คุณจะไม่เห็นการแจ้งเตือนและอุปกรณ์ของบ้านนี้อีก และเครื่องนี้จะไม่ได้รับ push ของบ้านนี้\n\nถ้าจะกลับเข้าบ้าน ต้องขอรหัสเชิญใหม่จากเจ้าของบ้าน"}
-      />
+        message="คุณจะออกจากบ้านนี้คนเดียว บ้านและสมาชิกคนอื่นยังอยู่เหมือนเดิม"
+      >
+        <InfoRows
+          rows={[
+            { label: "การแจ้งเตือนและอุปกรณ์", detail: "คุณจะไม่เห็นของบ้านนี้อีก" },
+            { label: "การแจ้งเตือนเด้ง", detail: "เครื่องนี้จะไม่ได้รับ push ของบ้านนี้" },
+            { label: "ถ้าจะกลับเข้าบ้าน", detail: "ต้องขอรหัสเชิญใหม่จากเจ้าของบ้าน" },
+          ]}
+        />
+        {isLast ? (
+          <Text className="text-xs text-[#858891] leading-[18px] mt-3 text-center">
+            {`นี่เป็นบ้านสุดท้ายของคุณ ออกแล้วระบบจะสร้างบ้านใหม่ชื่อ "${DEFAULT_HOUSE_NAME}" ให้อัตโนมัติ`}
+          </Text>
+        ) : null}
+      </ConfirmModal>
 
       <ConfirmModal
         visible={limitModal}

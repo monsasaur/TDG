@@ -162,6 +162,7 @@ function ContactMemberDetail() {
         onClose={() => !isDeleting && setPendingHouse(undefined)}
         onConfirm={confirmRemove}
         title={`นำ ${member.name} ออกจาก${pendingHouse?.name ?? ""} ใช่ไหม`}
+        tone="danger"
         confirmLabel={isDeleting ? "กำลังนำออก..." : "นำบุคคลออก"}
         cancelLabel="ยกเลิก"
         titleAlign="left"
@@ -289,6 +290,7 @@ function AccountMemberDetail({ memberId }: { memberId: string }) {
         onClose={() => !isDeleting && setPending(undefined)}
         onConfirm={confirmRemove}
         title={`นำ ${member.name} ออกจาก${pending?.name ?? ""} ใช่ไหม`}
+        tone="danger"
         confirmLabel={isDeleting ? "กำลังนำออก..." : "นำบุคคลออก"}
         cancelLabel="ยกเลิก"
         titleAlign="left"

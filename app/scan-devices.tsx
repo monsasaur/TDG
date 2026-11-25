@@ -13,8 +13,9 @@ import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import PageHeader from "../components/PageHeader";
-import ConfirmModal from "../components/ConfirmModal";
+import PermissionModal from "../components/PermissionModal";
 import { searchDevices, errorMessage, isMock } from "../lib/provisioning";
+import { useDevices } from "../contexts/DevicesContext";
 import { C } from "../components/theme";
 
 type Permission = "undetermined" | "granted" | "denied";
@@ -29,6 +30,10 @@ export default function ScanDevicesScreen() {
     houseId?: string;   // บ้านที่เลือกไว้จาก select-house — ต้องส่งต่อไปถึง device-setup
   }>();
 
+  // เชื่อมต่อใหม่ให้อุปกรณ์ที่มีอยู่แล้ว — โหมดจำลองจะได้โชว์รหัสเครื่องนั้นในรายการ
+  const { devices: saved } = useDevices();
+  const expectedCode = deviceId ? saved.find((d) => d.id === deviceId)?.code : undefined;
+
   const [locationPermission, setLocationPermission] =
     useState<Permission>("undetermined");
   const [btPermission, setBtPermission] = useState<Permission>("undetermined");
@@ -40,8 +45,10 @@ export default function ScanDevicesScreen() {
   const [scanError, setScanError] = useState<string | undefined>();
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
+  // โหมดจำลอง (Expo Go / เว็บ) ไม่ได้แตะบลูทูธจริง จึงไม่ต้องรอสิทธิ์ —
+  // เดิมสิทธิ์ไม่ผ่านแล้วหน้าค้างเป็นรายการว่างโดยไม่บอกอะไรเลย
   const allowed =
-    locationPermission === "granted" && btPermission === "granted";
+    isMock || (locationPermission === "granted" && btPermission === "granted");
   const missingLocation = locationPermission !== "granted";
   const missingBt = btPermission !== "granted";
 
@@ -67,7 +74,7 @@ export default function ScanDevicesScreen() {
     });
 
     try {
-      const found = await Promise.race([searchDevices(), timeout]);
+      const found = await Promise.race([searchDevices(expectedCode), timeout]);
       settled = true;
       setDevices(found);
     } catch (err) {
@@ -81,7 +88,7 @@ export default function ScanDevicesScreen() {
       setScanning(false);
       clearTimers();
     }
-  }, [clearTimers]);
+  }, [clearTimers, expectedCode]);
 
   const requestBluetooth = useCallback(async (): Promise<Permission> => {
     if (Platform.OS !== "android") return "granted";
@@ -120,7 +127,7 @@ export default function ScanDevicesScreen() {
   }, [requestBluetooth]);
 
   useEffect(() => {
-    if (requestedRef.current) return;
+    if (isMock || requestedRef.current) return;
     requestedRef.current = true;
     requestAll();
   }, [requestAll]);
@@ -149,6 +156,7 @@ export default function ScanDevicesScreen() {
 
   const hasDevices = devices.length > 0;
   const showEmpty = !scanning && !hasDevices && allowed;
+  const blocked = !allowed;
 
   return (
     <View className="flex-1 bg-page">
@@ -183,7 +191,24 @@ export default function ScanDevicesScreen() {
           </View>
         </View>
 
-        {showEmpty ? (
+        {blocked ? (
+          <View className="px-8 items-center">
+            <Text className="text-base font-semibold text-ink mb-2">ต้องอนุญาตก่อนถึงจะค้นหาได้</Text>
+            <Text className="text-xs text-sub text-center leading-5">
+              การค้นหาอุปกรณ์ผ่านบลูทูธต้องใช้สิทธิ์ตำแหน่งและอุปกรณ์ใกล้เคียง
+            </Text>
+            <TouchableOpacity
+              onPress={requestAll}
+              activeOpacity={0.85}
+              className="h-[48px] px-6 rounded-2xl bg-[#292A32] justify-center items-center mt-4"
+            >
+              <Text className="text-sm font-semibold text-white">ขออนุญาตอีกครั้ง</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleOpenSettings} hitSlop={10} className="mt-3">
+              <Text className="text-sm font-semibold text-[#292A32] underline">ไปที่การตั้งค่าของเครื่อง</Text>
+            </TouchableOpacity>
+          </View>
+        ) : showEmpty ? (
           <View className="px-8 items-center">
             <Text className="text-base font-semibold text-ink mb-2">
               {scanError ? "ค้นหาไม่สำเร็จ" : "ไม่พบอุปกรณ์"}
@@ -204,16 +229,36 @@ export default function ScanDevicesScreen() {
               อุปกรณ์ที่ใช้งานได้
             </Text>
             <View className="px-5">
-              {devices.map((code) => (
-                <TouchableOpacity
-                  key={code}
-                  activeOpacity={0.7}
-                  onPress={() => selectDevice(code)}
-                  className="bg-white rounded-xl px-4 py-3 mb-2 border border-[#E8E8E8]"
-                >
-                  <Text className="text-sm text-ink">{code}</Text>
-                </TouchableOpacity>
-              ))}
+              {devices.map((code) => {
+                // เชื่อมต่อใหม่ให้เครื่องเดิม — เลือกเครื่องอื่นไปก็บันทึกไม่ได้ (device-setup กันไว้)
+                // จึงปิดไว้ตั้งแต่ตรงนี้ พร้อมบอกว่าทำไม
+                const mismatch = !!expectedCode && code !== expectedCode;
+                return (
+                  <TouchableOpacity
+                    key={code}
+                    activeOpacity={0.7}
+                    disabled={mismatch}
+                    onPress={() => selectDevice(code)}
+                    accessibilityRole="button"
+                    accessibilityLabel={mismatch ? `${code} ไม่ใช่เครื่องที่กำลังเชื่อมต่อใหม่` : code}
+                    className={`rounded-xl px-4 py-3 mb-2 border ${
+                      mismatch ? "bg-[#F7F7F8] border-[#E5E6E9]" : "bg-white border-[#E8E8E8]"
+                    }`}
+                  >
+                    <View className="flex-row items-center justify-between">
+                      <Text className={`text-sm ${mismatch ? "text-sub" : "text-ink"}`}>{code}</Text>
+                      {!mismatch && expectedCode === code && (
+                        <View className="rounded-full bg-[#E8F5EC] px-2 py-0.5">
+                          <Text className="text-[10px] font-semibold text-[#16A34A]">เครื่องของคุณ</Text>
+                        </View>
+                      )}
+                    </View>
+                    {mismatch && (
+                      <Text className="text-[10px] text-sub mt-1">ไม่ใช่เครื่องที่กำลังเชื่อมต่อใหม่</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
             {!scanning && hasDevices && (
               <Text className="text-xs text-sub text-center px-8 mt-3 leading-5">
@@ -225,40 +270,29 @@ export default function ScanDevicesScreen() {
         )}
       </ScrollView>
 
-      <ConfirmModal
+      <PermissionModal
         visible={settingsPrompt}
         onClose={() => setSettingsPrompt(false)}
-        onConfirm={handleOpenSettings}
-        confirmLabel="ไปที่การตั้งค่า"
-        titleAlign="left"
-        messageAlign="left"
-      >
-        <Text className="text-sm text-ink leading-5">
-          หากต้องการใช้คุณสมบัตินี้ คุณต้องให้การอนุญาติต่อไปในการตั้งค่า
-        </Text>
-        <View className="mt-3">
-          {missingLocation && (
-            <View className="mb-2">
-              <Text className="text-sm text-ink">• ตำแหน่ง</Text>
-              <Text className="text-xs text-sub ml-3 mt-0.5">
-                ใช้เพื่อสแกนหาอุปกรณ์ใกล้เคียงโดยใช้ WiFi
-              </Text>
-            </View>
-          )}
-          {missingBt && (
-            <View>
-              <Text className="text-sm text-ink">• อุปกรณ์ที่อยู่ใกล้เคียง</Text>
-              <Text className="text-xs text-sub ml-3 mt-0.5">
-                ใช้เพื่อสแกนหาและเชื่อมต่อกับอุปกรณ์ใกล้เคียงโดยใช้ Bluetooth
-              </Text>
-            </View>
-          )}
-        </View>
-        <Text className="text-sm text-ink mt-4 leading-5">
-          หากต้องการใช้คุณสมบัติต่อ ให้เปิดการตั้งค่า
-          จากนั้นเลือกให้สิทธิ์ในการใช้งาน
-        </Text>
-      </ConfirmModal>
+        onOpenSettings={handleOpenSettings}
+        items={[
+          ...(missingLocation
+            ? [
+                {
+                  label: "ตำแหน่ง",
+                  reason: "Android บังคับให้ขอสิทธิ์นี้ก่อนถึงจะค้นหาอุปกรณ์ด้วยบลูทูธได้",
+                },
+              ]
+            : []),
+          ...(missingBt
+            ? [
+                {
+                  label: "อุปกรณ์ที่อยู่ใกล้เคียง",
+                  reason: "ใช้สแกนหาและเชื่อมต่อกับ ESP32 ผ่านบลูทูธ",
+                },
+              ]
+            : []),
+        ]}
+      />
     </View>
   );
 }

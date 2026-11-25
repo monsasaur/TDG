@@ -1,29 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
+  Alert,
   KeyboardAvoidingView,
   Modal,
-  TouchableWithoutFeedback,
   Platform,
-  Alert,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useDevices } from "../contexts/DevicesContext";
 import PageHeader from "../components/PageHeader";
-import LabeledTextField from "../components/LabeledTextField";
 import ConfirmModal from "../components/ConfirmModal";
 import { useHouses } from "../data/useHouses";
 import { useOwnerAccess } from "../data/useOwnerAccess";
 import type { Device } from "../data/useDevices";
-import { BTN } from "../components/buttonTheme";
-import { C } from "../components/theme";
+import { V2C } from "../components/designVersion";
 
 const NAME_MAX = 30;
 
+/**
+ * รายละเอียดอุปกรณ์ — ชื่อ · บ้าน · เครือข่าย · เชื่อมต่อใหม่ · ลบ
+ * จัดหน้าใหม่ตามสเปค v2: การ์ดขาวบนพื้นเทา ป้ายสถานะ และปุ่มหลักสี Charcoal
+ */
 export default function DeviceDetailsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -34,10 +38,7 @@ export default function DeviceDetailsScreen() {
   // ย้ายอุปกรณ์ได้เฉพาะไปบ้านที่เราเป็นเจ้าของ (RLS: with check is_house_owner ของบ้านปลายทาง)
   const HOUSES = houses.filter((h) => isOwner(h.id)).map((h) => h.name);
 
-  const device = useMemo(
-    () => devices.find((d) => d.id === id),
-    [devices, id]
-  );
+  const device = useMemo(() => devices.find((d) => d.id === id), [devices, id]);
 
   const [name, setName] = useState("");
   const [house, setHouse] = useState<string>("");
@@ -56,19 +57,21 @@ export default function DeviceDetailsScreen() {
 
   if (!device) {
     return (
-      <View className="flex-1 bg-page items-center justify-center">
-        <Text className="text-sm text-sub">ไม่พบอุปกรณ์</Text>
+      <View className={`flex-1 ${V2C.page} items-center justify-center`}>
+        <Text className="text-sm text-[#858891]">ไม่พบอุปกรณ์</Text>
         <TouchableOpacity onPress={goBack} className="mt-4">
-          <Text className="text-sm font-semibold text-brand">กลับ</Text>
+          <Text className="text-sm font-semibold text-[#292A32] underline">กลับ</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   const isConnected = device.status === "connected";
+  const dirty = name.trim() !== device.name || house !== (device.houseName ?? "");
   const canSave = name.trim().length > 0 && !isSaving;
   // ผู้ดูแล (caregiver) ดูได้อย่างเดียว — แก้/ลบ/เชื่อมต่อใหม่ได้เฉพาะเจ้าของบ้าน
   const canManage = isOwner(device.houseId);
+  const reconnect = () => router.push(`/scan-devices?deviceId=${device.id}` as never);
 
   // เดิมปุ่มบันทึกแค่ย้อนกลับ — ชื่อและบ้านที่แก้ไม่เคยถูกบันทึก
   const handleSave = async () => {
@@ -107,155 +110,155 @@ export default function DeviceDetailsScreen() {
   };
 
   return (
-    <View className="flex-1 bg-page">
+    <View className={`flex-1 ${V2C.page}`}>
       <Stack.Screen options={{ animation: "slide_from_right" }} />
-
       <PageHeader title="รายละเอียดอุปกรณ์" onBack={goBack} />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        className="flex-1"
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} className="flex-1">
         <ScrollView
-          contentContainerStyle={{ paddingBottom: 32 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 }}
           keyboardShouldPersistTaps="handled"
         >
-          {/* รหัสอุปกรณ์ */}
-          <View className="px-5 pt-5 pb-3 border-b border-[#E8E8E8]">
-            <Text className="text-sm text-ink">
-              รหัสอุปกรณ์ : <Text className="text-sub">{device.code}</Text>
-            </Text>
+          {/* อุปกรณ์ตัวนี้คือเครื่องไหน + ใช้งานได้อยู่ไหม */}
+          <View className="bg-white rounded-2xl p-4 flex-row items-center">
+            <View className="w-12 h-12 rounded-2xl bg-[#F2F3F5] items-center justify-center mr-3">
+              <Ionicons name="hardware-chip-outline" size={24} color="#292A32" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-base font-semibold text-[#292A32]" numberOfLines={1}>
+                {device.name}
+              </Text>
+              <Text className="text-xs text-[#858891] mt-0.5">รหัสอุปกรณ์ : {device.code}</Text>
+            </View>
+            <View className={`rounded-full px-3 py-1 ${isConnected ? "bg-[#E8F5EC]" : "bg-[#FDECEC]"}`}>
+              <Text className={`text-xs font-semibold ${isConnected ? "text-[#16A34A]" : "text-[#DC2626]"}`}>
+                {isConnected ? "เชื่อมต่อแล้ว" : "ขาดการเชื่อมต่อ"}
+              </Text>
+            </View>
           </View>
 
-          {/* เครือข่ายปัจจุบัน */}
-          <View className="px-5 mt-4">
-            <Text className="text-sm text-ink mb-2">เครือข่ายปัจจุบัน</Text>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              // เปลี่ยน WiFi ต้องจับคู่ BLE ใหม่ — ไปทางเดียวกับปุ่มเชื่อมต่อใหม่
-              // (เดิมไป /connect-device โดยไม่ส่งชื่อเครื่อง จับคู่ไม่ได้ แล้วหน้าตั้งค่าเติมค่าปลอมให้)
-              onPress={() =>
-                router.push(`/scan-devices?deviceId=${device.id}` as never)
-              }
-              disabled={!canManage}
-              className={`rounded-xl px-4 py-3 flex-row items-center ${
-                isConnected ? "bg-brand-soft" : "bg-[#EFEFEF]"
-              }`}
-            >
-              <Ionicons
-                name="wifi"
-                size={18}
-                color={isConnected ? C.ink : C.sub}
+          {/* เครือข่ายที่อุปกรณ์เกาะอยู่ — กดเพื่อตั้ง WiFi ใหม่ผ่าน BLE */}
+          <Text className="text-sm text-[#858891] mt-5 mb-2 mx-1">เครือข่าย Wi-Fi</Text>
+          <Pressable
+            onPress={reconnect}
+            disabled={!canManage}
+            accessibilityRole="button"
+            accessibilityLabel={`เครือข่าย ${device.wifi_ssid || "ยังไม่ได้ตั้งค่า"} แตะเพื่อเชื่อมต่อใหม่`}
+            style={({ pressed }) => (pressed && canManage ? { opacity: 0.7 } : undefined)}
+            className="bg-white rounded-2xl px-4 py-4 flex-row items-center"
+          >
+            <Ionicons name={isConnected ? "wifi" : "wifi-outline"} size={22} color={isConnected ? "#292A32" : "#858891"} />
+            <View className="flex-1 ml-3">
+              <Text className="text-base text-[#292A32]" numberOfLines={1}>
+                {device.wifi_ssid || "ยังไม่ได้ตั้งค่าเครือข่าย"}
+              </Text>
+              <Text className="text-xs text-[#858891] mt-0.5">
+                {canManage ? "แตะเพื่อเปลี่ยนเครือข่ายของอุปกรณ์" : "เฉพาะเจ้าของบ้านที่เปลี่ยนได้"}
+              </Text>
+            </View>
+            {canManage && <Ionicons name="chevron-forward" size={20} color="#858891" />}
+          </Pressable>
+
+          {/* ข้อมูลที่แก้ได้ */}
+          <Text className="text-sm text-[#858891] mt-5 mb-2 mx-1">ข้อมูลอุปกรณ์</Text>
+          <View className="bg-white rounded-2xl overflow-hidden">
+            <View className="px-4 py-3 border-b border-[#F0F0F0]">
+              <Text className="text-xs text-[#858891]">ชื่ออุปกรณ์</Text>
+              <TextInput
+                value={name}
+                onChangeText={(t) => setName(t.slice(0, NAME_MAX))}
+                editable={canManage}
+                maxLength={NAME_MAX}
+                placeholder="เช่น Esp32 - ห้องนอน"
+                placeholderTextColor="#9CA3AF"
+                className="text-base text-[#292A32] py-1"
               />
-              <View className="ml-3">
-                <Text className="text-sm text-ink">{device.wifi_ssid}</Text>
-                <Text
-                  className={`text-xs mt-0.5 ${
-                    isConnected ? "text-brand" : "text-sub"
-                  }`}
-                >
-                  {isConnected ? "เชื่อมต่อ" : "ขาดการเชื่อมต่อ"}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          <LabeledTextField
-            label="ชื่ออุปกรณ์"
-            value={name}
-            onChangeText={(t) => setName(t.slice(0, NAME_MAX))}
-            maxLength={NAME_MAX}
-            readOnly={!canManage}
-          />
-
-          {/* กลุ่มบ้าน */}
-          <View className="px-5 mt-4">
-            <Text className="text-sm text-ink mb-2">กลุ่มบ้าน</Text>
-            <TouchableOpacity
-              activeOpacity={0.7}
+            </View>
+            <Pressable
               onPress={() => setHouseDropdown(true)}
               disabled={!canManage}
-              className="bg-white rounded-xl px-4 py-3 flex-row items-center justify-between border border-[#E8E8E8]"
+              accessibilityRole="button"
+              accessibilityLabel={`กลุ่มบ้าน ตอนนี้: ${house}`}
+              className="px-4 py-3 flex-row items-center"
             >
-              <Text className="text-sm text-ink">{house}</Text>
-              {canManage && <Ionicons name="chevron-down" size={14} color={C.sub} />}
-            </TouchableOpacity>
+              <View className="flex-1">
+                <Text className="text-xs text-[#858891]">กลุ่มบ้าน</Text>
+                <Text className="text-base text-[#292A32] py-1">{house || "ยังไม่ได้ผูกกับบ้าน"}</Text>
+              </View>
+              {canManage && <Ionicons name="chevron-down" size={18} color="#858891" />}
+            </Pressable>
           </View>
         </ScrollView>
 
-        {/* Bottom buttons */}
+        {/* ปุ่มล่าง */}
         {!canManage ? (
           <View className="px-5 pb-8">
-            <Text className="text-xs text-sub text-center leading-5">
+            <Text className="text-xs text-[#858891] text-center leading-5">
               คุณเป็นผู้ดูแลของบ้านนี้ — เฉพาะเจ้าของบ้านที่แก้ไข ลบ หรือเชื่อมต่ออุปกรณ์ใหม่ได้
             </Text>
           </View>
         ) : (
-        <View className="px-5 pb-8">
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={
-              isConnected
-                ? handleSave
-                : () =>
-                    router.push(
-                      `/scan-devices?deviceId=${device.id}` as never
-                    )
-            }
-            disabled={isConnected && !canSave}
-            className={`rounded-full py-4 items-center ${
-              isConnected
-                ? canSave
-                  ? BTN.solid
-                  : BTN.solidDim
-                : BTN.solid
-            }`}
-          >
-            <Text className="text-base font-semibold text-white">
-              {isConnected ? (isSaving ? "กำลังบันทึก..." : "บันทึก") : "เชื่อมต่อใหม่"}
-            </Text>
-          </TouchableOpacity>
+          <View className="px-5 pb-8">
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={isConnected ? handleSave : reconnect}
+              disabled={isConnected && (!canSave || !dirty)}
+              accessibilityRole="button"
+              className={`h-[54px] rounded-2xl justify-center items-center ${
+                isConnected && (!canSave || !dirty) ? V2C.darkDisabled : V2C.dark
+              }`}
+            >
+              <Text className="text-base font-semibold text-white">
+                {isConnected ? (isSaving ? "กำลังบันทึก..." : "บันทึก") : "เชื่อมต่อใหม่"}
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => setConfirmDelete(true)}
-            className="rounded-full py-4 items-center mt-3 bg-white border border-danger"
-          >
-            <Text className="text-base font-semibold text-danger">
-              ลบอุปกรณ์นี้
-            </Text>
-          </TouchableOpacity>
-        </View>
+            {/* อุปกรณ์ที่ยังเชื่อมต่ออยู่ก็ตั้ง WiFi ใหม่ได้ ไม่ต้องรอให้หลุดก่อน */}
+            {isConnected && (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={reconnect}
+                accessibilityRole="button"
+                className="h-[54px] rounded-2xl justify-center items-center mt-3 bg-white border border-[#E5E6E9]"
+              >
+                <Text className="text-base font-semibold text-[#292A32]">เชื่อมต่อใหม่</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setConfirmDelete(true)}
+              accessibilityRole="button"
+              className="h-[48px] justify-center items-center mt-2"
+            >
+              <Text className="text-sm font-semibold text-[#DC2626]">ลบอุปกรณ์นี้</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </KeyboardAvoidingView>
 
-      {/* House dropdown (centered modal — different from filter dropdown) */}
-      <Modal transparent animationType="none" visible={houseDropdown}>
+      {/* เลือกบ้าน */}
+      <Modal transparent animationType="fade" visible={houseDropdown} onRequestClose={() => setHouseDropdown(false)}>
         <TouchableWithoutFeedback onPress={() => setHouseDropdown(false)}>
-          <View className="flex-1 bg-black/20 items-center justify-center px-10">
+          <View className="flex-1 bg-black/25 items-center justify-center px-8">
             <TouchableWithoutFeedback>
-              <View className="bg-white rounded-xl border border-[#E8E8E8] py-1 w-full">
-                {HOUSES.map((h) => (
+              <View className="bg-white rounded-2xl w-full py-1">
+                <Text className="text-xs text-[#858891] px-4 pt-3 pb-1">ย้ายอุปกรณ์ไปบ้าน</Text>
+                {HOUSES.map((h, i) => (
                   <TouchableOpacity
                     key={h}
-                    className="flex-row items-center justify-between px-4 py-3"
+                    className={`flex-row items-center justify-between px-4 py-3 ${
+                      i === HOUSES.length - 1 ? "" : "border-b border-[#F0F0F0]"
+                    }`}
                     onPress={() => {
                       setHouse(h);
                       setHouseDropdown(false);
                     }}
                   >
-                    <Text
-                      className={`text-sm ${
-                        house === h
-                          ? "text-brand font-medium"
-                          : "text-ink"
-                      }`}
-                    >
+                    <Text className={`text-sm ${house === h ? "font-semibold text-[#292A32]" : "text-[#292A32]"}`}>
                       {h}
                     </Text>
-                    {house === h && (
-                      <Ionicons name="checkmark" size={18} color={C.brand} />
-                    )}
+                    {house === h && <Ionicons name="checkmark" size={18} color="#292A32" />}
                   </TouchableOpacity>
                 ))}
               </View>
@@ -269,6 +272,7 @@ export default function DeviceDetailsScreen() {
         onClose={() => setConfirmDelete(false)}
         onConfirm={handleDelete}
         title="ลบอุปกรณ์นี้หรือไม่"
+        tone="danger"
         message="อุปกรณ์นี้จะถูกลบออกจากบ้านของคุณ คุณแน่ใจหรือไม่ว่าคุณต้องการลบอุปกรณ์นี้"
       />
     </View>
