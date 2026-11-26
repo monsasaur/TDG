@@ -1,6 +1,0 @@
-MID-API-001  23/11/2026 13:53  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
-13:53:42 GET /health  key=- bearer=-
-  body: -
-  -> 200 (2 ms) {"status":"ok","timestamp":"2026-11-23T06:53:42.824Z"}
-  ✔ status 200 และ status = "ok"
-  ✔ timestamp เป็นแบบ ISO

@@ -314,6 +314,29 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
       },
     },
 
+    '/api/v1/push/unregister': {
+      post: {
+        tags: ['Push'],
+        summary: 'ถอน push token ของเครื่องนี้',
+        description:
+          'ผู้ใช้ปิดสวิตช์แจ้งเตือนในแอป → เอา token ออกจากฐาน เซิร์ฟเวอร์จะไม่ส่ง push มาที่เครื่องนี้อีก ' +
+          '(คนละเรื่องกับสิทธิ์แจ้งเตือนของระบบปฏิบัติการ ซึ่งแอปปิดแทนผู้ใช้ไม่ได้)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['token'],
+                properties: { token: { type: 'string', example: 'ExponentPushToken[xxxxxxxx]' } },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'ถอนแล้ว' }, 400: ERR('ไม่มี token'), 401: ERR('ไม่ได้รับอนุญาต') },
+      },
+    },
+
     '/api/v1/push/tokens': {
       get: {
         tags: ['Demo'],

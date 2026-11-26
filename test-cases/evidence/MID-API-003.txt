@@ -1,6 +1,0 @@
-MID-API-003  23/11/2026 13:53  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
-13:53:44 POST /api/v1/predict  key=wrong-key-123 bearer=-
-  body: {"device_id": "QA_NOKEY", "timestamp": 1795416824256, "location": "bathroom", "features": [[0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
-  -> 401 (15 ms) {"error":"Unauthorized"}
-  ✔ status 401
-  ✔ ไม่มีแถวใหม่

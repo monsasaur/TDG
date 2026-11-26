@@ -23,6 +23,7 @@
 const alertService = require("./alertService");
 const dbService = require("./dbService");
 const appAlertService = require("./appAlertService");
+const callOutcomeService = require("./callOutcomeService");
 const demoLog = require("../utils/demoLog");
 
 const ACK_TIMEOUT_SECONDS = Number(process.env.ACK_TIMEOUT_SECONDS || 60);
@@ -177,6 +178,15 @@ async function escalate(event) {
       call_made: callOk,
       ack_timeout_seconds: ACK_TIMEOUT_SECONDS,
     });
+
+    // ตามผลปลายสายต่อในเบื้องหลัง — มีคนรับ/ไม่มีใครรับแล้วค่อยอัปเดตการ์ดอีกที
+    // (ไม่ await เพราะใช้เวลานานเท่าที่สายยังไม่จบ และ escalate ถือว่าเสร็จแล้ว)
+    const placedCalls = callRes.value?.calls;
+    if (Array.isArray(placedCalls) && placedCalls.length > 0) {
+      callOutcomeService.watch(event_id, placedCalls).catch((err) =>
+        console.error("❌ [CALL] ตามผลสายไม่สำเร็จ:", err.message),
+      );
+    }
   } catch (err) {
     console.error(`❌ Escalation failed for ${event_id}:`, err.message);
   } finally {

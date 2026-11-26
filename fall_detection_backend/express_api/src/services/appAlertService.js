@@ -23,9 +23,17 @@ const dbService = require('./dbService')
 //   completed   — มีคนกดรับทราบในแอปแล้ว
 //   in_progress — หมดเวลารอ ระบบโทรออกไปแล้ว แต่ยังไม่รู้ผลปลายสาย
 //
-// ไม่ตั้ง 'no_response' เพราะจะรู้ว่า "ไม่มีใครรับสาย" จริง ๆ ต้องมี
-// Twilio status callback ก่อน — เดาเอาแล้วบอกผู้ใช้ว่าไม่มีใครรับ ทั้งที่อาจมีคนรับ
-// เป็นการโกหกในเรื่องที่คนใช้ตัดสินใจต่อจากมัน
+//   no_response — โทรครบทุกเบอร์แล้วไม่มีใครรับสาย
+//
+// 'no_response' ตั้งได้ก็ต่อเมื่อรู้ผลจริงจาก Twilio เท่านั้น (callOutcomeService ถามสถานะสายเอง)
+// ห้ามเดาจากการที่โทรออกไปแล้ว — บอกว่าไม่มีคนรับทั้งที่อาจมีคนรับ คือโกหกในเรื่องที่คนใช้ตัดสินใจต่อ
+
+const THAI_CALL_STATUS = {
+  'no-answer': 'ไม่รับสาย',
+  busy:        'สายไม่ว่าง',
+  failed:      'โทรไม่สำเร็จ',
+  canceled:    'ยกเลิก',
+}
 
 const STEP_DETECTED = 'ตรวจพบการล้ม'
 const STEP_APP      = 'แจ้งเตือนผู้ดูแลในแอป'
@@ -115,6 +123,54 @@ module.exports = {
       })
     } catch (err) {
       console.error(`❌ [ALERT] อัปเดต ack ของ ${event_id} ไม่สำเร็จ:`, err.message)
+      return null
+    }
+  },
+
+  /**
+   * รู้ผลปลายสายแล้ว (callOutcomeService ตามจนทุกสายจบ)
+   *   มีคนรับ    → completed + บอกว่าใครรับ ถือว่าเรื่องนี้จบ
+   *   ไม่มีใครรับ → no_response — การ์ดยังค้างอยู่ให้คนเห็นว่ายังไม่มีใครดูแล
+   */
+  markCallOutcome: async (event_id, { answered = [], unanswered = [], total = 0 } = {}) => {
+    try {
+      const existing = await dbService.getAlertByEvent(event_id)
+      if (!existing) return null
+
+      // กดรับทราบในแอปไปแล้วระหว่างรอสาย — อย่าเขียนทับสถานะที่จบแล้ว
+      if (existing.status === 'completed') return existing
+
+      const timeline = readTimeline(existing)
+
+      if (answered.length > 0) {
+        const who = answered.map(a => a.who).join(', ')
+        const secs = answered.reduce((m, a) => Math.max(m, a.seconds || 0), 0)
+        return await dbService.updateAlertByEvent(event_id, {
+          status:      'completed',
+          answered_by: `${who} (ทางโทรศัพท์)`,
+          countdown:   null,
+          timeline: patchStep(
+            timeline, STEP_CALL,
+            `รับสายโดย ${who}${secs ? ` · คุยสาย ${secs} วินาที` : ''}`,
+            'success'
+          ),
+        })
+      }
+
+      const reasons = unanswered.length
+        ? ` (${[...new Set(unanswered.map(u => THAI_CALL_STATUS[u.status] || u.status))].join(', ')})`
+        : ''
+      return await dbService.updateAlertByEvent(event_id, {
+        status:    'no_response',
+        countdown: null,
+        timeline: patchStep(
+          timeline, STEP_CALL,
+          `โทรครบ ${total} เบอร์ ไม่มีใครรับสาย${reasons}`,
+          'error'
+        ),
+      })
+    } catch (err) {
+      console.error(`❌ [ALERT] อัปเดตผลสายของ ${event_id} ไม่สำเร็จ:`, err.message)
       return null
     }
   },

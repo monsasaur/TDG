@@ -1,2 +1,0 @@
-fall {'prediction': 'fall', 'confidence': 0.619, 'is_fall': True, 'model_name': 'RandomForest', 'model_version': 'rf_v2_event-r2-fall', 'risk_score': 62}
-no {'prediction': 'no_fall', 'confidence': 0.8061, 'is_fall': False, 'model_name': 'RandomForest', 'model_version': 'rf_v2_event-r2-fall', 'risk_score': 19}

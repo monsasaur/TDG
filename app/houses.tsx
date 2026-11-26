@@ -18,6 +18,7 @@ import PageHeader from "../components/PageHeader";
 // Import สิ่งที่จำเป็นสำหรับ Supabase
 import { supabase } from "../data/supabaseClient";
 import { House, leaveHouse, MAX_HOUSES, useHouses, useMyHouseRoles } from "../data/useHouses";
+import { notifyMembersChanged } from "../data/useHouseMembers";
 import { useAlerts } from "../contexts/AlertsContext";
 import { DEFAULT_HOUSE_NAME } from "../data/defaultHouse";
 import { useAuth } from "../contexts/AuthContext";
@@ -85,6 +86,7 @@ export default function HousesScreen() {
     void refreshDevices();
     void refreshAlerts();
     void refetchRoles();
+    notifyMembersChanged();
   };
 
   const handleAdd = () => {

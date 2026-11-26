@@ -18,7 +18,7 @@ import PageHeader from "../components/PageHeader";
 // 1. Import Hooks และ Supabase Client
 import { supabase } from "../data/supabaseClient";
 import { CONTACT_PHONE_ERROR, normalizeContactPhone, sanitizeContactPhoneInput } from "../lib/phone";
-import { MAX_EXTERNAL_PER_HOUSE, useContacts } from "../data/useContacts";
+import { MAX_EXTERNAL_PER_HOUSE, notifyContactsChanged, useContacts } from "../data/useContacts";
 import { useHouses } from "../data/useHouses";
 import { useOwnerAccess } from "../data/useOwnerAccess";
 import { BTN } from "../components/buttonTheme";
@@ -126,7 +126,8 @@ export default function AddExternalContactScreen() {
 
       if (mappingError) throw mappingError;
 
-      // บันทึกสำเร็จ
+      // บันทึกสำเร็จ — ให้หน้ารายชื่อที่เปิดค้างอยู่ดึงใหม่ทันที
+      notifyContactsChanged();
       safeBack(router);
     } catch (error) {
       console.error("Error adding external contact:", error);

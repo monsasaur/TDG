@@ -12,6 +12,7 @@ import { useAlerts } from "../contexts/AlertsContext";
 import { useDevices } from "../contexts/DevicesContext";
 import { joinHouse, parseInviteQr } from "../data/houseInvites";
 import { notifyHousesChanged } from "../data/useHouses";
+import { notifyMembersChanged } from "../data/useHouseMembers";
 import { C } from "../components/theme";
 import { safeBack } from "../lib/navigation";
 
@@ -54,6 +55,7 @@ export default function ScanQrScreen() {
     }
     // บ้านที่มองเห็นเปลี่ยน — ดึงรายการบ้าน อุปกรณ์ และการแจ้งเตือนใหม่ทันที
     notifyHousesChanged();
+    notifyMembersChanged();
     void refreshDevices();
     void refreshAlerts();
     setJoined(res.houseName ?? "");

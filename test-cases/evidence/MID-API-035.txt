@@ -1,7 +1,0 @@
-MID-API-035  23/11/2026 13:59  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
-13:59:25 POST /api/v1/alert/test  key=app bearer=-
-  body: -
-  -> 401 (17 ms) {"error":"Unauthorized"}
-  (รอ 60 วินาที )
-  ✔ status 401
-  ✔ รอ 1 นาที ไม่มี SMS หรือการโทร

@@ -42,6 +42,7 @@ scope ไหนไม่ได้ตั้งคีย์เฉพาะไว�
 **Push**
 
 - [`POST /api/v1/push/register`](#post-api-v1-push-register) — ลงทะเบียน Expo push token
+- [`POST /api/v1/push/unregister`](#post-api-v1-push-unregister) — ถอน push token ของเครื่องนี้
 
 **Demo**
 
@@ -221,6 +222,30 @@ _Push notification_
 | `200` | ลงทะเบียนแล้ว (`user_linked` บอกว่าผูกกับบัญชีไหม) |
 | `400` | ไม่มี token |
 | `401` | ไม่ได้รับอนุญาต หรือ token ของบัญชีหมดอายุ |
+
+---
+
+### `POST /api/v1/push/unregister`
+
+**ถอน push token ของเครื่องนี้**
+
+ผู้ใช้ปิดสวิตช์แจ้งเตือนในแอป → เอา token ออกจากฐาน เซิร์ฟเวอร์จะไม่ส่ง push มาที่เครื่องนี้อีก (คนละเรื่องกับสิทธิ์แจ้งเตือนของระบบปฏิบัติการ ซึ่งแอปปิดแทนผู้ใช้ไม่ได้)
+
+**สิทธิ์:** `x-api-key` — ใช้ `APP_API_KEY`
+
+**Request body** (JSON) — จำเป็น
+
+| field | ชนิด | จำเป็น | คำอธิบาย |
+|---|---|:---:|---|
+| `token` | `string` | ✔ | เช่น `ExponentPushToken[xxxxxxxx]` |
+
+**Responses**
+
+| รหัส | ความหมาย |
+|---|---|
+| `200` | ถอนแล้ว |
+| `400` | ไม่มี token |
+| `401` | ไม่ได้รับอนุญาต |
 
 ---
 

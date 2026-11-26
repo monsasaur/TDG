@@ -1,2 +1,0 @@
-GET /health -> 200 {"status":"ok","model_version":"rf_v2_event-r2-fall","n_features":39,"threshold":0.9}
-POST /predict -> 200 {"prediction":"no_fall","confidence":0.381,"is_fall":false,"model_name":"RandomForest","model_version":"rf_v2_event-r2-fall","risk_score":62}

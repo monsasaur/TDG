@@ -1,5 +1,0 @@
-MID-API-004  23/11/2026 13:53  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
-13:53:45 GET /health  key=- bearer=-
-  body: -
-  -> 200 (22 ms) {"status":"ok","timestamp":"2026-11-23T06:53:45.023Z"}
-  ✔ status 200 โดยไม่มีคีย์

@@ -1,9 +1,0 @@
-MID-API-073  23/11/2026 14:04  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
-/docs/ -> 200, endpoint ใน spec 20 เส้น, securitySchemes ['apiKey', 'adminToken', 'userToken']
-  ✔ หน้า Swagger เปิดได้
-  ✔ มี endpoint ครบ 20 เส้น
-  ✔ มีการตั้งค่า Authorize
-14:04:36 GET /docs/  key=- bearer=-
-  body: -
-  -> 401 (25 ms) {"error":"Unauthorized"}
-  ~ ไม่ตรงสมมติฐาน: ปิดแล้วเปิด /docs ได้ 401 (คำถามข้อ 93)
