@@ -29,6 +29,17 @@ type Row = {
   phone: string | null;
 };
 
+/**
+ * ทุกหน้าที่เปิดอยู่ดึงรายชื่อสมาชิกใหม่พร้อมกัน — นำสมาชิกออก/เข้าร่วมบ้านแล้วต้องเห็นผลทันที
+ * (เดิมต้องออกจากหน้าแล้วเข้าใหม่)
+ */
+const memberListeners = new Set<() => void>();
+
+/** เรียกหลังนำสมาชิกออก / เข้าร่วมบ้าน / ออกจากบ้าน */
+export function notifyMembersChanged() {
+  memberListeners.forEach((fn) => fn());
+}
+
 export function useHouseMembers(userId: string | null | undefined) {
   const [members, setMembers] = useState<HouseMember[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -69,6 +80,10 @@ export function useHouseMembers(userId: string | null | undefined) {
 
   useEffect(() => {
     fetchMembers();
+    memberListeners.add(fetchMembers);
+    return () => {
+      memberListeners.delete(fetchMembers);
+    };
   }, [fetchMembers]);
 
   return { members, isLoading, refetch: fetchMembers };

@@ -1,9 +1,0 @@
-MID-API-057  23/11/2026 13:54  (รันในเครื่อง ไม่ต่อ Supabase · ML จำลอง · Twilio fake)
-13:54:24 POST /api/v1/admin/login  key=- bearer=-
-  body: {"username": "a", "password": "b"}
-  -> 503 (7 ms) {"error":"admin auth not configured"}
-13:54:24 GET /api/v1/admin/summary  key=- bearer=-
-  body: -
-  -> 503 (17 ms) {"error":"admin auth not configured"}
-  ✔ login 503
-  ✔ summary 503

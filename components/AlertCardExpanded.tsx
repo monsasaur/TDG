@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Alert, StepStatus } from "../types/alert";
 import { C } from "./theme";
 import { V2 } from "./designVersion";
-import { STATUS_LOOK, STEP_DOT } from "./alertStatusStyle";
+import { lookFor, STEP_DOT } from "./alertStatusStyle";
 
 interface AlertCardExpandedProps {
   alert: Alert;
@@ -23,7 +23,7 @@ function lineColor(status: StepStatus) {
 export default function AlertCardExpanded({ alert }: AlertCardExpandedProps) {
   // ดีไซน์ v2 — เหตุการณ์ที่จบแล้ว: หัวข้อสี Charcoal + ป้ายสถานะ · สีหม่นตามสถานะ (เด่นสดเฉพาะการ์ดที่ยังรอรับทราบ)
   if (V2) {
-    const st = STATUS_LOOK[alert.status];
+    const st = lookFor(alert);
     return (
       <View className="bg-white rounded-2xl border border-[#E5E6E9] mx-5 my-3 p-4">
         <View className="flex-row items-start">

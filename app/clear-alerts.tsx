@@ -140,6 +140,7 @@ export default function ClearAlertsScreen() {
         onClose={() => setConfirmOpen(false)}
         onConfirm={handleConfirmDelete}
         title="ยืนยันลบการแจ้งเตือนใช่ไหม"
+        tone="danger"
         message={confirmBody}
       />
     </View>

@@ -15,9 +15,9 @@ import { maskThaiPhone } from "../lib/phone";
 
 // 1. Import Hooks และ Supabase Client
 import { supabase } from "../data/supabaseClient";
-import { useContacts } from "../data/useContacts";
+import { notifyContactsChanged, useContacts } from "../data/useContacts";
 import { House, useHouses } from "../data/useHouses";
-import { MemberHouse, removeHouseMember, useHouseMembers } from "../data/useHouseMembers";
+import { MemberHouse, notifyMembersChanged, removeHouseMember, useHouseMembers } from "../data/useHouseMembers";
 import { useAuth } from "../contexts/AuthContext";
 import { C } from "../components/theme";
 import { safeBack } from "../lib/navigation";
@@ -92,9 +92,10 @@ function ContactMemberDetail() {
 
       if (error) throw error;
 
-      // อัปเดตหน้าจอทันที (Optimistic update)
+      // อัปเดตหน้าจอทันที (Optimistic update) + บอกหน้ารายชื่อให้ดึงใหม่
       const nextHouses = sharedHouses.filter((h) => h.id !== pendingHouse.id);
       setSharedHouses(nextHouses);
+      notifyContactsChanged();
 
       // ถ้าเตะออกจนไม่เหลือบ้านไหนแล้ว ให้เด้งกลับหน้าเดิมอัตโนมัติ
       if (nextHouses.length === 0) {
@@ -163,6 +164,7 @@ function ContactMemberDetail() {
         onClose={() => !isDeleting && setPendingHouse(undefined)}
         onConfirm={confirmRemove}
         title={`นำ ${member.name} ออกจาก${pendingHouse?.name ?? ""} ใช่ไหม`}
+        tone="danger"
         confirmLabel={isDeleting ? "กำลังนำออก..." : "นำบุคคลออก"}
         cancelLabel="ยกเลิก"
         titleAlign="left"
@@ -214,6 +216,8 @@ function AccountMemberDetail({ memberId }: { memberId: string }) {
       Alert.alert("นำสมาชิกออกไม่ได้", res.message ?? "กรุณาลองใหม่อีกครั้ง");
       return;
     }
+    // รายชื่อสมาชิกเปลี่ยน — หน้าสมาชิกที่เปิดค้างอยู่ต้องเห็นทันที
+    notifyMembersChanged();
     // ไม่เหลือบ้านที่อยู่ด้วยกันแล้ว = ไม่มีอะไรให้ดูในหน้านี้ → กลับหน้าสมาชิก
     if (member.houses.length <= 1) {
       safeBack(router);
@@ -290,6 +294,7 @@ function AccountMemberDetail({ memberId }: { memberId: string }) {
         onClose={() => !isDeleting && setPending(undefined)}
         onConfirm={confirmRemove}
         title={`นำ ${member.name} ออกจาก${pending?.name ?? ""} ใช่ไหม`}
+        tone="danger"
         confirmLabel={isDeleting ? "กำลังนำออก..." : "นำบุคคลออก"}
         cancelLabel="ยกเลิก"
         titleAlign="left"

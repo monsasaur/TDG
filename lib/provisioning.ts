@@ -25,7 +25,7 @@
  *   - ESPSecurity    ต้องตรงกับ WIFI_PROV_SECURITY_* ใน firmware
  */
 
-import { Platform } from "react-native";
+import { NativeModules, Platform, TurboModuleRegistry } from "react-native";
 
 // ชื่อ BLE ที่ firmware ประกาศต้องขึ้นต้นด้วยคำนี้ ถึงจะถูกกรองมาแสดง
 export const DEVICE_PREFIX = "ESP-";
@@ -51,10 +51,24 @@ type NativeModule = {
   ESPSecurity: { unsecure: any; secure: any; secure2: any };
 };
 
+/**
+ * ฝั่ง native ถูกลิงก์เข้ามาจริงไหม
+ *
+ * โหลดโมดูล JS สำเร็จไม่ได้แปลว่าใช้ได้ — ใน Expo Go ตัว JS มีอยู่ใน node_modules
+ * แต่ native ไม่มี (`NativeModules.EspIdfProvisioning` เป็น undefined)
+ * เช็คแค่ try/require จึงไม่พอ เคยทำให้หน้าค้นหาอุปกรณ์เดินต่อแบบ "ของจริง" แล้วตัน
+ */
+function nativeLinked(): boolean {
+  if (Platform.OS === "web") return false;
+  if (NativeModules?.EspIdfProvisioning) return true;
+  // getEnforcing จะ throw ถ้าไม่มี — ใช้ get ที่คืน null แทน
+  return !!TurboModuleRegistry?.get?.("EspIdfProvisioning");
+}
+
 let native: NativeModule | null = null;
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  native = require("@orbital-systems/react-native-esp-idf-provisioning");
+  native = nativeLinked() ? require("@orbital-systems/react-native-esp-idf-provisioning") : null;
 } catch {
   native = null;
 }
@@ -78,11 +92,16 @@ export function currentDeviceName(): string | null {
   return current?.name ?? null;
 }
 
-/** ค้นหาอุปกรณ์ที่อยู่ในโหมด provisioning — คืนชื่อ BLE เช่น "ESP-0001A" */
-export async function searchDevices(): Promise<string[]> {
+/**
+ * ค้นหาอุปกรณ์ที่อยู่ในโหมด provisioning — คืนชื่อ BLE เช่น "ESP-0001A"
+ * @param expected รหัสอุปกรณ์ที่กำลังจะเชื่อมต่อใหม่ — โหมดจำลองจะใส่ไว้ในรายการให้ด้วย
+ *                 (ของจริงไม่ใช้ค่านี้ ขึ้นกับว่าบอร์ดไหนประกาศ BLE ออกมาจริง)
+ */
+export async function searchDevices(expected?: string): Promise<string[]> {
   if (isMock) {
     await wait(MOCK_DELAY_MS);
-    return MOCK_DEVICES;
+    const code = expected?.trim();
+    return code && !MOCK_DEVICES.includes(code) ? [code, ...MOCK_DEVICES] : MOCK_DEVICES;
   }
   const { ESPProvisionManager, ESPTransport, ESPSecurity } = native!;
   const found = await ESPProvisionManager.searchESPDevices(

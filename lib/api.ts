@@ -106,6 +106,16 @@ export async function acknowledgeEvent(
   }
 }
 
+/** ปิดแจ้งเตือนบนเครื่องนี้ — ถอน token ออกจากฐาน (เซิร์ฟเวอร์เลิกส่ง push มาที่เครื่องนี้) */
+export async function unregisterPushToken(token: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/push/unregister`, {
+    method: "POST",
+    headers: await withUserToken(headers),
+    body: JSON.stringify({ token }),
+  });
+  if (!res.ok) throw new Error(`POST /push/unregister ${res.status}`);
+}
+
 export async function registerPushToken(payload: {
   token: string;
   device_id?: string | null;

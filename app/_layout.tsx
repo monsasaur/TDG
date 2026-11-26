@@ -7,6 +7,8 @@ import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { DevicesProvider } from "../contexts/DevicesContext";
 import { HouseFilterProvider } from "../contexts/HouseFilterContext";
 import { ReadStateProvider } from "../contexts/ReadStateContext";
+import { NetworkProvider } from "../contexts/NetworkContext";
+import OfflineGate from "../components/OfflineGate";
 import { ensureDefaultHouse } from "../data/defaultHouse";
 import { notifyHousesChanged, useHouses } from "../data/useHouses";
 
@@ -88,7 +90,11 @@ export default function RootLayout() {
         <AlertsProvider>
           <HouseFilterProvider>
             <ReadStateProvider>
-              <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
+              <NetworkProvider>
+                <OfflineGate>
+                  <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
+                </OfflineGate>
+              </NetworkProvider>
             </ReadStateProvider>
           </HouseFilterProvider>
         </AlertsProvider>

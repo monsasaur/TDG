@@ -9,6 +9,7 @@ import { useAlerts } from "../contexts/AlertsContext";
 import { useDevices } from "../contexts/DevicesContext";
 import { joinHouse, normalizeInviteCode } from "../data/houseInvites";
 import { notifyHousesChanged } from "../data/useHouses";
+import { notifyMembersChanged } from "../data/useHouseMembers";
 import { safeBack } from "../lib/navigation";
 
 /** รหัสเชิญมี 6 ตัว และ create_house_invite() ไม่ใช้ I O 0 1 (กันอ่านผิด) */
@@ -53,6 +54,7 @@ export default function EnterCodeScreen() {
     }
     // บ้านที่มองเห็นเปลี่ยน (บัญชีเดิม) — ดึงรายการบ้าน อุปกรณ์ และการแจ้งเตือนใหม่ทันที
     notifyHousesChanged();
+    notifyMembersChanged();
     void refreshDevices();
     void refreshAlerts();
     setJoined(res.houseName ?? "");

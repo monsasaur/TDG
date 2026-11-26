@@ -63,19 +63,25 @@ async function resolveRecipients(device_id) {
       houseName = ctx?.house_name || null;
       if (ctx?.house_id) {
         const contacts = await db.getHouseContactPhones(ctx.house_id);
-        const phones = [...new Set(contacts.map((c) => toE164TH(c.phone)).filter(Boolean))];
+        // เก็บชื่อคู่กับเบอร์ไว้ด้วย — ตอนรู้ผลสายจะได้บอกได้ว่า "ใครรับ" ไม่ใช่แค่เบอร์
+        const byPhone = new Map();
+        for (const c of contacts) {
+          const e164 = toE164TH(c.phone);
+          if (e164 && !byPhone.has(e164)) byPhone.set(e164, c.name || null);
+        }
         const skipped = contacts.length - contacts.filter((c) => toE164TH(c.phone)).length;
         if (skipped > 0) console.log(`⚠️  [CONTACTS] ข้ามเบอร์ที่อ่านไม่ออก ${skipped} เบอร์ (house=${ctx.house_id})`);
-        if (phones.length > 0) {
+        if (byPhone.size > 0) {
+          const phones = [...byPhone.keys()];
           console.log(`📇 [CONTACTS] house=${ctx.house_id} → ${phones.map(maskPhone).join(", ")}`);
-          return { phones, source: "house", houseName };
+          return { phones, names: byPhone, source: "house", houseName };
         }
       }
     } catch (err) {
       console.error("❌ [CONTACTS] lookup failed — ใช้ ALERT_PHONES แทน:", err.message);
     }
   }
-  return { phones: envPhones(), source: "env", houseName };
+  return { phones: envPhones(), names: new Map(), source: "env", houseName };
 }
 
 function fakeBox(title, lines) {
@@ -216,7 +222,7 @@ module.exports = {
   // Voice Call — ใช้ตอน escalation
   makeCall: async ({ location, event_id, event }) => {
     // 👈 1. เปลี่ยนพารามิเตอร์มารับ event ทั้งก้อน
-    const { phones, houseName: resolvedHouse } = await resolveRecipients(event?.device_id);
+    const { phones, names, houseName: resolvedHouse } = await resolveRecipients(event?.device_id);
     if (phones.length === 0) return { skipped: true };
 
     // 2. กำหนดข้อความและวิธีตั้งต้นเป็น Fallback
@@ -282,6 +288,13 @@ module.exports = {
       ),
     );
 
+    // สายที่ยิงออกไปจริง — ส่งต่อให้ callOutcomeService ไปตามว่าใครรับ/ไม่มีใครรับ
+    const calls = results
+      .map((r, i) => (r.status === "fulfilled" && r.value?.sid
+        ? { sid: r.value.sid, to: phones[i], name: names?.get(phones[i]) || null }
+        : null))
+      .filter(Boolean);
+
     const failed = results.filter((r) => r.status === "rejected");
     if (failed.length) {
       console.error(
@@ -298,6 +311,6 @@ module.exports = {
     }
 
     // 👈 5. ส่ง method กลับไปให้ escalationService รับไปบันทึก
-    return { made, failed: failed.length, method: escalationMethod };
+    return { made, failed: failed.length, method: escalationMethod, calls };
   },
 };

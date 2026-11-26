@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import AddActionPill from "../components/AddActionPill";
 import FilterPillButton, { DropdownAnchor } from "../components/FilterPillButton";
 import HouseFilterDropdown from "../components/HouseFilterDropdown";
 import PageHeader from "../components/PageHeader";
 import { useDevices } from "../contexts/DevicesContext";
+import { SkeletonList } from "../components/Skeleton";
 import { ALL_HOUSES, useHouseFilter } from "../contexts/HouseFilterContext";
 import { Device } from "../data/useDevices";
 import { useHouses } from "../data/useHouses"; // Import เพิ่ม
@@ -14,8 +15,15 @@ import { safeBack } from "../lib/navigation";
 
 export default function DevicesScreen() {
   const router = useRouter();
-  const { devices } = useDevices();
+  const { devices, refresh: refreshDevices, isLoading: devicesLoading } = useDevices();
   const { houses: dbHouses } = useHouses(); // ดึงบ้านจาก DB
+
+  // เปิดหน้านี้เมื่อไรก็ดึงอุปกรณ์ใหม่ — เพิ่ม/ลบอุปกรณ์จากที่อื่นแล้วต้องเห็นทันที ไม่ใช่รอเปิดแอปใหม่
+  useFocusEffect(
+    useCallback(() => {
+      void refreshDevices();
+    }, [refreshDevices]),
+  );
 
   const HOUSES = useMemo(() => dbHouses.map((h) => h.name), [dbHouses]);
   const showAll = HOUSES.length > 1;
@@ -57,6 +65,7 @@ export default function DevicesScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+        {devicesLoading && devices.length === 0 ? <SkeletonList count={3} /> : null}
         {housesToShow.map((h) => {
           const list = devicesByHouse[h] ?? [];
           return (

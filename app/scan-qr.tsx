@@ -7,10 +7,12 @@ import * as ImagePicker from "expo-image-picker";
 import PageHeader from "../components/PageHeader";
 import QrScannerFrame from "../components/QrScannerFrame";
 import ConfirmModal from "../components/ConfirmModal";
+import PermissionModal from "../components/PermissionModal";
 import { useAlerts } from "../contexts/AlertsContext";
 import { useDevices } from "../contexts/DevicesContext";
 import { joinHouse, parseInviteQr } from "../data/houseInvites";
 import { notifyHousesChanged } from "../data/useHouses";
+import { notifyMembersChanged } from "../data/useHouseMembers";
 import { C } from "../components/theme";
 import { safeBack } from "../lib/navigation";
 
@@ -53,6 +55,7 @@ export default function ScanQrScreen() {
     }
     // บ้านที่มองเห็นเปลี่ยน — ดึงรายการบ้าน อุปกรณ์ และการแจ้งเตือนใหม่ทันที
     notifyHousesChanged();
+    notifyMembersChanged();
     void refreshDevices();
     void refreshAlerts();
     setJoined(res.houseName ?? "");
@@ -169,18 +172,12 @@ export default function ScanQrScreen() {
         }
       />
 
-      <ConfirmModal
+      <PermissionModal
         visible={settingsModal}
         onClose={() => setSettingsModal(false)}
-        onConfirm={openSettings}
-        title="ต้องการสิทธิ์เพิ่มเติม"
-        titleAlign="left"
-        messageAlign="left"
-        cancelLabel="ยกเลิก"
-        confirmLabel="ไปที่การตั้งค่า"
-        message={
-          "หากต้องการใช้คุณสมบัตินี้ คุณต้องให้การอนุญาตต่อไปนี้ในการตั้งค่า\n\n• สิทธิ์เข้าถึงกล้อง\n  ใช้เพื่อสแกน QR Code\n\nหากต้องการใช้คุณสมบัตินี้ต่อ ให้เปิดการตั้งค่า จากนั้นเลือกให้สิทธิ์ในการใช้งาน"
-        }
+        onOpenSettings={openSettings}
+        items={[{ label: "กล้อง", reason: "ใช้สแกน QR Code ของรหัสเชิญเข้าบ้าน" }]}
+        footer="ไม่อยากเปิดกล้องก็กรอกรหัสบ้าน 6 ตัวแทนได้"
       />
     </View>
   );

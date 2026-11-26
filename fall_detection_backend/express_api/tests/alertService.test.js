@@ -122,7 +122,13 @@ describe('alertService.makeCall', () => {
     expect(arg.from).toBe('+1999')
     expect(arg.to).toBe('+6611111')
     expect(arg.twiml).toMatch(/<Response>/)
-    expect(res).toEqual({ made: 1, failed: 0, method: 'fallback' })
+    expect(res).toEqual({
+      made: 1,
+      failed: 0,
+      method: 'fallback',
+      // สาย ๆ ที่ยิงออกไป — callOutcomeService เอาไปตามว่าใครรับ
+      calls: [{ sid: 'CA1', to: '+6611111', name: null }],
+    })
   })
 
   // BUG-013: ชื่อบริเวณ / บทพูดที่มี & หรือ < ทำให้ TwiML เสีย Twilio ปฏิเสธทั้งสาย

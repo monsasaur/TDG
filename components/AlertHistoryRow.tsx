@@ -1,7 +1,7 @@
 import { Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Alert } from "../types/alert";
-import { STATUS_LOOK } from "./alertStatusStyle";
+import { lookFor } from "./alertStatusStyle";
 
 /**
  * แถวประวัติการแจ้งเตือน — ดีไซน์ใหม่ (HOME_DESIGN = "v2" ใน app/home.tsx)
@@ -15,7 +15,7 @@ interface Props {
 }
 
 function look(alert: Alert): { icon: keyof typeof Ionicons.glyphMap; bg: string; color: string; title: string } {
-  const st = STATUS_LOOK[alert.status];
+  const st = lookFor(alert);
   const title =
     alert.status === "completed" && alert.answeredBy ? `${st.label} · ${alert.answeredBy}` : st.label;
   return { icon: st.icon, bg: st.bg, color: st.fg, title };

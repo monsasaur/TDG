@@ -35,6 +35,25 @@ router.post('/register', async (req, res) => {
   }
 })
 
+// แอปปิดการแจ้งเตือนของเครื่องนี้ — เอา token ออกจากฐาน เซิร์ฟเวอร์จะไม่ส่ง push มาอีก
+// (สิทธิ์ของเครื่องไม่เกี่ยว ผู้ใช้เลือกปิดเฉพาะแอปได้โดยไม่ต้องไปปิดที่ตั้งค่าของเครื่อง)
+router.post('/unregister', async (req, res) => {
+  const { token } = req.body || {}
+
+  if (!token || typeof token !== 'string') {
+    return res.status(400).json({ error: 'token is required' })
+  }
+
+  try {
+    await dbService.removePushToken(token)
+    console.log(`🔕 push token removed: ${token.slice(0, 24)}...`)
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('unregister push token error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // debug: ดู token ที่ register อยู่ทั้งหมด
 router.get('/tokens', async (_req, res) => {
   try {

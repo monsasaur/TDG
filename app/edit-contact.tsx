@@ -14,7 +14,7 @@ import HousePillGroup from "../components/HousePillGroup";
 import LabeledTextField from "../components/LabeledTextField";
 import PageHeader from "../components/PageHeader";
 
-import { useContacts } from "../data/useContacts";
+import { notifyContactsChanged, useContacts } from "../data/useContacts";
 import { useHouses } from "../data/useHouses";
 import { useOwnerAccess } from "../data/useOwnerAccess";
 import { supabase } from "../data/supabaseClient";
@@ -141,6 +141,8 @@ export default function EditContactScreen() {
           if (insertError) throw insertError;
         }
       }
+      // รายชื่อเปลี่ยนแล้ว — ให้หน้าที่เปิดค้างอยู่ดึงใหม่ทันที ไม่ต้องออกแล้วเข้าใหม่
+      notifyContactsChanged();
       goBack();
     } catch (error) {
       console.error("Error updating contact:", error);
@@ -162,6 +164,7 @@ export default function EditContactScreen() {
 
       if (error) throw error;
       if (!removed || removed.length === 0) throw new Error("ไม่มีสิทธิ์ลบผู้ติดต่อนี้");
+      notifyContactsChanged();
       goBack();
     } catch (error) {
       console.error("Error deleting contact:", error);

@@ -19,17 +19,32 @@ export type AuditEntry = {
 
 const LIMIT = 100;
 
-export function useAuditLog(userId: string | null | undefined) {
-  const [entries, setEntries] = useState<AuditEntry[]>([]);
-  const [unavailable, setUnavailable] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+/** ดึงซ้ำทุกกี่มิลลิวินาที — จุดแดงบนแท็บ "ตั้งค่า" คิดจากรายการนี้ ต้องตามคนอื่นที่แก้ของในบ้านทัน */
+const REFRESH_MS = 60_000;
 
-  const fetchLog = useCallback(async () => {
-    if (!userId) {
-      setUnavailable(true);
-      setIsLoading(false);
-      return;
-    }
+/**
+ * เก็บผลไว้ที่เดียวแล้วแจกให้ทุก useAuditLog ที่เปิดอยู่
+ * (แถบเมนูล่างอยู่ทุกหน้า ถ้าต่างคนต่างดึง จะยิง 100 แถวใหม่ทุกครั้งที่สลับแท็บ)
+ */
+type AuditState = { entries: AuditEntry[]; unavailable: boolean; loading: boolean };
+const listeners = new Set<(s: AuditState) => void>();
+let cache: AuditState = { entries: [], unavailable: false, loading: true };
+let cachedFor: string | null = null;
+let inflight: Promise<void> | null = null;
+
+function emit() {
+  listeners.forEach((fn) => fn(cache));
+}
+
+async function loadAuditLog(userId: string | null | undefined, force = false): Promise<void> {
+  if (!userId) {
+    cache = { entries: [], unavailable: true, loading: false };
+    cachedFor = null;
+    emit();
+    return;
+  }
+  if (inflight && !force && cachedFor === userId) return inflight;
+  const run = (async () => {
     const { data, error } = await supabase
       .from("audit_logs")
       .select("id, at, actor, house_ids, entity, entity_id, action, changes")
@@ -37,21 +52,42 @@ export function useAuditLog(userId: string | null | undefined) {
       .limit(LIMIT);
     if (error) {
       // ไม่มีตาราง (42P01 / PGRST205) = ยังไม่เปิดระบบบัญชี · อื่น ๆ log ไว้ แล้วแสดงว่าว่าง
-      if (!["42P01", "PGRST205"].includes(error.code ?? "")) console.error("audit log:", error.message);
-      setUnavailable(["42P01", "PGRST205"].includes(error.code ?? ""));
-      setEntries([]);
+      const missing = ["42P01", "PGRST205"].includes(error.code ?? "");
+      if (!missing) console.error("audit log:", error.message);
+      cache = { entries: [], unavailable: missing, loading: false };
     } else {
-      setUnavailable(false);
-      setEntries((data ?? []) as AuditEntry[]);
+      cache = { entries: (data ?? []) as AuditEntry[], unavailable: false, loading: false };
     }
-    setIsLoading(false);
-  }, [userId]);
+    cachedFor = userId;
+    emit();
+  })();
+  inflight = run;
+  await run;
+  if (inflight === run) inflight = null;
+}
+
+export function useAuditLog(userId: string | null | undefined) {
+  const [state, setState] = useState<AuditState>(cache);
 
   useEffect(() => {
-    fetchLog();
-  }, [fetchLog]);
+    listeners.add(setState);
+    // เปลี่ยนบัญชี → ของเดิมใช้ไม่ได้
+    if (cachedFor && cachedFor !== userId) {
+      cache = { entries: [], unavailable: false, loading: true };
+      cachedFor = null;
+      emit();
+    }
+    void loadAuditLog(userId);
+    const timer = setInterval(() => void loadAuditLog(userId, true), REFRESH_MS);
+    return () => {
+      listeners.delete(setState);
+      clearInterval(timer);
+    };
+  }, [userId]);
 
-  return { entries, unavailable, isLoading, refetch: fetchLog };
+  const refetch = useCallback(() => loadAuditLog(userId, true), [userId]);
+
+  return { entries: state.entries, unavailable: state.unavailable, isLoading: state.loading, refetch };
 }
 
 /** ค่าใหม่ของคอลัมน์ (update เก็บเป็น {old, new} · insert/delete เก็บทั้งแถว) */

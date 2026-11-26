@@ -9,9 +9,11 @@ import TabHeader from "../components/TabHeader";
 import { V2, V2C } from "../components/designVersion";
 import HouseDropdown from "../components/HouseDropdown";
 import { useAlerts } from "../contexts/AlertsContext";
+import { SkeletonList } from "../components/Skeleton";
 import { ALL_HOUSES, useHouseFilter } from "../contexts/HouseFilterContext";
 import { useHouses } from "../data/useHouses";
 import ConfirmModal from "../components/ConfirmModal";
+import PermissionModal from "../components/PermissionModal";
 import {
   getNotificationPermissions,
   requestNotificationPermissions,
@@ -23,7 +25,7 @@ type Permission = "undetermined" | "granted" | "denied";
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const { systemAlerts } = useAlerts();
+  const { systemAlerts, isLoading: alertsLoading } = useAlerts();
   // ตัวกรองบ้านตัวเดียวกับหน้าหลัก (contexts/HouseFilterContext)
   const { selected: selectedHouse, setSelected: setSelectedHouse } = useHouseFilter();
   const { houses: dbHouses } = useHouses();
@@ -101,28 +103,18 @@ export default function NotificationsScreen() {
         }
       />
 
-      <ConfirmModal
+      <PermissionModal
         visible={settingsPrompt}
         onClose={() => setSettingsPrompt(false)}
-        onConfirm={handleOpenSettings}
-        confirmLabel="ไปที่การตั้งค่า"
-        titleAlign="left"
-        messageAlign="left"
-      >
-        <Text className="text-sm text-ink leading-5">
-          หากต้องการใช้คุณสมบัตินี้ คุณต้องให้การอนุญาติต่อไปในการตั้งค่า
-        </Text>
-        <View className="mt-3">
-          <Text className="text-sm text-ink">• การแจ้งเตือน</Text>
-          <Text className="text-xs text-sub ml-3 mt-0.5">
-            ใช้เพื่อรับการแจ้งเตือนของแอปพลิเคชัน
-          </Text>
-        </View>
-        <Text className="text-sm text-ink mt-4 leading-5">
-          หากต้องการใช้คุณสมบัติต่อ ให้เปิดการตั้งค่า
-          จากนั้นเลือกให้สิทธิ์ในการใช้งาน
-        </Text>
-      </ConfirmModal>
+        onOpenSettings={handleOpenSettings}
+        items={[
+          {
+            label: "การแจ้งเตือน",
+            reason: "ใช้เด้งเตือนบนเครื่องนี้ทันทีที่ตรวจพบการล้ม",
+          },
+        ]}
+        footer="ไม่เปิดก็ยังใช้แอปได้ แต่จะเห็นการแจ้งเตือนเฉพาะตอนเปิดแอปอยู่"
+      />
     </>
   );
 
@@ -140,7 +132,9 @@ export default function NotificationsScreen() {
         </TabHeader>
         <ScrollView className="flex-1" contentContainerStyle={{ paddingVertical: 20 }}>
           <Text className="text-sm text-[#858891] mb-1 mx-6">สถานะอุปกรณ์</Text>
-          {visibleSystemAlerts.length === 0 ? (
+          {alertsLoading ? (
+            <SkeletonList count={2} />
+          ) : visibleSystemAlerts.length === 0 ? (
             <EmptyState compact icon="hardware-chip-outline" title="อุปกรณ์ทำงานปกติ" description="ถ้าอุปกรณ์ขาดการเชื่อมต่อ จะแจ้งที่นี่" />
           ) : (
             visibleSystemAlerts.map((a) => <SystemAlertCard key={a.id} alert={a} />)
