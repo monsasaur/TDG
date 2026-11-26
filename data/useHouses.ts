@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { ensureDefaultHouse } from "./defaultHouse";
 import { supabase } from "./supabaseClient"; // แก้ path ให้ตรง
 
 /** ตรงกับ max_houses ใน create_house() / join_house() ของ supabase/accounts.sql */
@@ -22,27 +23,82 @@ let cache: House[] = [];
 let loaded = false;
 let inflight: Promise<void> | null = null;
 
+/**
+ * กำลังสร้างบ้านพื้นฐานให้บัญชีที่ยังไม่มีบ้าน (เพิ่งสมัคร / ออกจากบ้านสุดท้าย)
+ *
+ * ระหว่างนี้ยังตอบไม่ได้ว่า "ไม่มีบ้าน" — ถ้าตอบ หน้าหลักจะขึ้น "ยังไม่มีบ้านในระบบ"
+ * แวบหนึ่งก่อนบ้านจะถูกสร้างเสร็จ จึงนับเป็นสถานะกำลังโหลดเหมือนกัน
+ */
+let preparingDefault = false;
+let ensuring = false;
+
+/** บัญชีที่ login อยู่ · undefined = ยังไม่รู้ (ยังไม่ได้อ่าน session) */
+let currentUserId: string | null | undefined = undefined;
+
 function emit() {
-  houseListeners.forEach((fn) => fn(cache, !loaded));
+  const loading = !loaded || preparingDefault;
+  houseListeners.forEach((fn) => fn(cache, loading));
+}
+
+async function readUserId(): Promise<string | null> {
+  if (currentUserId !== undefined) return currentUserId;
+  const { data } = await supabase.auth.getSession();
+  // onAuthStateChange อาจตอบก่อนแล้ว — ของมันใหม่กว่า
+  if (currentUserId === undefined) currentUserId = data.session?.user?.id ?? null;
+  return currentUserId;
+}
+
+/** ดึงรายการบ้านอย่างเดียว ไม่แตะสถานะบ้านพื้นฐาน (กันเรียกวน) */
+async function loadHouses(): Promise<void> {
+  try {
+    const { data, error } = await supabase
+      .from("houses")
+      .select("id, name")
+      .order("created_at", { ascending: true }); // เรียงตามเวลาที่สร้าง
+    if (error) throw error;
+    if (data) cache = data;
+  } catch (error) {
+    console.error("Error fetching houses:", error);
+  } finally {
+    loaded = true;
+  }
+}
+
+/**
+ * บัญชีนี้ไม่มีบ้านสักหลัง → สร้างบ้านพื้นฐานให้ แล้วดึงรายการใหม่
+ * ลองครั้งเดียวต่อรอบ และไม่ว่าผลจะเป็นอย่างไรต้องปลด preparingDefault เสมอ
+ * (สร้างไม่สำเร็จ เช่นเน็ตหลุด → หน้าหลักขึ้นปุ่ม "เพิ่มบ้าน" ตามเดิม ไม่ค้างที่โครงร่าง)
+ */
+async function ensureDefault(userId: string): Promise<void> {
+  if (ensuring) return;
+  ensuring = true;
+  try {
+    const created = await ensureDefaultHouse(userId);
+    if (created) await loadHouses();
+  } finally {
+    ensuring = false;
+    preparingDefault = false;
+    emit();
+  }
 }
 
 /** ดึงรายการบ้านใหม่ให้ทุกหน้าพร้อมกัน · force = true บังคับยิงใหม่แม้มีคำขอค้างอยู่ */
 export async function fetchHouses(force = false): Promise<void> {
   if (inflight && !force) return inflight;
   const run = (async () => {
-    try {
-      const { data, error } = await supabase
-        .from("houses")
-        .select("id, name")
-        .order("created_at", { ascending: true }); // เรียงตามเวลาที่สร้าง
-      if (error) throw error;
-      if (data) cache = data;
-    } catch (error) {
-      console.error("Error fetching houses:", error);
-    } finally {
-      loaded = true;
+    await loadHouses();
+
+    const userId = cache.length === 0 ? await readUserId() : null;
+    if (cache.length === 0 && userId) {
+      // ยังไม่ emit ว่า "โหลดเสร็จแล้วไม่มีบ้าน" — รอผลการสร้างบ้านพื้นฐานก่อน
+      preparingDefault = true;
       emit();
+      await ensureDefault(userId);
+      return;
     }
+
+    preparingDefault = false;
+    emit();
   })();
   inflight = run;
   await run;
@@ -55,16 +111,22 @@ export function notifyHousesChanged() {
 }
 
 // เปลี่ยนบัญชี (login / ออกจากระบบ) → ของเก่าใช้ไม่ได้แล้ว ล้างแล้วดึงใหม่
-supabase.auth.onAuthStateChange(() => {
+supabase.auth.onAuthStateChange((_event, session) => {
+  const nextUserId = session?.user?.id ?? null;
+  const sameUser = currentUserId === nextUserId;
+  currentUserId = nextUserId;
+  // token refresh ของบัญชีเดิม — รายการบ้านยังใช้ได้ ไม่ต้องล้างให้จอกระพริบ
+  if (sameUser && loaded) return;
   cache = [];
   loaded = false;
+  preparingDefault = false;
   emit();
   void fetchHouses(true);
 });
 
 export function useHouses() {
   const [houses, setHouses] = useState<House[]>(cache);
-  const [isLoading, setIsLoading] = useState(!loaded);
+  const [isLoading, setIsLoading] = useState(!loaded || preparingDefault);
 
   useEffect(() => {
     const listener = (next: House[], loading: boolean) => {
